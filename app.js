@@ -370,6 +370,11 @@ function showState(stateElement) {
   if (registerProductFormContainer) {
     registerProductFormContainer.classList.add("hidden");
   }
+
+  if (stateElement !== resultEmpty) {
+    const target = stateElement.closest(".results-panel") || stateElement;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 // Main Business Logic: Barcode Identification & API Querying
