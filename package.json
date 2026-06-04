@@ -1,0 +1,13 @@
+{
+  "name": "foodscaner",
+  "version": "1.0.0",
+  "description": "Identificador Nutricional de Alimentos",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node server.js",
+    "vercel-build": "echo 'Static build complete'"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

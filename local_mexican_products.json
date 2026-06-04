@@ -1,0 +1,121 @@
+{
+  "123456789": {
+    "name": "Test Product",
+    "brand": "TestBrand",
+    "image": "",
+    "isFood": true,
+    "category": "General",
+    "gluten": {
+      "hasGluten": false,
+      "details": "Libre de gluten"
+    },
+    "calories": {
+      "value": 100,
+      "level": "Bajo",
+      "percent": 20
+    },
+    "allergens": [],
+    "nutriscore": "a"
+  },
+  "7501071140945": {
+    "name": "Refresco Squirt Cantarito 600ml",
+    "brand": "Peñafiel (Squirt)",
+    "image": "",
+    "isFood": true,
+    "category": "Refrescos y Bebidas Gasificadas",
+    "gluten": {
+      "hasGluten": false,
+      "details": "Sin Gluten (Libre de trazas)"
+    },
+    "calories": {
+      "value": 38,
+      "level": "Bajo",
+      "percent": 8
+    },
+    "allergens": [],
+    "nutriscore": "e"
+  },
+  "7501000112708": {
+    "name": "Gansito Pastelito Relleno",
+    "brand": "Marinela",
+    "image": "https://images.openfoodfacts.org/images/products/750/100/011/2708/front_es.52.400.jpg",
+    "isFood": true,
+    "category": "Pastelitos y repostería",
+    "gluten": {
+      "hasGluten": true,
+      "details": "Contiene gluten (harina de trigo)"
+    },
+    "calories": {
+      "value": 396,
+      "level": "Alto",
+      "percent": 78
+    },
+    "allergens": [
+      "Trigo (Gluten)",
+      "Leche",
+      "Huevo",
+      "Soja"
+    ],
+    "nutriscore": "e"
+  },
+  "7501020515152": {
+    "name": "Leche Lala Entera Ultra Pasteurizada 1L",
+    "brand": "LALA",
+    "image": "https://images.openfoodfacts.org/images/products/750/102/051/5152/front_es.162.400.jpg",
+    "isFood": true,
+    "category": "Leches y productos lácteos",
+    "gluten": {
+      "hasGluten": false,
+      "details": "Libre de gluten"
+    },
+    "calories": {
+      "value": 59,
+      "level": "Bajo",
+      "percent": 12
+    },
+    "allergens": [
+      "Leche"
+    ],
+    "nutriscore": "b"
+  },
+  "7501011130685": {
+    "name": "Papas Fritas Sabritas con Sal 42g",
+    "brand": "Sabritas",
+    "image": "https://images.openfoodfacts.org/images/products/750/101/113/0685/front_es.125.400.jpg",
+    "isFood": true,
+    "category": "Botanas y papas fritas",
+    "gluten": {
+      "hasGluten": false,
+      "details": "Sin gluten"
+    },
+    "calories": {
+      "value": 520,
+      "level": "Alto",
+      "percent": 95
+    },
+    "allergens": [],
+    "nutriscore": "d"
+  },
+  "7501011169630": {
+    "name": "Doritos Nachos 340g",
+    "brand": "Sabritas (PepsiCo)",
+    "image": "https://images.openfoodfacts.org/images/products/750/101/116/9630/front_es.40.400.jpg",
+    "isFood": true,
+    "category": "Botanas y frituras de maíz",
+    "gluten": {
+      "hasGluten": true,
+      "details": "Contiene gluten (trigo)"
+    },
+    "calories": {
+      "value": 488,
+      "level": "Alto",
+      "percent": 82
+    },
+    "allergens": [
+      "Trigo (Gluten)",
+      "Leche",
+      "Soja"
+    ],
+    "nutriscore": "d"
+  }
+}
