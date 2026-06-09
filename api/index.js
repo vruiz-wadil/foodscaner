@@ -58,6 +58,85 @@ app.get('/api/product/:barcode', async (req, res) => {
       return res.json({ status: 1, source: 'local', product: db[barcode] });
     }
 
+    // 2. Buscar en USDA FoodData Central
+    async function queryUSDA(barcode) {
+      const USDA_API_KEY = "wT50TCqGVpmeEfLhVbFZNpTBU4SVgiqNOlEp1iBK";
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      try {
+        console.log(`[USDA] Buscando en FoodData Central: ${barcode}`);
+        const response = await fetch(
+          `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: barcode, dataType: ["Branded"], pageSize: 1 }),
+            signal: ctrl.signal
+          }
+        );
+        clearTimeout(t);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.foods && data.foods.length > 0) {
+            const item = data.foods[0];
+            console.log(`[USDA] Encontrado en FoodData Central: ${item.description}`);
+
+            let kcal = 0;
+            if (item.foodNutrients) {
+              const energy = item.foodNutrients.find(n => n.nutrientName === "Energy" && n.unitName === "KCAL");
+              if (energy) kcal = Math.round(energy.value);
+            }
+
+            let energyLevel = "Bajo";
+            let percent = 0;
+            if (kcal > 400) { energyLevel = "Alto"; percent = Math.min(100, Math.round((kcal / 600) * 100)); }
+            else if (kcal >= 150) { energyLevel = "Moderado"; percent = Math.round((kcal / 400) * 100); }
+            else { energyLevel = "Bajo"; percent = Math.max(3, Math.round((kcal / 150) * 50)); }
+
+            const ingredientsText = (item.ingredients || "").toLowerCase();
+            const allergenText = (item.allergenWarning || "").toLowerCase();
+            const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
+            const detectedGluten = glutenKeywords.filter(kw => ingredientsText.includes(kw) || allergenText.includes(kw));
+            const hasGluten = detectedGluten.length > 0;
+            const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Libre de gluten (Según ingredientes USDA)";
+
+            let allergens = [];
+            if (item.allergenWarning) {
+              item.allergenWarning.split(",").forEach(a => { const t = a.trim(); if (t && !allergens.includes(t)) allergens.push(t); });
+            }
+
+            return {
+              status: 1,
+              source: 'local',
+              product: {
+                name: item.description || "Producto Desconocido",
+                brand: item.brandName || item.brandOwner || "Desconocida",
+                image: "",
+                isFood: true,
+                category: item.brandedFoodCategory || item.foodCategory || "Alimento (USDA)",
+                gluten: { hasGluten, details: glutenDetails },
+                calories: { value: kcal, level: energyLevel, percent },
+                allergens: allergens,
+                nutriscore: "-"
+              }
+            };
+          }
+        }
+      } catch (error) {
+        clearTimeout(t);
+        if (error.name === 'AbortError') {
+          console.warn(`[USDA] Timeout (8s) consultando FoodData Central`);
+        } else {
+          console.warn(`[USDA] Error consultando FoodData Central:`, error.message);
+        }
+      }
+      return null;
+    }
+
+    const usdaResult = await queryUSDA(barcode);
+    if (usdaResult) return res.json(usdaResult);
+
+    // 3. Buscar en Open Food Facts (mundial + MX)
     async function queryOFF(host, label) {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 8000);
