@@ -112,17 +112,9 @@ const debugBody = document.getElementById("debug-body");
 
 function showDebugPanel(sourceLabel, rawData) {
   if (!debugPanel || !debugSource || !debugRaw) return;
-  console.log("[DEBUG] Mostrando panel - fuente:", sourceLabel);
   debugSource.textContent = sourceLabel || "N/A";
   debugRaw.textContent = rawData ? JSON.stringify(rawData, null, 2) : "N/A";
-  debugPanel.style.display = "block";
-}
-
-function hideDebugPanel() {
-  if (debugPanel) {
-    debugPanel.style.display = "none";
-    if (debugBody) debugBody.classList.add("hidden");
-  }
+  console.log("[DEBUG] Panel actualizado - fuente:", sourceLabel);
 }
 
 const btnSimulateNotFound = document.getElementById("btn-simulate-not-found");
@@ -434,7 +426,6 @@ async function analyzeBarcode(barcode) {
     const data = await response.json();
 
     if (data.status === 0 || !data.product) {
-      hideDebugPanel();
       renderNotFound();
       return;
     }
@@ -774,7 +765,6 @@ function renderProductData(product, barcode) {
 
 // Render rejected state screen
 function renderRejected(product) {
-  hideDebugPanel();
   showState(resultRejected);
   rejectedTitle.textContent = product.isSimulated ? "Producto Simulado (No Alimento)" : "Producto Rechazado";
   rejectedMessage.textContent = product.isSimulated
@@ -786,7 +776,6 @@ function renderRejected(product) {
 
 // Render Not Found screen (extends rejected layout style)
 function renderNotFound() {
-  hideDebugPanel();
   showState(resultRejected);
   rejectedTitle.textContent = "No Encontrado";
   rejectedMessage.textContent = "No logramos identificar este código de barras en la base de datos abierta de Open Food Facts ni en nuestra base local.";

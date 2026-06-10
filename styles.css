@@ -1035,7 +1035,6 @@ body {
   border: 1px solid var(--border-glass);
   border-radius: var(--border-radius-sm);
   font-size: 0.8rem;
-  display: none;
 }
 
 .debug-toggle {
