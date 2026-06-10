@@ -814,8 +814,7 @@ function showAiSection(product) {
   const aiSection = document.getElementById("ai-query-section");
   const aiBtn = document.getElementById("btn-ai-query");
   if (!aiSection || !aiBtn) return;
-  const missingData = !product.allergensDataAvailable || (product.gluten && product.gluten.dataAvailable === false);
-  if (missingData) {
+  if (!product.allergensDataAvailable || (product.gluten && product.gluten.dataAvailable === false)) {
     aiSection.classList.remove("hidden");
     aiSection.style.display = "block";
     aiBtn.onclick = () => queryAI(product.name, product.brand);
