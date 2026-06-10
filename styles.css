@@ -1034,27 +1034,31 @@ body {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid var(--border-glass);
   border-radius: var(--border-radius-sm);
-  padding: 0.75rem;
   font-size: 0.8rem;
   display: none;
 }
 
-.debug-panel summary {
-  cursor: pointer;
+.debug-toggle {
+  width: 100%;
+  background: none;
+  border: none;
   color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.75rem;
+  text-align: left;
+  font-size: 0.85rem;
   font-weight: 500;
-  padding: 0.25rem 0;
 }
 
-.debug-panel summary:hover {
+.debug-toggle:hover {
   color: var(--text-primary);
 }
 
-.debug-content {
-  margin-top: 0.5rem;
+.debug-body {
+  padding: 0 0.75rem 0.75rem;
 }
 
-.debug-content p {
+.debug-body p {
   margin: 0.25rem 0;
 }
 

@@ -107,6 +107,8 @@ const notFoundActions = document.getElementById("not-found-actions");
 const debugSource = document.getElementById("debug-source");
 const debugRaw = document.getElementById("debug-raw");
 const debugPanel = document.getElementById("debug-panel");
+const debugToggle = document.getElementById("debug-toggle");
+const debugBody = document.getElementById("debug-body");
 
 function showDebugPanel(sourceLabel, rawData) {
   if (!debugPanel || !debugSource || !debugRaw) return;
@@ -114,15 +116,15 @@ function showDebugPanel(sourceLabel, rawData) {
   debugSource.textContent = sourceLabel || "N/A";
   debugRaw.textContent = rawData ? JSON.stringify(rawData, null, 2) : "N/A";
   debugPanel.style.display = "block";
-  debugPanel.open = true;
 }
 
 function hideDebugPanel() {
   if (debugPanel) {
     debugPanel.style.display = "none";
-    debugPanel.open = false;
+    if (debugBody) debugBody.classList.add("hidden");
   }
 }
+
 const btnSimulateNotFound = document.getElementById("btn-simulate-not-found");
 const btnShowRegisterForm = document.getElementById("btn-show-register-form");
 const registerProductFormContainer = document.getElementById("register-product-form-container");
@@ -136,6 +138,11 @@ let isScanning = false;
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", () => {
+  if (debugToggle && debugBody) {
+    debugToggle.addEventListener("click", () => {
+      debugBody.classList.toggle("hidden");
+    });
+  }
   setupEventListeners();
 });
 
