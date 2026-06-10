@@ -83,16 +83,17 @@ app.get('/api/product/:barcode', async (req, res, next) => {
   if (worldResult) {
     const p = worldResult.product;
     const pn = p.product_name || p.product_name_es || "Producto";
+    const bn = p.brands || "—";
     const hd = hasOFFData(p);
     const ai = hd ? (p.allergens_tags?.length > 0 ? p.allergens_tags.join(", ") : "Con datos") : "Sin datos";
     const ni = (p.nutriments && p.nutriments['energy-kcal_100g']) ? Math.round(p.nutriments['energy-kcal_100g']) + " kcal/100g" : "Sin datos";
-    sourceResults.push({ source: "Open Food Facts (Mundial)", found: true, productName: pn, allergenInfo: ai, nutritionInfo: ni });
+    sourceResults.push({ source: "Open Food Facts (Mundial)", found: true, productName: pn, brandName: bn, allergenInfo: ai, nutritionInfo: ni });
     if (hd) {
       return res.json({ ...worldResult, sourceLabel: "Open Food Facts (Mundial)", sourceResults });
     }
     bestResult = { ...worldResult, sourceLabel: "Open Food Facts (Mundial)" };
   } else {
-    sourceResults.push({ source: "Open Food Facts (Mundial)", found: false, productName: "—", allergenInfo: "—", nutritionInfo: "—" });
+    sourceResults.push({ source: "Open Food Facts (Mundial)", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
   }
 
   // 3. Buscar en Open Food Facts (MX)
@@ -100,16 +101,17 @@ app.get('/api/product/:barcode', async (req, res, next) => {
   if (mxResult) {
     const p = mxResult.product;
     const pn = p.product_name || p.product_name_es || "Producto";
+    const bn = p.brands || "—";
     const hd = hasOFFData(p);
     const ai = hd ? (p.allergens_tags?.length > 0 ? p.allergens_tags.join(", ") : "Con datos") : "Sin datos";
     const ni = (p.nutriments && p.nutriments['energy-kcal_100g']) ? Math.round(p.nutriments['energy-kcal_100g']) + " kcal/100g" : "Sin datos";
-    sourceResults.push({ source: "Open Food Facts (MX)", found: true, productName: pn, allergenInfo: ai, nutritionInfo: ni });
+    sourceResults.push({ source: "Open Food Facts (MX)", found: true, productName: pn, brandName: bn, allergenInfo: ai, nutritionInfo: ni });
     if (hd) {
       return res.json({ ...mxResult, sourceLabel: "Open Food Facts (MX)", sourceResults });
     }
     if (!bestResult) bestResult = { ...mxResult, sourceLabel: "Open Food Facts (MX)" };
   } else {
-    sourceResults.push({ source: "Open Food Facts (MX)", found: false, productName: "—", allergenInfo: "—", nutritionInfo: "—" });
+    sourceResults.push({ source: "Open Food Facts (MX)", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
   }
 
   // 4. Buscar en USDA FoodData Central
@@ -192,12 +194,13 @@ app.get('/api/product/:barcode', async (req, res, next) => {
   if (usdaResult) {
     const p = usdaResult.product;
     const pn = p.name || "Producto";
+    const bn = p.brand || "—";
     const ai = (p.allergens && p.allergens.length > 0) ? p.allergens.join(", ") : (p.gluten && p.gluten.dataAvailable !== false ? p.gluten.details : "Sin datos");
     const ni = (p.calories && p.calories.value > 0) ? p.calories.value + " kcal/100g" : "Sin datos";
-    sourceResults.push({ source: "USDA FoodData Central", found: true, productName: pn, allergenInfo: ai, nutritionInfo: ni });
+    sourceResults.push({ source: "USDA FoodData Central", found: true, productName: pn, brandName: bn, allergenInfo: ai, nutritionInfo: ni });
     return res.json({ ...usdaResult, sourceResults });
   } else {
-    sourceResults.push({ source: "USDA FoodData Central", found: false, productName: "—", allergenInfo: "—", nutritionInfo: "—" });
+    sourceResults.push({ source: "USDA FoodData Central", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
   }
 
   // 5. Fallback a UpcItemDb (Base de datos global con 20 millones de productos comerciales)
@@ -260,15 +263,15 @@ app.get('/api/product/:barcode', async (req, res, next) => {
           nutriscore: "-",
           isFromFallback: true
         }};
-        sourceResults.push({ source: "UpcItemDb", found: true, productName: item.title, allergenInfo: "Sin datos", nutritionInfo: "Sin datos" });
+        sourceResults.push({ source: "UpcItemDb", found: true, productName: item.title, brandName: item.brand || "—", allergenInfo: "Sin datos", nutritionInfo: "Sin datos" });
       } else {
-        sourceResults.push({ source: "UpcItemDb", found: false, productName: "—", allergenInfo: "—", nutritionInfo: "—" });
+        sourceResults.push({ source: "UpcItemDb", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
       }
     }
   } catch (error) {
     clearTimeout(upcTimeout);
     console.warn(`[Fallback API] Error consultando UpcItemDb:`, error.message);
-    sourceResults.push({ source: "UpcItemDb", found: false, productName: "—", allergenInfo: "—", nutritionInfo: "—" });
+    sourceResults.push({ source: "UpcItemDb", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
   }
 
   // 6. Fallback a GTINHub (10 requests/day gratis sin API key)
@@ -314,15 +317,15 @@ app.get('/api/product/:barcode', async (req, res, next) => {
             isFromFallback: true
           }};
         }
-        sourceResults.push({ source: "GTINHub", found: true, productName: nameGtin, allergenInfo: "Sin datos", nutritionInfo: "Sin datos" });
+        sourceResults.push({ source: "GTINHub", found: true, productName: nameGtin, brandName: brandGtin, allergenInfo: "Sin datos", nutritionInfo: "Sin datos" });
       } else {
-        sourceResults.push({ source: "GTINHub", found: false, productName: "—", allergenInfo: "—", nutritionInfo: "—" });
+        sourceResults.push({ source: "GTINHub", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
       }
     }
   } catch (error) {
     clearTimeout(gtinTimeout);
     console.warn(`[Fallback API] Error consultando GTINHub:`, error.message);
-    sourceResults.push({ source: "GTINHub", found: false, productName: "—", allergenInfo: "—", nutritionInfo: "—" });
+    sourceResults.push({ source: "GTINHub", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
   }
 
   // Si no está en ninguna base de datos

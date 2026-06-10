@@ -123,7 +123,7 @@ function renderSourceResults(results) {
   if (!tbody) return;
   tbody.innerHTML = "";
   if (!results || results.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:8px;">Sin datos de fuentes</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:8px;">Sin datos de fuentes</td></tr>';
     return;
   }
   results.forEach(r => {
@@ -134,7 +134,8 @@ function renderSourceResults(results) {
     const nutritionClass = r.nutritionInfo && r.nutritionInfo !== "—" && r.nutritionInfo !== "Sin datos" ? "status-yes" : "status-no";
     tr.innerHTML = `
       <td>${r.source}</td>
-      <td class="${foundClass}" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${foundText}">${foundText}</td>
+      <td class="${foundClass}" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${foundText}">${foundText}</td>
+      <td class="${foundClass}" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.brandName || "—"}">${r.brandName || "—"}</td>
       <td class="${allergenClass}">${r.allergenInfo || "—"}</td>
       <td class="${nutritionClass}">${r.nutritionInfo || "—"}</td>
     `;
