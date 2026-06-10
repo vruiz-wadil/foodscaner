@@ -1090,6 +1090,31 @@ body {
   line-height: 1.3;
 }
 
+/* Source results table */
+.source-table-wrapper {
+  margin-top: 0.5rem;
+  overflow-x: auto;
+}
+.source-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+}
+.source-table th {
+  text-align: left;
+  padding: 4px 6px;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-glass);
+}
+.source-table td {
+  padding: 4px 6px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.source-table .status-yes { color: var(--accent-primary); }
+.source-table .status-no { color: var(--text-muted); }
+
 /* Footer style */
 .app-footer {
   text-align: center;

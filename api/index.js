@@ -76,22 +76,32 @@ app.get('/api/product/:barcode', async (req, res) => {
     }
 
     let bestResult = null;
+    const sourceResults = [];
 
     const worldResult = await queryOFF("world.openfoodfacts.org", "OFF World");
     if (worldResult) {
-      if (hasOFFData(worldResult.product)) {
-        return res.json({ ...worldResult, sourceLabel: "Open Food Facts (Mundial)" });
+      const hd = hasOFFData(worldResult.product);
+      const hn = !!(worldResult.product.nutriments && Object.keys(worldResult.product.nutriments).length > 0);
+      sourceResults.push({ source: "Open Food Facts (Mundial)", found: true, hasAllergenData: hd, hasNutritionData: hn });
+      if (hd) {
+        return res.json({ ...worldResult, sourceLabel: "Open Food Facts (Mundial)", sourceResults });
       }
       bestResult = { ...worldResult, sourceLabel: "Open Food Facts (Mundial)" };
+    } else {
+      sourceResults.push({ source: "Open Food Facts (Mundial)", found: false, hasAllergenData: false, hasNutritionData: false });
     }
 
-    // 3. Buscar en Open Food Facts (MX)
     const mxResult = await queryOFF("mx.openfoodfacts.org", "OFF MX");
     if (mxResult) {
-      if (hasOFFData(mxResult.product)) {
-        return res.json({ ...mxResult, sourceLabel: "Open Food Facts (MX)" });
+      const hd = hasOFFData(mxResult.product);
+      const hn = !!(mxResult.product.nutriments && Object.keys(mxResult.product.nutriments).length > 0);
+      sourceResults.push({ source: "Open Food Facts (MX)", found: true, hasAllergenData: hd, hasNutritionData: hn });
+      if (hd) {
+        return res.json({ ...mxResult, sourceLabel: "Open Food Facts (MX)", sourceResults });
       }
       if (!bestResult) bestResult = { ...mxResult, sourceLabel: "Open Food Facts (MX)" };
+    } else {
+      sourceResults.push({ source: "Open Food Facts (MX)", found: false, hasAllergenData: false, hasNutritionData: false });
     }
 
     // 4. Buscar en USDA FoodData Central
@@ -171,7 +181,14 @@ app.get('/api/product/:barcode', async (req, res) => {
     }
 
     const usdaResult = await queryUSDA(barcode);
-    if (usdaResult) return res.json(usdaResult);
+    if (usdaResult) {
+      const hd = !!(usdaResult.product.allergens && usdaResult.product.allergens.length > 0) || !!(usdaResult.product.gluten && usdaResult.product.gluten.dataAvailable !== false);
+      const hn = usdaResult.product.calories && usdaResult.product.calories.value > 0;
+      sourceResults.push({ source: "USDA FoodData Central", found: true, hasAllergenData: hd, hasNutritionData: hn });
+      return res.json({ ...usdaResult, sourceResults });
+    } else {
+      sourceResults.push({ source: "USDA FoodData Central", found: false, hasAllergenData: false, hasNutritionData: false });
+    }
 
     let upcTimeout;
     let fallbackResult = null;
@@ -209,10 +226,14 @@ app.get('/api/product/:barcode', async (req, res) => {
             calories: { value: 0, level: "No Especificado", percent: 10 },
             allergens: [], nutriscore: "-", isFromFallback: true
           }};
+          sourceResults.push({ source: "UpcItemDb", found: true, hasAllergenData: false, hasNutritionData: false });
+        } else {
+          sourceResults.push({ source: "UpcItemDb", found: false, hasAllergenData: false, hasNutritionData: false });
         }
       }
     } catch (error) {
       clearTimeout(upcTimeout);
+      sourceResults.push({ source: "UpcItemDb", found: false, hasAllergenData: false, hasNutritionData: false });
     }
 
     let gtinTimeout;
@@ -249,16 +270,20 @@ app.get('/api/product/:barcode', async (req, res) => {
               allergens: [], nutriscore: "-", isFromFallback: true
             }};
           }
+          sourceResults.push({ source: "GTINHub", found: true, hasAllergenData: false, hasNutritionData: false });
+        } else {
+          sourceResults.push({ source: "GTINHub", found: false, hasAllergenData: false, hasNutritionData: false });
         }
       }
     } catch (error) {
       clearTimeout(gtinTimeout);
+      sourceResults.push({ source: "GTINHub", found: false, hasAllergenData: false, hasNutritionData: false });
     }
 
-    if (bestResult) return res.json(bestResult);
-    if (fallbackResult) return res.json(fallbackResult);
+    if (bestResult) return res.json({ ...bestResult, sourceResults });
+    if (fallbackResult) return res.json({ ...fallbackResult, sourceResults });
 
-    return res.status(404).json({ status: 0, message: "Producto no encontrado" });
+    return res.status(404).json({ status: 0, message: "Producto no encontrado", sourceResults });
   } catch (err) {
     res.status(500).json({ status: 0, message: "Error interno del servidor" });
   }

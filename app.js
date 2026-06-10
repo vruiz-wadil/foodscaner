@@ -114,7 +114,28 @@ function showDebugPanel(sourceLabel, rawData) {
   if (!debugPanel || !debugSource || !debugRaw) return;
   debugSource.textContent = sourceLabel || "N/A";
   debugRaw.textContent = rawData ? JSON.stringify(rawData, null, 2) : "N/A";
+  renderSourceResults(rawData?.sourceResults);
   console.log("[DEBUG] Panel actualizado - fuente:", sourceLabel);
+}
+
+function renderSourceResults(results) {
+  const tbody = document.getElementById("source-results-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  if (!results || results.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:8px;">Sin datos de fuentes</td></tr>';
+    return;
+  }
+  results.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.source}</td>
+      <td class="${r.found ? 'status-yes' : 'status-no'}">${r.found ? "Sí" : "No"}</td>
+      <td class="${r.hasAllergenData ? 'status-yes' : 'status-no'}">${r.hasAllergenData ? "Sí" : "No"}</td>
+      <td class="${r.hasNutritionData ? 'status-yes' : 'status-no'}">${r.hasNutritionData ? "Sí" : "No"}</td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 const btnSimulateNotFound = document.getElementById("btn-simulate-not-found");
@@ -405,6 +426,7 @@ async function analyzeBarcode(barcode) {
     setTimeout(() => {
       renderProductData(DEMO_PRODUCTS[barcode], barcode);
       showDebugPanel("Base de Datos Local (Demo)", DEMO_PRODUCTS[barcode]);
+      renderSourceResults(null);
     }, 800);
     return;
   }
@@ -447,6 +469,7 @@ async function analyzeBarcode(barcode) {
     setTimeout(() => {
       renderProductData(simulatedProduct, barcode);
       showDebugPanel("Simulado (Sin Conexión)", null);
+      renderSourceResults(null);
     }, 500);
   }
 }
