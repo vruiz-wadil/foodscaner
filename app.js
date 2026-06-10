@@ -735,6 +735,7 @@ function renderProductData(product, barcode) {
   if (product.isFromFallback) {
     analysisGrid.classList.add("hidden");
     noNutritionAlert.classList.remove("hidden");
+    showAiSection(product);
     return;
   }
 
@@ -795,20 +796,89 @@ function renderProductData(product, barcode) {
     allergensSafeMsg.className = "safe-msg";
   }
 
-  // Render Nutri-Score indicator (temporalmente deshabilitado)
-  /* const score = (product.nutriscore || "").toLowerCase();
-  nutriscoreVal.textContent = score ? score.toUpperCase() : "N/D";
-  
-  document.querySelectorAll(".ns-score").forEach(el => {
-    el.classList.remove("active");
-  });
+  showAiSection(product);
+}
 
-  if (score && ["a", "b", "c", "d", "e"].includes(score)) {
-    const activeBlock = document.querySelector(`.ns-score[data-score="${score}"]`);
-    if (activeBlock) {
-      activeBlock.classList.add("active");
+function showAiSection(product) {
+  const aiSection = document.getElementById("ai-query-section");
+  const aiBtn = document.getElementById("btn-ai-query");
+  if (!aiSection || !aiBtn) return;
+  if (!product.allergensDataAvailable || (product.gluten && product.gluten.dataAvailable === false)) {
+    aiSection.classList.remove("hidden");
+    aiBtn.onclick = () => queryAI(product.name, product.brand);
+  } else {
+    aiSection.classList.add("hidden");
+  }
+}
+
+function queryAI(name, brand) {
+  const loading = document.getElementById("ai-query-loading");
+  const result = document.getElementById("ai-query-result");
+  const error = document.getElementById("ai-query-error");
+  const btn = document.getElementById("btn-ai-query");
+  if (!loading || !result || !error || !btn) return;
+
+  loading.classList.remove("hidden");
+  result.classList.add("hidden");
+  error.classList.add("hidden");
+  btn.disabled = true;
+  btn.textContent = "Consultando...";
+
+  fetch('/api/ai-query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, brand })
+  })
+  .then(r => r.json())
+  .then(data => {
+    loading.classList.add("hidden");
+    btn.disabled = false;
+    btn.textContent = "Consultar IA";
+    if (data.error) {
+      error.textContent = "Error: " + (data.details || data.error);
+      error.classList.remove("hidden");
+      return;
     }
-  } */
+    renderAIResult(data);
+    result.classList.remove("hidden");
+  })
+  .catch(err => {
+    loading.classList.add("hidden");
+    btn.disabled = false;
+    btn.textContent = "Consultar IA";
+    error.textContent = "Error de conexión: " + err.message;
+    error.classList.remove("hidden");
+  });
+}
+
+function renderAIResult(data) {
+  const glutenLine = document.getElementById("ai-gluten-line");
+  const allergensLine = document.getElementById("ai-allergens-line");
+  const confidenceLine = document.getElementById("ai-confidence-line");
+  const notesLine = document.getElementById("ai-notes-line");
+
+  if (glutenLine) {
+    const g = data.gluten || {};
+    const icon = g.hasGluten ? "⚠️" : "✅";
+    glutenLine.innerHTML = `<strong>Gluten:</strong> ${icon} ${g.details || "Sin determinar"}`;
+    glutenLine.style.color = g.hasGluten ? "var(--accent-alert)" : "var(--accent-primary)";
+  }
+
+  if (allergensLine) {
+    const a = data.allergens || [];
+    const text = a.length > 0 ? a.join(", ") : "No se detectaron alérgenos comunes";
+    allergensLine.innerHTML = `<strong>Alérgenos:</strong> ${text}`;
+    allergensLine.style.color = a.length > 0 ? "var(--accent-alert)" : "var(--accent-primary)";
+  }
+
+  if (confidenceLine) {
+    const labels = { alta: "Alta", media: "Media", baja: "Baja" };
+    confidenceLine.textContent = `Confianza: ${labels[data.confidence] || data.confidence || "N/A"}`;
+  }
+
+  if (notesLine) {
+    notesLine.textContent = data.notes ? `📝 ${data.notes}` : "";
+  }
 }
 
 // Render rejected state screen

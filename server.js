@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -373,6 +374,65 @@ app.post('/api/product', (req, res) => {
     return res.json({ success: true, message: "Producto registrado exitosamente" });
   } else {
     return res.status(500).json({ success: false, message: "Error interno al guardar" });
+  }
+});
+
+app.post('/api/ai-query', async (req, res) => {
+  const { name, brand } = req.body;
+  if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
+
+  const prompt = `Eres un experto en análisis de alimentos. Analiza el producto "${name}"${brand ? ` de la marca "${brand}"` : ''}.
+
+Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, sin markdown, sin bloques de código:
+
+{
+  "gluten": {
+    "hasGluten": true,
+    "details": "Explicación breve"
+  },
+  "allergens": ["Leche", "Soja"],
+  "confidence": "alta/media/baja",
+  "notes": "notas adicionales"
+}
+
+Si no tienes suficiente información usa confidence "baja" y explica en notes.`;
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://foodscaner.vercel.app',
+        'X-Title': 'Yomi Food Scanner'
+      },
+      body: JSON.stringify({
+        model: 'openrouter/auto',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(502).json({ error: "Error de OpenRouter", details: errorText });
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return res.status(502).json({ error: "Respuesta vacía de OpenRouter" });
+
+    let parsed;
+    try {
+      const cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      return res.status(502).json({ error: "No se pudo parsear la respuesta JSON", raw: content });
+    }
+
+    res.json(parsed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

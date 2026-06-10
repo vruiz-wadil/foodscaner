@@ -279,7 +279,21 @@
               </div>
             </div>
 
-        </div>
+          <div class="ai-query-section hidden" id="ai-query-section">
+            <div class="ai-query-header">
+              <h4>🧠 Análisis por IA</h4>
+              <p id="ai-query-desc">No encontramos información de alérgenos. Consulta a la IA sobre este producto.</p>
+            </div>
+            <button id="btn-ai-query" class="btn btn-secondary" type="button">Consultar IA</button>
+            <div id="ai-query-loading" class="hidden" style="margin-top:8px;color:var(--text-secondary);font-size:0.85rem;">Consultando IA...</div>
+            <div id="ai-query-result" class="hidden" style="margin-top:12px;">
+              <div id="ai-gluten-line" style="margin-bottom:8px;font-size:0.9rem;"></div>
+              <div id="ai-allergens-line" style="margin-bottom:8px;font-size:0.9rem;"></div>
+              <div id="ai-confidence-line" style="font-size:0.8rem;color:var(--text-muted);"></div>
+              <div id="ai-notes-line" style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary);font-style:italic;"></div>
+            </div>
+            <div id="ai-query-error" class="hidden" style="margin-top:8px;color:var(--accent-error);font-size:0.85rem;"></div>
+          </div>
         </div>
 
         <div class="debug-panel" id="debug-panel">
