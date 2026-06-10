@@ -797,6 +797,12 @@ body {
   font-family: monospace;
 }
 
+.data-source-info {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 /* Analysis Cards Grid */
 .analysis-grid {
   display: grid;

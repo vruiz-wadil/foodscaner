@@ -110,6 +110,7 @@ const debugRaw = document.getElementById("debug-raw");
 const debugPanel = document.getElementById("debug-panel");
 const debugToggle = document.getElementById("debug-toggle");
 const debugBody = document.getElementById("debug-body");
+const dataSourceInfo = document.getElementById("data-source-info");
 
 function showDebugPanel(sourceLabel, rawData) {
   if (!debugPanel || !debugSource || !debugRaw) return;
@@ -150,6 +151,7 @@ const registerProductFormContainer = document.getElementById("register-product-f
 const newProductForm = document.getElementById("new-product-form");
 
 let currentBarcodeQuery = "";
+let currentDataSources = "";
 
 // Application Scanner State
 let html5QrCode = null;
@@ -430,8 +432,9 @@ async function analyzeBarcode(barcode) {
   // 1. Check if mock data is available to bypass remote fetching for immediate feedback
   if (DEMO_PRODUCTS[barcode]) {
     setTimeout(() => {
+      currentDataSources = "Base de Datos Local (Demo)";
       renderProductData(DEMO_PRODUCTS[barcode], barcode);
-      showDebugPanel("Base de Datos Local (Demo)", DEMO_PRODUCTS[barcode]);
+      showDebugPanel(currentDataSources, DEMO_PRODUCTS[barcode]);
       renderSourceResults(null);
     }, 800);
     return;
@@ -458,7 +461,7 @@ async function analyzeBarcode(barcode) {
       return;
     }
 
-    const sourceLabel = data.sourceLabel || "Desconocido";
+    currentDataSources = data.sourceLabel || "Desconocido";
 
     // Process and normalize API data
     if (data.source === 'local') {
@@ -467,14 +470,15 @@ async function analyzeBarcode(barcode) {
       const parsedProduct = parseApiProduct(data.product);
       renderProductData(parsedProduct, barcode);
     }
-    showDebugPanel(sourceLabel, data);
+    showDebugPanel(currentDataSources, data);
 
   } catch (error) {
     console.warn("Fallo de conexión o CORS al consultar la API. Activando simulación offline para el código:", barcode);
     const simulatedProduct = generateSimulatedProduct(barcode);
     setTimeout(() => {
+      currentDataSources = "Simulado (Sin Conexión)";
       renderProductData(simulatedProduct, barcode);
-      showDebugPanel("Simulado (Sin Conexión)", null);
+      showDebugPanel(currentDataSources, null);
       renderSourceResults(null);
     }, 500);
   }
@@ -748,6 +752,8 @@ function renderProductData(product, barcode) {
       aiSect.style.display = "block";
       aiBt.onclick = () => queryAI(product.name, product.brand);
     }
+    if (dataSourceInfo) dataSourceInfo.classList.add("hidden");
+    if (debugPanel) debugPanel.classList.add("hidden");
     return;
   }
 
@@ -802,10 +808,17 @@ function renderProductData(product, barcode) {
     allergensSafeMsg.classList.remove("hidden");
     allergensSafeMsg.textContent = "Sin información de alérgenos (no hay datos en la base)";
     allergensSafeMsg.className = "safe-msg allergen-unknown";
+    if (dataSourceInfo) dataSourceInfo.classList.add("hidden");
+    if (debugPanel) debugPanel.classList.add("hidden");
   } else {
     allergensSafeMsg.classList.remove("hidden");
     allergensSafeMsg.textContent = "✓ Libre de alérgenos comunes declarados.";
     allergensSafeMsg.className = "safe-msg";
+    if (dataSourceInfo) {
+      dataSourceInfo.textContent = currentDataSources ? `Fuente: ${currentDataSources}` : "";
+      dataSourceInfo.classList.remove("hidden");
+    }
+    if (debugPanel) debugPanel.classList.remove("hidden");
   }
 
   showAiSection(product);
