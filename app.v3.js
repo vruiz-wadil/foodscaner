@@ -379,7 +379,7 @@ function parseApiProduct(product) {
   const enrichedGluten = product._gluten_enriched;
 
   let hasGluten = false;
-  let glutenDetails = (glutenDataAvailable || enrichedGluten) ? "Libre de gluten" : "Sin información de gluten";
+  let glutenDetails = (glutenDataAvailable || enrichedGluten) ? "Sin ingredientes con gluten detectados en la información declarada" : "Sin información de gluten";
 
   if (enrichedGluten) {
     hasGluten = enrichedGluten.hasGluten;
@@ -717,7 +717,7 @@ function renderProductData(product, barcode) {
     allergensSafeMsg.className = "safe-msg allergen-unknown";
   } else {
     allergensSafeMsg.classList.remove("hidden");
-    allergensSafeMsg.textContent = "✓ Libre de alérgenos comunes declarados.";
+    allergensSafeMsg.textContent = "✓ Sin alérgenos detectados en la información declarada.";
     allergensSafeMsg.className = "safe-msg";
   }
 

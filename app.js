@@ -531,7 +531,7 @@ function parseApiProduct(product) {
   const glutenDataAvailable = !!(product.ingredients_text || (product.traces && product.traces !== "undefined") || (product.allergens_tags && product.allergens_tags.length > 0));
 
   let hasGluten = false;
-  let glutenDetails = glutenDataAvailable ? "Libre de gluten" : "Sin información de gluten";
+  let glutenDetails = glutenDataAvailable ? "Sin ingredientes con gluten detectados en la información declarada" : "Sin información de gluten";
 
   if (glutenDataAvailable) {
     if ((matchesGlutenInIngredients || hasGlutenAllergenTag) && !isLabeledGlutenFree) {
@@ -804,7 +804,7 @@ function renderProductData(product, barcode) {
     allergensSafeMsg.className = "safe-msg allergen-unknown";
   } else {
     allergensSafeMsg.classList.remove("hidden");
-    allergensSafeMsg.textContent = "✓ Libre de alérgenos comunes declarados.";
+    allergensSafeMsg.textContent = "✓ Sin alérgenos detectados en la información declarada.";
     allergensSafeMsg.className = "safe-msg";
   }
 

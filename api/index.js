@@ -531,7 +531,7 @@ app.post('/api/product', (req, res) => {
     name: product.name, brand: product.brand || "Desconocida",
     image: product.image || "", isFood: product.isFood !== undefined ? product.isFood : true,
     category: product.category || "General",
-    gluten: { hasGluten: product.hasGluten || false, details: product.glutenDetails || (product.hasGluten ? "Contiene gluten" : "Libre de gluten") },
+    gluten: { hasGluten: product.hasGluten || false, details: product.glutenDetails || (product.hasGluten ? "Contiene gluten" : "Sin información de gluten declarada") },
     calories: { value: parseInt(product.calories) || 0, level: product.calories > 400 ? "Alto" : product.calories >= 150 ? "Moderado" : "Bajo", percent: Math.min(100, Math.round((parseInt(product.calories) || 0) / 5)) },
     allergens: Array.isArray(product.allergens) ? product.allergens : [],
     nutriscore: product.nutriscore || "c"

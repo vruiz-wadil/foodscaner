@@ -373,7 +373,7 @@ app.post('/api/product', (req, res) => {
     category: product.category || "General",
     gluten: {
       hasGluten: product.hasGluten || false,
-      details: product.glutenDetails || (product.hasGluten ? "Contiene gluten" : "Libre de gluten")
+      details: product.glutenDetails || (product.hasGluten ? "Contiene gluten" : "Sin información de gluten declarada")
     },
     calories: {
       value: parseInt(product.calories) || 0,
