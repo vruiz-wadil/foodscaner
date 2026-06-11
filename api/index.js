@@ -271,7 +271,7 @@ app.get('/api/product/:barcode', async (req, res) => {
               const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
               const detectedGluten = glutenKeywords.filter(kw => ingredientsText.includes(kw) || allergenText.includes(kw));
               const hasGluten = detectedGluten.length > 0;
-              const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Libre de gluten (Según ingredientes USDA)";
+            const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "No se detectaron ingredientes con gluten en la base USDA";
 
               let allergens = [];
               if (item.allergenWarning) {
@@ -485,7 +485,9 @@ app.get('/api/product/:barcode', async (req, res) => {
           }
           if (!p.ingredients_text && enrichment.ingredientsText) {
             p.ingredients_text = enrichment.ingredientsText;
-            p._gluten_enriched = enrichment.gluten;
+            if (enrichment.gluten.hasGluten) {
+              p._gluten_enriched = enrichment.gluten;
+            }
           }
           p._enrichedFrom = "USDA (por nombre)";
         }
@@ -502,7 +504,7 @@ app.get('/api/product/:barcode', async (req, res) => {
         if (enrichment.calories.value > 0) {
           fallbackResult.product.calories = enrichment.calories;
         }
-        if (enrichment.gluten.hasGluten || (enrichment.gluten.details && !fallbackResult.product.gluten.hasGluten)) {
+        if (enrichment.gluten.hasGluten) {
           fallbackResult.product.gluten = enrichment.gluten;
         }
         fallbackResult.product.allergens = enrichment.allergens;
