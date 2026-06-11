@@ -919,7 +919,7 @@ function renderRejected(product) {
 function renderNotFound() {
   showState(resultRejected);
   rejectedTitle.textContent = "No Encontrado";
-  rejectedMessage.textContent = "No logramos identificar este código de barras en la base de datos abierta de Open Food Facts ni en nuestra base local.";
+  rejectedMessage.textContent = "No encontramos este código de barras en las bases de datos disponibles.";
   rejectedProductName.textContent = "Desconocido";
   rejectedProductCategory.textContent = "N/D";
 }
