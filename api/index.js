@@ -360,7 +360,8 @@ REGLAS ESTRICTAS:
       body: JSON.stringify({
         model: 'openrouter/auto',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1
+        temperature: 0.1,
+        route: 'free'
       })
     });
 
