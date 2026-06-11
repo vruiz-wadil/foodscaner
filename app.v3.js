@@ -376,10 +376,16 @@ function parseApiProduct(product) {
 
   const glutenDataAvailable = !!(product.ingredients_text || (product.traces && product.traces !== "undefined") || (product.allergens_tags && product.allergens_tags.length > 0));
 
-  let hasGluten = false;
-  let glutenDetails = glutenDataAvailable ? "Libre de gluten" : "Sin información de gluten";
+  // Use USDA-enriched gluten data if available (takes priority)
+  const enrichedGluten = product._gluten_enriched;
 
-  if (glutenDataAvailable) {
+  let hasGluten = false;
+  let glutenDetails = (glutenDataAvailable || enrichedGluten) ? "Libre de gluten" : "Sin información de gluten";
+
+  if (enrichedGluten) {
+    hasGluten = enrichedGluten.hasGluten;
+    glutenDetails = enrichedGluten.details;
+  } else if (glutenDataAvailable) {
     if ((matchesGlutenInIngredients || hasGlutenAllergenTag) && !isLabeledGlutenFree) {
       hasGluten = true;
       const detectedInIngredients = glutenKeywords.filter(k => ingredientsText.includes(k));
@@ -603,7 +609,8 @@ function parseApiProduct(product) {
     allergens: allergensList,
     allergensDataAvailable,
     traces: [...new Map(tracesList.map(t => [t.toLowerCase().trim(), t])).values()],
-    nutriscore: nutriscore
+    nutriscore: nutriscore,
+    _enrichedFrom: product._enrichedFrom || null
   };
 }
 
@@ -665,11 +672,15 @@ function renderProductData(product, barcode) {
   }
 
   if (dataSourceInfo) {
-    dataSourceInfo.textContent = currentDataSources ? `Fuente: ${currentDataSources}` : "";
+    let sourceText = currentDataSources ? `Fuente: ${currentDataSources}` : "";
+    if (product._enrichedFrom) {
+      sourceText += ` + ${product._enrichedFrom}`;
+    }
+    dataSourceInfo.textContent = sourceText;
     dataSourceInfo.classList.remove("hidden");
   }
 
-  if (product.isFromFallback) {
+  if (product.isFromFallback && !product._enrichedFrom) {
     analysisGrid.classList.add("hidden");
     noNutritionAlert.classList.remove("hidden");
     runAICheck(product);

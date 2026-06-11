@@ -323,6 +323,63 @@ app.get('/api/product/:barcode', async (req, res) => {
       }
     }
 
+    // Enrichment: buscar por nombre en USDA si OFF/UPCItemDb tiene nombre pero faltan datos
+    async function enrichFromUSDA(productName, brandName) {
+      if (!productName || productName === "Producto" || productName === "—" || productName === "Producto Desconocido") return null;
+      const query = brandName && brandName !== "—" && brandName !== "Desconocida" ? `${productName} ${brandName}` : productName;
+      const USDA_API_KEY = "wT50TCqGVpmeEfLhVbFZNpTBU4SVgiqNOlEp1iBK";
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      try {
+        const response = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, dataType: ["Branded"], pageSize: 3 }),
+          signal: ctrl.signal
+        });
+        clearTimeout(t);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.foods && data.foods.length > 0) {
+            const queryLower = query.toLowerCase();
+            const matched = data.foods.find(f => {
+              const desc = (f.description || "").toLowerCase();
+              return desc.includes(queryLower) || queryLower.includes(desc);
+            }) || data.foods[0];
+            const item = matched;
+            let kcal = 0;
+            if (item.foodNutrients) {
+              const energy = item.foodNutrients.find(n => n.nutrientName === "Energy" && n.unitName === "KCAL");
+              if (energy) kcal = Math.round(energy.value);
+            }
+            let energyLevel = "Bajo", percent = 0;
+            if (kcal > 400) { energyLevel = "Alto"; percent = Math.min(100, Math.round((kcal / 600) * 100)); }
+            else if (kcal >= 150) { energyLevel = "Moderado"; percent = Math.round((kcal / 400) * 100); }
+            else { energyLevel = "Bajo"; percent = Math.max(3, Math.round((kcal / 150) * 50)); }
+            const ingredientsText = (item.ingredients || "").toLowerCase();
+            const allergenText = (item.allergenWarning || "").toLowerCase();
+            const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
+            const detectedGluten = glutenKeywords.filter(kw => ingredientsText.includes(kw) || allergenText.includes(kw));
+            const hasGluten = detectedGluten.length > 0;
+            const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Libre de gluten (Según ingredientes USDA)";
+            let allergens = [];
+            if (item.allergenWarning) {
+              const usdaToEn = { milk: "en:milk", eggs: "en:eggs", peanuts: "en:peanuts", soy: "en:soybeans", soybeans: "en:soybeans", wheat: "en:wheat", "tree nuts": "en:nuts", fish: "en:fish", shellfish: "en:crustaceans", sesame: "en:sesame-seeds", mustard: "en:mustard", sulfites: "en:sulphur-dioxide-and-sulphites" };
+              item.allergenWarning.split(",").forEach(a => {
+                const t = a.trim().toLowerCase();
+                const mapped = usdaToEn[t] || t;
+                if (t && !allergens.includes(mapped)) allergens.push(mapped);
+              });
+            }
+            return { calories: { value: kcal, level: energyLevel, percent }, gluten: { hasGluten, details: glutenDetails }, allergens, ingredientsText: item.ingredients || "" };
+          }
+        }
+      } catch (error) {
+        clearTimeout(t);
+      }
+      return null;
+    }
+
     // Fallback: UPCItemDb (solo nombre/marca, sin datos nutrimentales)
     let upcTimeout;
     let fallbackResult = null;
@@ -372,11 +429,45 @@ app.get('/api/product/:barcode', async (req, res) => {
 
     // Solo UPCItemDb (GTINHub omitido: misma calidad de datos, redundante)
     if (bestResult) {
+      const p = bestResult.product;
+      const pName = p.product_name || p.product_name_es || "";
+      const pBrand = p.brands || "";
+      const needsEnrich = !p.nutriments || !p.nutriments['energy-kcal_100g'] || !p.allergens_tags || p.allergens_tags.length === 0;
+      if (needsEnrich) {
+        const enrichment = await enrichFromUSDA(pName, pBrand);
+        if (enrichment) {
+          if (!p.nutriments) p.nutriments = {};
+          if (!p.nutriments['energy-kcal_100g'] && enrichment.calories.value > 0) {
+            p.nutriments['energy-kcal_100g'] = enrichment.calories.value;
+          }
+          if (!p.allergens_tags || p.allergens_tags.length === 0) {
+            p.allergens_tags = enrichment.allergens;
+          }
+          if (!p.ingredients_text && enrichment.ingredientsText) {
+            p.ingredients_text = enrichment.ingredientsText;
+            p._gluten_enriched = enrichment.gluten;
+          }
+          p._enrichedFrom = "USDA (por nombre)";
+        }
+      }
       const respData = { ...bestResult, sourceResults };
       setCacheEntry(barcode, respData, bestSource, bestLastModified);
       return res.json(respData);
     }
     if (fallbackResult) {
+      const fbName = fallbackResult.product.name || "";
+      const fbBrand = fallbackResult.product.brand || "";
+      const enrichment = await enrichFromUSDA(fbName, fbBrand);
+      if (enrichment) {
+        if (enrichment.calories.value > 0) {
+          fallbackResult.product.calories = enrichment.calories;
+        }
+        if (enrichment.gluten.hasGluten || (enrichment.gluten.details && !fallbackResult.product.gluten.hasGluten)) {
+          fallbackResult.product.gluten = enrichment.gluten;
+        }
+        fallbackResult.product.allergens = enrichment.allergens;
+        fallbackResult.product._enrichedFrom = "USDA (por nombre)";
+      }
       const respData = { ...fallbackResult, sourceResults };
       setCacheEntry(barcode, respData, "UpcItemDb", null);
       return res.json(respData);
