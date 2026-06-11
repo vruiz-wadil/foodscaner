@@ -650,19 +650,6 @@ function renderProductData(product, barcode) {
   }
   
   productBarcode.textContent = barcode;
-
-  // Badge para datos del fallback (UpcItemDb) con info nutricional limitada
-  const existingFallbackBadge = productBrand.parentNode.querySelector(".badge-fallback");
-  if (existingFallbackBadge) {
-    existingFallbackBadge.remove();
-  }
-  
-  if (product.isFromFallback) {
-    const fbBadge = document.createElement("span");
-    fbBadge.className = "badge badge-fallback";
-    fbBadge.textContent = "Sin Info Nutricional (Fallback)";
-    productBrand.parentNode.insertBefore(fbBadge, productBrand.nextSibling);
-  }
   
   if (product.image) {
     productImg.src = product.image;
