@@ -333,13 +333,14 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, 
 {
   "gluten": {
     "hasGluten": true,
-    "details": "Explicación breve"
+    "details": "Justificación breve con ingredientes específicos detectados"
   },
   "allergens": ["Leche", "Soja"],
   "confidence": "alta/media/baja",
   "notes": "notas adicionales"
 }
 
+IMPORTANTE: Si hasGluten es true, details DEBE incluir el ingrediente o razón específica por la que se detecta gluten (ej: "Contiene trigo en ingredientes", "el nombre sugiere harina de trigo"). Si hasGluten es false, details debe indicar por qué se considera libre de gluten.
 Si no tienes suficiente información usa confidence "baja" y explica en notes.`;
 
   try {

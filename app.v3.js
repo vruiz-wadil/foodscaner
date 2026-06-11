@@ -815,7 +815,8 @@ function renderAIResult(data) {
   if (glutenLine) {
     const g = data.gluten || {};
     const icon = g.hasGluten ? "⚠️" : "✅";
-    glutenLine.innerHTML = `<strong>Gluten:</strong> ${icon} ${g.details || "Sin determinar"}`;
+    const details = g.details || "Sin determinar";
+    glutenLine.innerHTML = `<strong>Gluten:</strong> ${icon} ${details}`;
     glutenLine.style.color = g.hasGluten ? "var(--accent-alert)" : "var(--accent-primary)";
   }
 
