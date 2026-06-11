@@ -169,7 +169,7 @@ app.get('/api/product/:barcode', async (req, res, next) => {
           const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
           const detectedGluten = glutenKeywords.filter(kw => ingredientsText.includes(kw) || allergenText.includes(kw));
           const hasGluten = detectedGluten.length > 0;
-          const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Libre de gluten (Según ingredientes USDA)";
+          const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "No se detectaron ingredientes con gluten en la base USDA";
 
           let allergens = [];
           if (item.allergenWarning) {
@@ -257,7 +257,7 @@ app.get('/api/product/:barcode', async (req, res, next) => {
         const isFood = !matchesNonFood;
 
         let hasGluten = false;
-        let glutenDetails = "Libre de gluten (Requiere verificar empaque)";
+        let glutenDetails = "Información no disponible (Requiere verificar el empaque)";
         
         const glutenKeywords = ["trigo", "wheat", "harina", "flour", "avena", "oat", "cebada", "barley", "centeno", "rye"];
         const detectedGluten = glutenKeywords.filter(kw => titleLower.includes(kw) || descLower.includes(kw));
@@ -317,7 +317,7 @@ app.get('/api/product/:barcode', async (req, res, next) => {
 
         const glutenKw = ["trigo","wheat","harina","flour","avena","oat","cebada","barley"];
         const hasGlutenGtin = glutenKw.some(k => titleLower.includes(k) || descLower.includes(k));
-        const glutenDetailsGtin = hasGlutenGtin ? "Contiene gluten (detectado en descripción)" : "Libre de gluten (Requiere verificar empaque)";
+        const glutenDetailsGtin = hasGlutenGtin ? "Contiene gluten (detectado en descripción)" : "Información no disponible (Requiere verificar el empaque)";
 
         if (!fallbackResult) {
           fallbackResult = { status: 1, source: 'local', sourceLabel: 'GTINHub', product: {

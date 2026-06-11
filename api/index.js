@@ -407,7 +407,7 @@ app.get('/api/product/:barcode', async (req, res) => {
           const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye"];
           const detectedGluten = glutenKeywords.filter(kw => titleLower.includes(kw) || descLower.includes(kw));
           const hasGluten = detectedGluten.length > 0;
-          const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Libre de gluten (Requiere verificar empaque)";
+          const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Información no disponible (Requiere verificar el empaque)";
 
           fallbackResult = { status: 1, source: 'local', sourceLabel: 'UpcItemDb', product: {
             name: item.title, brand: item.brand || "Desconocida",
@@ -452,7 +452,7 @@ app.get('/api/product/:barcode', async (req, res) => {
             fallbackResult = { status: 1, source: 'local', sourceLabel: 'GTINHub', product: {
               name: nameGtin, brand: brandGtin, image: p.image || "", isFood: isFoodGtin,
               category: p.category || (isFoodGtin ? "Comida / Bebida (GTINHub)" : "No Alimenticio"),
-              gluten: { hasGluten: hasGlutenGtin, details: hasGlutenGtin ? "Contiene gluten (detectado)" : "Libre de gluten (Requiere verificar empaque)" },
+              gluten: { hasGluten: hasGlutenGtin, details: hasGlutenGtin ? "Contiene gluten (detectado)" : "Información no disponible (Requiere verificar el empaque)" },
               calories: { value: 0, level: "No Especificado", percent: 10 },
               allergens: [], nutriscore: "-", isFromFallback: true
             }};

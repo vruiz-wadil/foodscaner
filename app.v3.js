@@ -736,7 +736,7 @@ function renderProductData(product, barcode) {
     });
   } else if (product.allergensDataAvailable === false) {
     allergensSafeMsg.classList.remove("hidden");
-    allergensSafeMsg.textContent = "Sin información de alérgenos (no hay datos en la base)";
+    allergensSafeMsg.textContent = "Información no disponible (Requiere verificar el empaque)";
     allergensSafeMsg.className = "safe-msg allergen-unknown";
   } else {
     allergensSafeMsg.classList.remove("hidden");
