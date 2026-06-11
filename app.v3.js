@@ -893,7 +893,7 @@ function compareWithDB(aiData, product) {
     const aiOnly = aiAll.filter(a => !dbSet.has(a));
     if (aiOnly.length > 0) {
       discAllergens.classList.remove("hidden");
-      discAllergens.innerHTML = "<strong>Alérgenos:</strong> La IA detectó posibles alérgenos adicionales no incluidos en la información declarada: <strong>" + aiOnly.join(", ") + "</strong>";
+      discAllergens.innerHTML = "<strong>Alérgenos:</strong> Es posible la presencia de alérgenos adicionales no incluidos en la información declarada: <strong>" + aiOnly.join(", ") + "</strong>";
       hasDiscrepancy = true;
     }
   }
