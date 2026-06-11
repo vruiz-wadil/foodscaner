@@ -609,7 +609,8 @@ function parseApiProduct(product) {
     allergensDataAvailable,
     traces: [...new Map(tracesList.map(t => [t.toLowerCase().trim(), t])).values()],
     nutriscore: nutriscore,
-    _enrichedFrom: product._enrichedFrom || null
+    _enrichedFrom: product._enrichedFrom || null,
+    ingredientsText: product.ingredients_text || null
   };
 }
 
@@ -768,7 +769,7 @@ function runAICheck(product) {
   fetch('/api/ai-query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: product.name, brand: product.brand })
+    body: JSON.stringify({ name: product.name, brand: product.brand, ingredients: product.ingredientsText || null, allergens: product.allergens || null })
   })
   .then(r => r.json())
   .then(data => {

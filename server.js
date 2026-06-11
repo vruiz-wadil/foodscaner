@@ -393,24 +393,31 @@ app.post('/api/product', (req, res) => {
 });
 
 app.post('/api/ai-query', async (req, res) => {
-  const { name, brand } = req.body;
+  const { name, brand, ingredients, allergens } = req.body;
   if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
 
-  const prompt = `Eres un experto en análisis de alimentos. Analiza el producto "${name}"${brand ? ` de la marca "${brand}"` : ''}.
+  const prompt = `Eres un experto en análisis de alimentos. Analiza el producto "${name}"${brand ? ` de la marca "${brand}"` : ''}.${ingredients ? `\n\nLista de ingredientes: "${ingredients}"` : ''}${allergens && allergens.length ? `\n\nAlérgenos declarados: ${allergens.join(", ")}` : ''}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, sin markdown, sin bloques de código:
 
 {
   "gluten": {
     "hasGluten": true,
-    "details": "Explicación breve"
+    "details": "Justificación breve con ingredientes específicos detectados"
   },
   "allergens": ["Leche", "Soja"],
   "confidence": "alta/media/baja",
   "notes": "notas adicionales"
 }
 
-Si no tienes suficiente información usa confidence "baja" y explica en notes.`;
+REGLAS ESTRICTAS:
+- Basa tu análisis ÚNICAMENTE en la lista de ingredientes proporcionada. No inventes ingredientes ni asumas la composición del producto por su nombre o marca.
+- hasGluten debe ser true SOLO si la lista de ingredientes contiene un ingrediente específico que contenga gluten (ej: "harina de trigo", "avena", "cebada").
+- Si no hay lista de ingredientes, basa tu análisis en el conocimiento general del producto y usa confidence "baja".
+- Si hasGluten es false, details debe explicar por qué no se detectaron ingredientes con gluten en la lista proporcionada.
+- Distingue entre "contiene gluten como ingrediente" (hasGluten: true) y "puede contener trazas" (hasGluten: false, menciónalo en notes).
+- SI TIENES DUDAS, usa confidence "baja" y explica en notes.
+- No inventes ingredientes. Si la lista de ingredientes no contiene algo, no lo incluyas en tu análisis.`;
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
