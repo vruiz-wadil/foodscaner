@@ -890,15 +890,10 @@ function compareWithDB(aiData, product) {
     const dbAll = (product.allergens || []).map(a => a.toLowerCase().trim());
     const aiAll = (aiData.allergens || []).map(a => a.toLowerCase().trim());
     const dbSet = new Set(dbAll);
-    const aiSet = new Set(aiAll);
     const aiOnly = aiAll.filter(a => !dbSet.has(a));
-    const dbOnly = dbAll.filter(a => !aiSet.has(a));
-    const parts = [];
-    if (aiOnly.length > 0) parts.push("La IA detectó posibles alérgenos adicionales no incluidos en la información declarada: <strong>" + aiOnly.join(", ") + "</strong>");
-    if (dbOnly.length > 0) parts.push("Alérgenos en la información declarada no confirmados por la IA: <strong>" + dbOnly.join(", ") + "</strong>");
-    if (parts.length > 0) {
+    if (aiOnly.length > 0) {
       discAllergens.classList.remove("hidden");
-      discAllergens.innerHTML = "<strong>Alérgenos:</strong> " + parts.join(". ");
+      discAllergens.innerHTML = "<strong>Alérgenos:</strong> La IA detectó posibles alérgenos adicionales no incluidos en la información declarada: <strong>" + aiOnly.join(", ") + "</strong>";
       hasDiscrepancy = true;
     }
   }
