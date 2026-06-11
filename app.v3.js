@@ -37,7 +37,6 @@ const rejectedMessage = document.getElementById("rejected-message");
 const rejectedProductName = document.getElementById("rejected-product-name");
 const rejectedProductCategory = document.getElementById("rejected-product-category");
 const notFoundActions = document.getElementById("not-found-actions");
-const dataSourceInfo = document.getElementById("data-source-info");
 
 const btnShowRegisterForm = document.getElementById("btn-show-register-form");
 const registerProductFormContainer = document.getElementById("register-product-form-container");
@@ -650,21 +649,12 @@ function renderProductData(product, barcode) {
   }
   
   productBarcode.textContent = barcode;
-  
+
   if (product.image) {
     productImg.src = product.image;
     productImg.alt = product.name;
   } else {
     productImg.src = "";
-  }
-
-  if (dataSourceInfo) {
-    let sourceText = currentDataSources ? `Fuente: ${currentDataSources}` : "";
-    if (product._enrichedFrom) {
-      sourceText += ` + ${product._enrichedFrom}`;
-    }
-    dataSourceInfo.textContent = sourceText;
-    dataSourceInfo.classList.remove("hidden");
   }
 
   if (product.isFromFallback && !product._enrichedFrom) {
@@ -815,8 +805,11 @@ function showDBDisclaimer(product) {
     el.classList.add("hidden");
     return;
   }
-  const srcText = document.getElementById("data-source-info")?.textContent?.replace("Fuente: ", "") || currentDataSources || "Open Food Facts";
-  sourceEl.textContent = srcText;
+  const sources = [];
+  if (currentDataSources) sources.push(currentDataSources);
+  if (product.isFromFallback) sources.push("UPCItemDB");
+  if (product._enrichedFrom) sources.push(product._enrichedFrom);
+  sourceEl.textContent = sources.join(" + ") || "Open Food Facts";
   el.classList.remove("hidden");
 }
 
