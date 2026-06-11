@@ -780,20 +780,9 @@ let _lastAiProductKey = "";
 
 function runAICheck(product) {
   const aiSection = document.getElementById("ai-query-section");
-  const discrepancyBox = document.getElementById("ai-discrepancy");
   if (!aiSection) return;
 
   showDBDisclaimer(product);
-
-  const showFullAI = product.isFromFallback;
-
-  if (showFullAI) {
-    aiSection.classList.remove("hidden");
-    aiSection.style.display = "block";
-  } else {
-    aiSection.classList.add("hidden");
-    aiSection.style.display = "";
-  }
 
   const key = product.name + "|" + product.brand;
   if (key === _lastAiProductKey) return;
@@ -804,6 +793,8 @@ function runAICheck(product) {
   const error = document.getElementById("ai-query-error");
   if (!loading || !result || !error) return;
 
+  aiSection.classList.remove("hidden");
+  aiSection.style.display = "block";
   loading.classList.remove("hidden");
   result.classList.add("hidden");
   error.classList.add("hidden");
@@ -817,27 +808,25 @@ function runAICheck(product) {
   .then(data => {
     loading.classList.add("hidden");
     if (data.error) {
-      if (showFullAI) {
-        error.textContent = "Error: " + (data.details || data.error);
-        error.classList.remove("hidden");
-      }
+      error.textContent = "Error: " + (data.details || data.error);
+      error.classList.remove("hidden");
       return;
     }
 
-    renderAIResult(data);
-
-    if (showFullAI) {
+    if (product.isFromFallback) {
+      renderAIResult(data);
       result.classList.remove("hidden");
     } else {
-      compareWithDB(data, product);
+      if (!compareWithDB(data, product)) {
+        aiSection.classList.add("hidden");
+        aiSection.style.display = "";
+      }
     }
   })
   .catch(err => {
     loading.classList.add("hidden");
-    if (showFullAI) {
-      error.textContent = "Error de conexión: " + err.message;
-      error.classList.remove("hidden");
-    }
+    error.textContent = "Error de conexión: " + err.message;
+    error.classList.remove("hidden");
   });
 }
 
@@ -857,14 +846,18 @@ function showDBDisclaimer(product) {
 }
 
 function compareWithDB(aiData, product) {
-  const discBox = document.getElementById("ai-discrepancy");
-  const discGluten = document.getElementById("ai-discrepancy-gluten");
-  const discAllergens = document.getElementById("ai-discrepancy-allergens");
-  if (!discBox || !discGluten || !discAllergens) return;
+  const result = document.getElementById("ai-query-result");
+  const glutenLine = document.getElementById("ai-gluten-line");
+  const allergensLine = document.getElementById("ai-allergens-line");
+  const confidenceLine = document.getElementById("ai-confidence-line");
+  const notesLine = document.getElementById("ai-notes-line");
+  if (!result || !glutenLine || !allergensLine || !confidenceLine || !notesLine) return;
 
-  discBox.classList.add("hidden");
-  discGluten.classList.add("hidden");
-  discAllergens.classList.add("hidden");
+  glutenLine.innerHTML = "";
+  allergensLine.innerHTML = "";
+  confidenceLine.innerHTML = "";
+  notesLine.innerHTML = "";
+  result.classList.add("hidden");
 
   let hasDiscrepancy = false;
 
@@ -872,15 +865,14 @@ function compareWithDB(aiData, product) {
     const dbVal = product.gluten.hasGluten;
     const aiVal = aiData.gluten.hasGluten;
     if (dbVal !== aiVal) {
-      discGluten.classList.remove("hidden");
       const conf = (aiData.confidence || "").toLowerCase();
       const confNote = conf && conf !== "alta" ? ` (Confianza: ${conf})` : "";
       if (dbVal) {
-        discGluten.innerHTML = `<strong>Gluten:</strong> La información declarada indica que contiene gluten, pero la IA no pudo confirmarlo${confNote}.`;
+        glutenLine.innerHTML = `<strong>Gluten:</strong> La información declarada indica que contiene gluten, pero la IA no pudo confirmarlo${confNote}.`;
       } else {
         const details = aiData.gluten.details || "ingredientes detectados por IA";
         const prefix = conf === "baja" ? "La IA sugiere posible presencia de gluten sin certeza" : "se sospecha la presencia de gluten debido a";
-        discGluten.innerHTML = `<strong>Gluten:</strong> Si bien la información declarada indica que no contiene gluten, ${prefix}: ${details}${confNote}`;
+        glutenLine.innerHTML = `<strong>Gluten:</strong> Si bien la información declarada indica que no contiene gluten, ${prefix}: ${details}${confNote}`;
       }
       hasDiscrepancy = true;
     }
@@ -893,15 +885,18 @@ function compareWithDB(aiData, product) {
     const dbSet = new Set(dbAll);
     const aiOnly = aiAll.filter(a => !dbSet.has(a) && !tracesSet.has(a));
     if (aiOnly.length > 0) {
-      discAllergens.classList.remove("hidden");
-      discAllergens.innerHTML = "<strong>Alérgenos:</strong> Es posible la presencia de alérgenos adicionales no incluidos en la información declarada: <strong>" + aiOnly.join(", ") + "</strong>";
+      allergensLine.innerHTML = "<strong>Alérgenos:</strong> Es posible la presencia de alérgenos adicionales no incluidos en la información declarada: <strong>" + aiOnly.join(", ") + "</strong>";
       hasDiscrepancy = true;
     }
   }
 
   if (hasDiscrepancy) {
-    discBox.classList.remove("hidden");
+    result.classList.remove("hidden");
+  } else {
+    result.classList.add("hidden");
   }
+
+  return hasDiscrepancy;
 }
 
 function renderAIResult(data) {

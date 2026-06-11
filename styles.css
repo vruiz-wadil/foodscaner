@@ -1041,32 +1041,6 @@ body {
   margin: 0;
 }
 
-/* AI Discrepancy Box */
-.ai-discrepancy {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: rgba(255, 200, 0, 0.06);
-  border: 1px solid rgba(255, 200, 0, 0.3);
-  border-radius: var(--border-radius-md);
-}
-
-.ai-discrepancy-header h4 {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  margin-bottom: 8px;
-  color: var(--accent-alert);
-}
-
-.discrepancy-item {
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: var(--border-radius-sm);
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  line-height: 1.4;
-}
-
 /* Traces (may contain) section */
 .traces-section {
   margin-top: 14px;
