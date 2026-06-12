@@ -776,32 +776,7 @@ body {
   filter: grayscale(1);
 }
 
-/* Dietary badge color legend */
-.dietary-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 0.7rem;
-}
-.dietary-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-muted);
-}
-.dietary-legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-.dietary-legend-dot.db-yes { background: #6ee7b7; }
-.dietary-legend-dot.ai-yes { background: #fde047; }
-.dietary-legend-dot.ai-no  { background: #fdba74; }
-.dietary-legend-dot.db-no  { background: #fca5a5; }
-.dietary-legend-dot.unknown { background: #9ca3af; }
+
 
 .fallback-nutrition-alert {
   display: flex;
