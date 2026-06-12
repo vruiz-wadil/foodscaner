@@ -1402,7 +1402,6 @@ function runAICheck(product) {
         cardNotRec.classList.remove("hidden");
       }
     }
-    }
 
     const missingData = product.gluten?.dataAvailable === false || product.allergensDataAvailable === false;
     if (product.isFromFallback || missingData) {
