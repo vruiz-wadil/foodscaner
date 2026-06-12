@@ -375,7 +375,8 @@ function isGlutenRelated(label) {
 function renderDietaryBadges(product) {
   const d = product.dietary;
   if (!d) { dietaryBadges.classList.add("hidden"); return; }
-  const veganAttr = document.getElementById("dietary-vegan-attr");
+  const g = product.gluten;
+  const glutenStatus = document.getElementById("dietary-gluten-status");
   const veganStatus = document.getElementById("dietary-vegan-status");
   const vegStatus = document.getElementById("dietary-vegetarian-status");
   const kosherStatus = document.getElementById("dietary-kosher-status");
@@ -385,31 +386,50 @@ function renderDietaryBadges(product) {
     el.className = "dietary-status " + colorClass;
     el.textContent = text;
   }
+  // Gluten row
+  if (g) {
+    if (g.classification === "certified") {
+      setStatus(glutenStatus, "db-yes", "Sí");
+    } else if (!g.hasGluten && g.classification !== "no_info") {
+      setStatus(glutenStatus, "ai-yes", "Posiblemente Libre");
+    } else if (g.hasGluten && g.source === 'ai') {
+      setStatus(glutenStatus, "ai-no", "Posiblemente NO Libre");
+    } else if (g.hasGluten) {
+      setStatus(glutenStatus, "db-no", "No");
+    } else {
+      setStatus(glutenStatus, "unknown", "Sin Info");
+    }
+  }
+  // Vegan
   if (d.vegan === true) {
-    veganAttr.textContent = "🌱 Vegano";
+    document.getElementById("dietary-vegan-attr").textContent = "🌱 Vegano";
     setStatus(veganStatus, d.veganSource === 'db' ? 'db-yes' : 'ai-yes', d.veganSource === 'db' ? "Sí" : "Probable");
   } else if (d.vegan === false) {
-    veganAttr.textContent = "❌ No vegano";
+    document.getElementById("dietary-vegan-attr").textContent = "❌ No vegano";
     setStatus(veganStatus, d.veganSource === 'db' ? 'db-no' : 'ai-no', d.veganSource === 'db' ? "No" : "Probable No");
   } else {
-    veganAttr.textContent = "🌱 Vegano";
+    document.getElementById("dietary-vegan-attr").textContent = "🌱 Vegano";
     setStatus(veganStatus, "unknown", "Sin Info");
   }
+  // Vegetarian
   if (d.vegetarian === true) {
     setStatus(vegStatus, d.vegetarianSource === 'db' ? 'db-yes' : 'ai-yes', d.vegetarianSource === 'db' ? "Sí" : "Probable");
   } else {
     setStatus(vegStatus, "unknown", "Sin Info");
   }
+  // Kosher
   if (d.kosher === true) {
     setStatus(kosherStatus, d.kosherSource === 'db' ? 'db-yes' : 'ai-yes', "Sí");
   } else {
     setStatus(kosherStatus, "unknown", "Sin Info");
   }
+  // Halal
   if (d.halal === true) {
     setStatus(halalStatus, d.halalSource === 'db' ? 'db-yes' : 'ai-yes', d.halalSource === 'db' ? "Sí" : "Probable");
   } else {
     setStatus(halalStatus, "unknown", "Sin Info");
   }
+  // Organic
   if (d.organic === true) {
     setStatus(organicStatus, d.organicSource === 'db' ? 'db-yes' : 'ai-yes', d.organicSource === 'db' ? "Sí" : "Probable");
   } else {
@@ -805,7 +825,8 @@ function parseApiProduct(product) {
       details: glutenDetails,
       dataAvailable: glutenDataAvailable,
       classification: glutenClassification,
-      _isGf: isGf
+      _isGf: isGf,
+      source: isLabeledGlutenFree || isGf || hasGlutenAllergenTag ? 'db' : enrichedGluten ? 'ai' : null
     },
     calories: {
       value: Math.round(kcal),

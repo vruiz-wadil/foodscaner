@@ -731,7 +731,6 @@ body {
 .dietary-table {
   display: table;
   width: 100%;
-  max-width: 300px;
   margin-top: 8px;
   border-collapse: collapse;
 }
