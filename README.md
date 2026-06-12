@@ -67,8 +67,8 @@ Cada código de barras se consulta secuencialmente contra las siguientes fuentes
 - **Solo si OFF encontró el producto** pero sin datos nutricionales ni alérgenos completos.
 - **NO se ejecuta para códigos que inician con `750`** (prefijo mexicano), ya que USDA tiene datos mayoritariamente estadounidenses y la consulta añade ~8s.
 - Mecanismo: se toma el nombre del producto devuelto por OFF (o UPCItemDb/GTINHub) y se busca en USDA con `api.nal.usda.gov/fdc/v1/foods/search?query={nombre}`.
-- USDA devuelve resultados por nombre, no por código de barras. Para evitar falsos positivos (producto diferente con nombre similar), la información de USDA **solo sobrescribe gluten cuando es una detección positiva** (`hasGluten: true`). Si USDA dice "sin gluten", NO se usa, porque podría ser un producto diferente; en ese caso prevalece lo que diga OFF.
-- El gluten enriquecido se guarda en la propiedad `_gluten_enriched` y el frontend lo usa con prioridad sobre la detección local.
+- USDA devuelve resultados por nombre, no por código de barras. Para evitar falsos positivos (producto diferente con nombre similar), la información de USDA **se usa con precaución**: solo se aplica si el producto OFF no tiene datos propios.
+- El gluten enriquecido se guarda en la propiedad `_gluten_enriched` y el frontend lo usa con prioridad sobre la detección local, tanto si es positivo como negativo.
 
 #### Paso 5: UPCItemDb
 
@@ -207,10 +207,11 @@ En `compareWithDB`, la comparación de alérgenos no es exacta por string. Usa t
 
 | Escenario | ¿Qué muestra? |
 |-----------|---------------|
-| Producto encontrado en OFF con datos completos (ingredientes + nutrientes) | Análisis **silencioso**: solo se muestra si hay discrepancia. Si no, la sección de IA permanece oculta. |
+| Producto encontrado en OFF con datos completos (ingredientes + nutrientes) | Análisis **silencioso**: solo se muestra si hay discrepancia en gluten o alérgenos. Si no, la sección de IA permanece oculta. |
 | Producto encontrado en OFF pero sin datos nutricionales ni alérgenos | Análisis **completo visible**: se muestran gluten, alérgenos, confianza y notas al usuario. |
 | Producto encontrado solo en UPCItemDb o GTINHub | Análisis **completo visible** (envía `ingredients: null` a la IA). La IA responde con `confidence: "baja"`. |
 | Producto enriquecido con USDA | Se envía a la IA con los datos disponibles de USDA (si existen). |
+| Producto certificado libre de gluten (`_isGf: true`) | La discrepancia de gluten se **omite**: si la IA detectara gluten pero el producto es GF, se sobrescribe con `hasGluten: false`. |
 | Producto simulado (modo offline) | Se omite el análisis IA (no tiene sentido analizar datos manuales). |
 | Producto en caché con resultado IA previo | Se reutiliza el resultado IA cacheado (incluyendo discrepancias). |
 
@@ -244,29 +245,28 @@ Las respuestas de la IA se almacenan en el mismo archivo de caché (`/tmp/foodsc
 
 ### 3.1 Gluten
 
-La detección de gluten combina múltiples fuentes y condiciones, con textos específicos para cada situación.
+La detección de gluten se basa exclusivamente en campos explícitos de las bases de datos, no por deducción de ingredientes.
 
-#### Lógica de detección (`parseApiProduct`, `app.v3.js:362–397`)
+#### Fuentes consultadas
 
-1. Se obtienen palabras clave de gluten: `["gluten", "trigo", "cebada", "centeno", "avena", "espelta", "kamut", "wheat", "barley", "rye", "oat", "spelt"]`.
-2. Se busca coincidencia en:
-   - `ingredients_text` del producto
-   - `traces` del producto (texto crudo de trazas)
-   - `allergens_tags` (tags normalizados: `en:gluten`, `en:wheat`, `en:trigo`, etc.)
-3. Se revisan etiquetas de certificación sin gluten: `labels_tags` que contengan `gluten-free`, `sin-gluten` o `libre-de-gluten`.
-4. Si hay datos enriquecidos de USDA (`_gluten_enriched`), tienen prioridad sobre la detección local.
+| Fuente | Campo | Ejemplo |
+|--------|-------|---------|
+| OFF | `allergens_tags` | `["en:gluten", "en:wheat"]` |
+| OFF | `labels_tags` (certificación GF) | `["en:gluten-free", "en:no-gluten"]` |
+| OFF/USDA | Nombre del producto (claim "sin gluten") | `"Sin Gluten"` en el nombre |
+| USDA | `allergenWarning` | `"Wheat"` → se almacena como `_gluten_enriched` |
+
+**NO** se usa deducción por palabras clave en ingredientes (trigo, cebada, harina, etc.). Si un producto contiene gluten en ingredientes pero no lo declara como alérgeno, será detectado por el análisis de IA y mostrado como discrepancia.
 
 #### Textos mostrados según estado
 
 | Estado | Texto | Condición |
 |--------|-------|-----------|
-| **Certificado sin gluten** | `"Sin Gluten (Certificado)"` | El producto tiene un label de certificación (`sin-gluten`, `gluten-free`, `libre-de-gluten`) en sus `labels_tags`. |
-| **Sin gluten detectado** | `"Sin ingredientes con gluten detectados en la información declarada"` | Hay datos disponibles (ingredientes, trazas o tags de alérgenos) y no se detectaron palabras clave de gluten, no hay tag de gluten, y no está etiquetado como libre de gluten. |
-| **Sin información** | `"Sin información de gluten"` | No hay `ingredients_text`, ni `traces` con datos, ni `allergens_tags` con contenido. `glutenDataAvailable = false`. |
-| **Contiene gluten detectado por ingredientes** | `"Contiene gluten (trigo, cebada)"` | Se detectaron palabras clave en `ingredients_text`. Muestra los ingredientes específicos encontrados. |
-| **Contiene gluten detectado por tags** | `"Contiene gluten detectado"` | Se detectó por tags de alérgenos pero no por palabras clave en ingredientes. |
-| **Gluten enriquecido por USDA** | El texto que devuelve USDA | Si USDA detectó gluten positivamente, se usa su texto descriptivo. |
-| **Gluten USDA no detectado** | No se usa | USDA dijo "sin gluten" pero podría ser un producto diferente; prevalece la detección local. |
+| **Certificado sin gluten** | `"Sin Gluten (Certificado)"` | El producto tiene un label de certificación (`sin-gluten`, `gluten-free`, `libre-de-gluten`, `no-gluten`) en sus `labels_tags`. |
+| **Declarado sin gluten** | `"Sin ingredientes con gluten detectados en la información declarada"` | El producto declara "sin gluten" en su nombre, o hay datos de ingredientes disponibles sin detección de gluten. |
+| **Sin información** | `"Sin información de gluten"` | No hay `ingredients_text`, ni `traces`, ni `allergens_tags` con contenido. |
+| **Contiene gluten (declarado)** | `"Contiene gluten (declarado en etiqueta)"` | `allergens_tags` contiene `gluten`, `wheat` o `trigo`. |
+| **Gluten enriquecido por USDA** | El texto que devuelve USDA (positivo o negativo) | USDA encontró el producto y devolvió datos de gluten.
 
 > **Importante**: El texto **"Libre de gluten"** solo se usa cuando hay una **certificación explícita** en la base de datos. En cualquier otro caso se usa **"Sin ingredientes con gluten detectados en la información declarada"** para evitar declaraciones falsas de ausencia de gluten. La redacción "información declarada" deja claro que el análisis se basa en lo que el fabricante declara, no en un análisis de laboratorio.
 
@@ -283,13 +283,25 @@ Esto asegura que el gluten solo aparezca en su **sección dedicada** (la tarjeta
 
 ### 3.2 Alérgenos
 
-#### Extracción desde la base de datos
+Los alérgenos se obtienen exclusivamente de campos explícitos de las bases de datos, no por deducción del texto de ingredientes.
 
-Los alérgenos se extraen de las siguientes fuentes, en orden de prioridad:
+#### Fuentes consultadas
 
-**1. Tags de alérgenos** (`allergens_tags`)
+| Fuente | Campo | Ejemplo |
+|--------|-------|---------|
+| OFF | `allergens_tags` | `["en:milk", "en:eggs", "en:peanuts"]` |
+| OFF | `allergens_from_ingredients` | `"Milk, Soy"` (texto crudo) |
+| OFF | `traces_tags` | `["en:peanuts"]` |
+| OFF | `traces` | `"en:peanuts, en:soy"` |
+| USDA | `allergenWarning` | `"Milk, Soy"` → mapeado a `allergens_tags` |
 
-OFF normaliza los alérgenos como tags tipo `en:milk`, `en:eggs`, `en:peanuts`, etc. El sistema los mapea a etiquetas legibles:
+**NO** se usa:
+- Detección por palabras clave en ingredientes (cacahuate, leche, soya, etc.)
+- Parseo de secciones "puede contener" / "may contain" en ingredientes
+
+Cualquier alérgeno presente en ingredientes pero no declarado explícitamente en la base de datos será detectado por el análisis de IA y mostrado como discrepancia.
+
+#### Mapeo de tags a etiquetas
 
 | Tag OFF | Etiqueta mostrada |
 |---------|-------------------|
@@ -312,34 +324,14 @@ OFF normaliza los alérgenos como tags tipo `en:milk`, `en:eggs`, `en:peanuts`, 
 | `en:rye` | ~~Centeno~~ (filtrado) |
 | `en:oats` | ~~Avena~~ (filtrado) |
 
-**2. `allergens_from_ingredients`** (solo si no hay tags)
+#### Trazas
 
-Texto crudo proveniente de OFF, separado por comas. Cada fragmento se capitaliza y se agrega como alérgeno.
+Las trazas se extraen únicamente de campos explícitos:
 
-**3. Fallback por palabras clave en ingredientes** (solo si no hay ninguna de las anteriores)
+1. **Tags de trazas** (`traces_tags`): mismo mapeo que los tags de alérgenos. Se agregan como trazas si no están ya en la lista de alérgenos.
+2. **Campo `traces` crudo**: el texto se divide por comas, se limpia de prefijos de idioma (ej: `en:`, `es:`) y se agrega capitalizado.
 
-Se busca en el texto de ingredientes (excluyendo secciones de "puede contener") con palabras clave como `cacahuate`, `soya`, `leche`, `huevo`, `nueces`, `pescado`, `mostaza`, `sésamo`, `sulfito`, `crustáceo`, `molusco`, `altramuz`, `apio` (y sus traducciones al inglés).
-
-#### Trazas ("Puede contener")
-
-Las trazas se extraen de tres fuentes:
-
-**1. Frases "puede contener" en ingredientes**
-
-Se usa la expresión regular:
-```
-/(?:puede\s+contener|may\s+contain|contiene\s+trazas|trazas?\s*de)\s*:?\s*([^.!;]+)/gi
-```
-
-Dentro de cada sección encontrada, se buscan palabras clave para identificar alérgenos específicos (cacahuate, soya, leche, huevos, nueces, etc. con sus traducciones). Se usa `\b` (límite de palabra) para evitar falsos positivos parciales.
-
-**2. Tags de trazas** (`traces_tags`)
-
-Mismo mapeo que los tags de alérgenos. Se agregan como trazas si no están ya en la lista de alérgenos.
-
-**3. Campo `traces` crudo**
-
-El texto se divide por comas, se limpia de prefijos de idioma (ej: `en:`, `es:`) y se agrega capitalizado.
+No se parsean secciones "puede contener" del texto de ingredientes.
 
 #### Textos mostrados según estado
 
@@ -358,6 +350,10 @@ Cuando el análisis IA detecta alérgenos, las trazas NO se consideran como "inf
 - Si la DB tiene "Leche" como alérgeno declarado y la IA también detecta "Leche", no hay discrepancia.
 - Si la DB solo tiene "Frutos de cáscara" en trazas y la IA detecta "Nueces", la IA lo marca como alérgeno adicional detectado (porque las trazas no son declaración de presencia, son advertencia de posible contaminación cruzada).
 
+#### Productos libres de gluten
+
+Si el producto está certificado como libre de gluten (`_isGf: true`), el análisis de IA **no genera discrepancia de gluten**, incluso si la IA detectara posibles ingredientes con gluten. El valor de la DB (sin gluten) prevalece.
+
 ### 3.3 Alérgenos en el análisis inteligente
 
 Cuando la IA analiza un producto:
@@ -366,6 +362,7 @@ Cuando la IA analiza un producto:
 - **La IA detecta alérgenos** de la misma lista de 14 alérgenos regulados (leche, huevos, cacahuates, soya, frutos de cáscara, pescado, crustáceos, moluscos, mostaza, sésamo, sulfitos, altramuces, apio).
 - **Los alérgenos detectados por IA** se comparan contra los alérgenos y trazas de la DB. Los que no están en ninguna se muestran como "alérgenos adicionales".
 - **El gluten se filtra** de la respuesta de la IA mediante `isGlutenRelated()` antes de la comparación.
+- **Si el producto es GF**, la discrepancia de gluten se omite por completo.
 - **Ejemplo**: para el producto `7500533003378` (Cacahuates), la IA detecta "soya" (por Lectina de Soya en ingredientes). La DB no declara soya ni como alérgeno ni como traza, por lo que se muestra como alérgeno adicional.
 
 ---
