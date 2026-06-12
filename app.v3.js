@@ -391,14 +391,6 @@ function parseApiProduct(product) {
   const tracesText = (product.traces || "").toLowerCase();
   const allergensTags = (product.allergens_tags || []).map(t => t.toLowerCase());
 
-  // Oats (avena/oat) are not inherently gluten-containing; they may be cross-contaminated
-  // but certified gluten-free oats exist. Remove from keyword list to avoid false positives.
-  const glutenKeywords = ["gluten", "trigo", "cebada", "centeno", "espelta", "kamut", "wheat", "barley", "rye", "spelt"];
-
-  // Strip "may contain" / "puede contener" sections before matching to avoid false positives
-  // from cross-contamination disclaimers. Traces are shown separately in the UI.
-  const cleanIngredients = ingredientsText.replace(/(?:puede\s+contener|may\s+contain|contiene\s+trazas|trazas?\s*de)[^.!;]*/gi, "");
-  const matchesGlutenInIngredients = glutenKeywords.some(keyword => cleanIngredients.includes(keyword));
   const hasGlutenAllergenTag = allergensTags.some(tag => tag.includes("gluten") || tag.includes("wheat") || tag.includes("trigo"));
 
   // Check for positive labels indicating gluten-free
@@ -425,13 +417,10 @@ function parseApiProduct(product) {
     glutenDetails = enrichedGluten.details;
     glutenClassification = "declared";
   } else if (glutenDataAvailable) {
-    if ((matchesGlutenInIngredients || hasGlutenAllergenTag) && !isLabeledGlutenFree && !hasGlutenFreeClaim) {
+    if (hasGlutenAllergenTag && !isLabeledGlutenFree && !hasGlutenFreeClaim) {
       hasGluten = true;
-      glutenClassification = hasGlutenAllergenTag ? "declared" : "detected";
-      const detectedInIngredients = glutenKeywords.filter(k => cleanIngredients.includes(k));
-      glutenDetails = detectedInIngredients.length > 0 
-        ? `Contiene gluten (${detectedInIngredients.join(", ")})` 
-        : "Contiene gluten detectado";
+      glutenClassification = "declared";
+      glutenDetails = "Contiene gluten (declarado en etiqueta)";
     } else if (isLabeledGlutenFree) {
       glutenClassification = "certified";
       glutenDetails = "Sin Gluten (Certificado)";
