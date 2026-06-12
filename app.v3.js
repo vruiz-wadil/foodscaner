@@ -384,7 +384,11 @@ function parseApiProduct(product) {
   // Oats (avena/oat) are not inherently gluten-containing; they may be cross-contaminated
   // but certified gluten-free oats exist. Remove from keyword list to avoid false positives.
   const glutenKeywords = ["gluten", "trigo", "cebada", "centeno", "espelta", "kamut", "wheat", "barley", "rye", "spelt"];
-  const matchesGlutenInIngredients = glutenKeywords.some(keyword => ingredientsText.includes(keyword) || tracesText.includes(keyword));
+
+  // Strip "may contain" / "puede contener" sections before matching to avoid false positives
+  // from cross-contamination disclaimers. Traces are shown separately in the UI.
+  const cleanIngredients = ingredientsText.replace(/(?:puede\s+contener|may\s+contain|contiene\s+trazas|trazas?\s*de)[^.!;]*/gi, "");
+  const matchesGlutenInIngredients = glutenKeywords.some(keyword => cleanIngredients.includes(keyword));
   const hasGlutenAllergenTag = allergensTags.some(tag => tag.includes("gluten") || tag.includes("wheat") || tag.includes("trigo"));
 
   // Check for positive labels indicating gluten-free
@@ -412,7 +416,7 @@ function parseApiProduct(product) {
     if ((matchesGlutenInIngredients || hasGlutenAllergenTag) && !isLabeledGlutenFree && !hasGlutenFreeClaim) {
       hasGluten = true;
       glutenClassification = hasGlutenAllergenTag ? "declared" : "detected";
-      const detectedInIngredients = glutenKeywords.filter(k => ingredientsText.includes(k));
+      const detectedInIngredients = glutenKeywords.filter(k => cleanIngredients.includes(k));
       glutenDetails = detectedInIngredients.length > 0 
         ? `Contiene gluten (${detectedInIngredients.join(", ")})` 
         : "Contiene gluten detectado";
