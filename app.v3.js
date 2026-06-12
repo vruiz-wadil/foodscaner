@@ -376,72 +376,89 @@ function renderDietaryBadges(product) {
   const d = product.dietary;
   if (!d) { if (section) section.classList.add("hidden"); return; }
   const g = product.gluten;
+  const glutenRow = document.getElementById("dietary-gluten-attr")?.parentNode;
   const glutenStatus = document.getElementById("dietary-gluten-status");
+  const veganRow = document.getElementById("dietary-vegan-attr")?.parentNode;
   const veganStatus = document.getElementById("dietary-vegan-status");
+  const vegRow = document.getElementById("dietary-vegetarian-attr")?.parentNode;
   const vegStatus = document.getElementById("dietary-vegetarian-status");
+  const kosherRow = document.getElementById("dietary-kosher-attr")?.parentNode;
   const kosherStatus = document.getElementById("dietary-kosher-status");
+  const halalRow = document.getElementById("dietary-halal-attr")?.parentNode;
   const halalStatus = document.getElementById("dietary-halal-status");
+  const organicRow = document.getElementById("dietary-organic-attr")?.parentNode;
   const organicStatus = document.getElementById("dietary-organic-status");
-  const tooltips = {
-    "db-yes": "Confirmado por la base de datos",
-    "ai-yes": "Posible según ingredientes/IA",
-    "ai-no": "No detectado según ingredientes/IA",
-    "db-no": "Descartado por la base de datos",
-    unknown: "Sin información disponible"
-  };
-  function setStatus(el, colorClass, text) {
+  function setStatus(el, row, colorClass, text, statusExplained) {
     el.className = "dietary-status " + colorClass;
     el.textContent = text;
-    el.title = tooltips[colorClass] || "";
+    if (statusExplained && row) row.title = statusExplained;
+  }
+  const dietNames = {
+    gluten: "libre de gluten",
+    vegan: "vegano",
+    vegetarian: "vegetariano",
+    kosher: "kosher",
+    halal: "halal",
+    organic: "orgánico"
+  };
+  function statusText(colorClass, dietName) {
+    const map = {
+      "db-yes": `Sí: El producto se declara explícitamente como ${dietName} según la base de datos.`,
+      "ai-yes": `Probable: Los ingredientes/IA sugieren que es ${dietName}, pero no hay etiqueta oficial.`,
+      "ai-no": `Probable No: Los ingredientes/IA sugieren que NO es ${dietName}, pero no hay declaración oficial.`,
+      "db-no": `No: El producto se declara explícitamente como NO ${dietName} según la base de datos.`,
+      unknown: `Sin Info: No hay información disponible sobre ${dietName}.`
+    };
+    return map[colorClass] || "";
   }
   // Gluten row
   if (g) {
     if (g.classification === "certified") {
-      setStatus(glutenStatus, "db-yes", "Sí");
+      setStatus(glutenStatus, glutenRow, "db-yes", "Sí", statusText("db-yes", "libre de gluten"));
     } else if (!g.hasGluten && g.classification !== "no_info") {
-      setStatus(glutenStatus, "ai-yes", "Posiblemente Libre");
+      setStatus(glutenStatus, glutenRow, "ai-yes", "Posiblemente Libre", statusText("ai-yes", "libre de gluten"));
     } else if (g.hasGluten && g.source === 'ai') {
-      setStatus(glutenStatus, "ai-no", "Posiblemente NO Libre");
+      setStatus(glutenStatus, glutenRow, "ai-no", "Posiblemente NO Libre", statusText("ai-no", "libre de gluten"));
     } else if (g.hasGluten) {
-      setStatus(glutenStatus, "db-no", "No");
+      setStatus(glutenStatus, glutenRow, "db-no", "No", statusText("db-no", "libre de gluten"));
     } else {
-      setStatus(glutenStatus, "unknown", "Sin Info");
+      setStatus(glutenStatus, glutenRow, "unknown", "Sin Info", statusText("unknown", "libre de gluten"));
     }
   }
   // Vegan
   if (d.vegan === true) {
     document.getElementById("dietary-vegan-attr").textContent = "🌱 Vegano";
-    setStatus(veganStatus, d.veganSource === 'db' ? 'db-yes' : 'ai-yes', d.veganSource === 'db' ? "Sí" : "Probable");
+    setStatus(veganStatus, veganRow, d.veganSource === 'db' ? 'db-yes' : 'ai-yes', d.veganSource === 'db' ? "Sí" : "Probable", statusText(d.veganSource === 'db' ? 'db-yes' : 'ai-yes', "vegano"));
   } else if (d.vegan === false) {
     document.getElementById("dietary-vegan-attr").textContent = "❌ No vegano";
-    setStatus(veganStatus, d.veganSource === 'db' ? 'db-no' : 'ai-no', d.veganSource === 'db' ? "No" : "Probable No");
+    setStatus(veganStatus, veganRow, d.veganSource === 'db' ? 'db-no' : 'ai-no', d.veganSource === 'db' ? "No" : "Probable No", statusText(d.veganSource === 'db' ? 'db-no' : 'ai-no', "vegano"));
   } else {
     document.getElementById("dietary-vegan-attr").textContent = "🌱 Vegano";
-    setStatus(veganStatus, "unknown", "Sin Info");
+    setStatus(veganStatus, veganRow, "unknown", "Sin Info", statusText("unknown", "vegano"));
   }
   // Vegetarian
   if (d.vegetarian === true) {
-    setStatus(vegStatus, d.vegetarianSource === 'db' ? 'db-yes' : 'ai-yes', d.vegetarianSource === 'db' ? "Sí" : "Probable");
+    setStatus(vegStatus, vegRow, d.vegetarianSource === 'db' ? 'db-yes' : 'ai-yes', d.vegetarianSource === 'db' ? "Sí" : "Probable", statusText(d.vegetarianSource === 'db' ? 'db-yes' : 'ai-yes', "vegetariano"));
   } else {
-    setStatus(vegStatus, "unknown", "Sin Info");
+    setStatus(vegStatus, vegRow, "unknown", "Sin Info", statusText("unknown", "vegetariano"));
   }
   // Kosher
   if (d.kosher === true) {
-    setStatus(kosherStatus, d.kosherSource === 'db' ? 'db-yes' : 'ai-yes', "Sí");
+    setStatus(kosherStatus, kosherRow, d.kosherSource === 'db' ? 'db-yes' : 'ai-yes', "Sí", statusText("db-yes", "kosher"));
   } else {
-    setStatus(kosherStatus, "unknown", "Sin Info");
+    setStatus(kosherStatus, kosherRow, "unknown", "Sin Info", statusText("unknown", "kosher"));
   }
   // Halal
   if (d.halal === true) {
-    setStatus(halalStatus, d.halalSource === 'db' ? 'db-yes' : 'ai-yes', d.halalSource === 'db' ? "Sí" : "Probable");
+    setStatus(halalStatus, halalRow, d.halalSource === 'db' ? 'db-yes' : 'ai-yes', d.halalSource === 'db' ? "Sí" : "Probable", statusText(d.halalSource === 'db' ? 'db-yes' : 'ai-yes', "halal"));
   } else {
-    setStatus(halalStatus, "unknown", "Sin Info");
+    setStatus(halalStatus, halalRow, "unknown", "Sin Info", statusText("unknown", "halal"));
   }
   // Organic
   if (d.organic === true) {
-    setStatus(organicStatus, d.organicSource === 'db' ? 'db-yes' : 'ai-yes', d.organicSource === 'db' ? "Sí" : "Probable");
+    setStatus(organicStatus, organicRow, d.organicSource === 'db' ? 'db-yes' : 'ai-yes', d.organicSource === 'db' ? "Sí" : "Probable", statusText(d.organicSource === 'db' ? 'db-yes' : 'ai-yes', "orgánico"));
   } else {
-    setStatus(organicStatus, "unknown", "Sin Info");
+    setStatus(organicStatus, organicRow, "unknown", "Sin Info", statusText("unknown", "orgánico"));
   }
   if (section) section.classList.remove("hidden");
 }
