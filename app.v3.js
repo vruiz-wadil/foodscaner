@@ -45,6 +45,17 @@ const newProductForm = document.getElementById("new-product-form");
 let currentBarcodeQuery = "";
 let currentDataSources = "";
 
+const COMMON_ALLERGENS = [
+  { emoji: "🥛", label: "Lácteos", match: ["leche", "lácteos", "lactosa", "milk", "dairy"] },
+  { emoji: "🥜", label: "Cacahuate", match: ["cacahuate", "cacahuete", "maní", "peanut"] },
+  { emoji: "🌰", label: "Nueces", match: ["nueces", "nuez", "frutos de cáscara", "almendra", "almond", "nut"] },
+  { emoji: "🌾", label: "Trigo", match: ["trigo", "wheat"], checkGluten: true },
+  { emoji: "🥚", label: "Huevo", match: ["huevo", "huevos", "egg"] },
+  { emoji: "🐟", label: "Pescado", match: ["pescado", "fish"] },
+  { emoji: "🦐", label: "Mariscos", match: ["crustáceo", "crustacean", "molusco", "mollusc", "mariscos"] },
+  { emoji: "🫘", label: "Soja", match: ["soja", "soya", "soy", "soybean"] }
+];
+
 // Application Scanner State
 let html5QrCode = null;
 let isScanning = false;
@@ -726,11 +737,40 @@ function renderProductData(product, barcode) {
     caloriesProgress.style.background = "var(--accent-primary)";
   }
 
-  // Render Allergens Card details
+  // Render Allergen Icon Grid + text tags
+  const gridEl = document.getElementById("allergen-icon-grid");
+  if (gridEl) {
+    gridEl.innerHTML = "";
+    const allAllergensLower = (product.allergens || []).map(a => a.toLowerCase());
+    const allTracesLower = (product.traces || []).map(a => a.toLowerCase());
+    COMMON_ALLERGENS.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "allergen-grid-item";
+      const matchesAllergen = item.match.some(m => allAllergensLower.some(a => a.includes(m)));
+      const matchesTrace = item.match.some(m => allTracesLower.some(t => t.includes(m)));
+      const matchesGluten = item.checkGluten && product.gluten && product.gluten.hasGluten;
+      if (matchesAllergen || matchesGluten) {
+        div.classList.add("detected");
+      } else if (matchesTrace) {
+        div.classList.add("traces");
+      } else {
+        div.classList.add("safe");
+      }
+      div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>`;
+      gridEl.appendChild(div);
+    });
+  }
+
+  // Text tags for non-common allergens
   allergensList.innerHTML = "";
-  if (product.allergens.length > 0) {
+  const knownMatchLabels = COMMON_ALLERGENS.flatMap(i => i.match);
+  const extraAllergens = (product.allergens || []).filter(a => {
+    const al = a.toLowerCase();
+    return !knownMatchLabels.some(m => al.includes(m));
+  });
+  if (extraAllergens.length > 0) {
     allergensSafeMsg.classList.add("hidden");
-    product.allergens.forEach(allergen => {
+    extraAllergens.forEach(allergen => {
       const tag = document.createElement("span");
       tag.className = "allergen-tag";
       tag.innerHTML = `
@@ -739,14 +779,17 @@ function renderProductData(product, barcode) {
       `;
       allergensList.appendChild(tag);
     });
+    allergensList.classList.remove("hidden");
   } else if (product.allergensDataAvailable === false) {
     allergensSafeMsg.classList.remove("hidden");
     allergensSafeMsg.textContent = "Información no disponible (Requiere verificar el empaque)";
     allergensSafeMsg.className = "safe-msg allergen-unknown";
+    allergensList.classList.add("hidden");
   } else {
     allergensSafeMsg.classList.remove("hidden");
     allergensSafeMsg.textContent = "✓ Sin alérgenos detectados en la información declarada.";
     allergensSafeMsg.className = "safe-msg";
+    allergensList.classList.add("hidden");
   }
 
   // Render traces (may contain)
