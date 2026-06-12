@@ -641,7 +641,8 @@ function parseApiProduct(product) {
       hasGluten,
       details: glutenDetails,
       dataAvailable: glutenDataAvailable,
-      classification: glutenClassification
+      classification: glutenClassification,
+      _isGf: isGf
     },
     calories: {
       value: Math.round(kcal),
@@ -861,6 +862,11 @@ function runAICheck(product) {
 
     const missingData = product.gluten?.dataAvailable === false || product.allergensDataAvailable === false;
     if (product.isFromFallback || missingData) {
+      // Override AI gluten if product is certified or claims GF
+      if (product.gluten?._isGf && data.gluten?.hasGluten) {
+        data.gluten.hasGluten = false;
+        data.gluten.details = product.gluten.details;
+      }
       renderAIResult(data);
       result.classList.remove("hidden");
     } else {
@@ -909,7 +915,7 @@ function compareWithDB(aiData, product) {
 
   let hasDiscrepancy = false;
 
-  if (product.gluten && aiData.gluten && product.gluten.dataAvailable !== false) {
+  if (product.gluten && aiData.gluten && product.gluten.dataAvailable !== false && !product.gluten._isGf) {
     const dbVal = product.gluten.hasGluten;
     const aiVal = aiData.gluten.hasGluten;
     if (dbVal !== aiVal) {
