@@ -728,6 +728,47 @@ body {
   margin-left: 6px;
 }
 
+.dietary-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.dietary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.badge-vegan {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-not-vegan {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-vegetarian {
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.badge-kosher {
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(96, 165, 250, 0.4);
+}
+
 .fallback-nutrition-alert {
   display: flex;
   align-items: flex-start;
@@ -846,10 +887,10 @@ body {
   color: #10b981; /* Green - max confidence */
 }
 .gluten-declared {
-  color: #10b981; /* Green/high confidence (amber if hasGluten set via JS) */
+  color: #f59e0b; /* Amber - no declarado libre, pero sin gluten detectado */
 }
 .gluten-detected {
-  color: #f59e0b; /* Amber - medium confidence */
+  color: #ef4444; /* Red - gluten presente */
 }
 .gluten-unknown {
   color: #94a3b8; /* Slate-400 - no info */
@@ -866,6 +907,23 @@ body {
 }
 .calories-high {
   color: #ef4444; /* Red */
+}
+
+/* Sugars Indicator */
+.sugars-low {
+  color: #3b82f6; /* Blue */
+}
+.sugars-mod {
+  color: #f59e0b; /* Amber */
+}
+.sugars-high {
+  color: #ef4444; /* Red */
+}
+
+#sugars-val, #proteins-val {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 #calories-val .number {
@@ -1169,6 +1227,178 @@ body {
 }
 .source-table .status-yes { color: var(--accent-primary); }
 .source-table .status-no { color: var(--text-muted); }
+
+/* Proteins Indicator */
+.proteins-low {
+  color: var(--text-muted);
+}
+.proteins-mod {
+  color: var(--accent-alert);
+}
+.proteins-high {
+  color: var(--accent-primary);
+}
+
+/* Collapsible Ingredients Section */
+.card-collapsible {
+  padding: 0 !important;
+  overflow: hidden;
+  background: var(--card-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--border-radius-md);
+}
+
+.ingredients-details {
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.ingredients-details summary {
+  cursor: pointer;
+  padding: 14px 18px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ingredients-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.ingredients-details summary::before {
+  content: "▶";
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.ingredients-details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.ingredients-details summary:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ingredients-text {
+  padding: 0 18px 14px;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Carbohydrates Card */
+.carbs-net-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+}
+
+.level-indicator.carbs-high { color: var(--accent-error); }
+.level-indicator.carbs-mod { color: var(--accent-alert); }
+.level-indicator.carbs-low { color: var(--accent-primary); }
+
+/* Mexican Warning Seals (NOM-051) */
+.sellos-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 16px 12px;
+  justify-content: center;
+}
+
+.sello-octagon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  background: #000;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
+  clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+  -webkit-clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+  flex-shrink: 0;
+}
+
+.sello-octagon .sello-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.3px;
+  opacity: 0.85;
+  line-height: 1;
+}
+
+.sello-octagon .sello-value {
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin-top: 1px;
+  line-height: 1;
+}
+
+.sello-octagon .sello-detail {
+  font-size: 0.5rem;
+  font-weight: 400;
+  opacity: 0.8;
+  margin-top: 2px;
+  line-height: 1;
+}
+
+.sello-octagon .sello-threshold {
+  font-size: 0.45rem;
+  font-weight: 300;
+  opacity: 0.5;
+  margin-top: 1px;
+  line-height: 1;
+}
+
+/* Nutrition Table */
+.nutrition-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.nutrition-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.nutrition-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.nutrition-table td {
+  padding: 8px 18px;
+  color: var(--text-secondary);
+}
+
+.nutrition-table td:first-child {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.nutrition-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Footer style */
 .app-footer {

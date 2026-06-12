@@ -348,9 +348,26 @@ app.get('/api/product/:barcode', async (req, res) => {
             }) || data.foods[0];
             const item = matched;
             let kcal = 0;
+            let sugarsVal = null;
+            let carbsVal = null;
+            let fiberVal = null;
             if (item.foodNutrients) {
               const energy = item.foodNutrients.find(n => n.nutrientName === "Energy" && n.unitName === "KCAL");
               if (energy) kcal = Math.round(energy.value);
+              const sugars = item.foodNutrients.find(n => n.nutrientName === "Sugars, total" && n.unitName === "G");
+              if (sugars) sugarsVal = Math.round(sugars.value * 10) / 10;
+              const carbs = item.foodNutrients.find(n => n.nutrientName === "Carbohydrate, by difference" && n.unitName === "G");
+              if (carbs) carbsVal = Math.round(carbs.value * 10) / 10;
+              const fiber = item.foodNutrients.find(n => n.nutrientName === "Fiber, total dietary" && n.unitName === "G");
+              if (fiber) fiberVal = Math.round(fiber.value * 10) / 10;
+            }
+            let satFatVal = null;
+            let sodiumVal = null;
+            if (item.foodNutrients) {
+              const satFat = item.foodNutrients.find(n => n.nutrientName === "Fatty acids, total saturated" && n.unitName === "G");
+              if (satFat) satFatVal = Math.round(satFat.value * 10) / 10;
+              const sod = item.foodNutrients.find(n => n.nutrientName === "Sodium, Na" && (n.unitName === "MG" || n.unitName === "mg"));
+              if (sod) sodiumVal = Math.round(sod.value * 10) / 10;
             }
             let energyLevel = "Bajo", percent = 0;
             if (kcal > 400) { energyLevel = "Alto"; percent = Math.min(100, Math.round((kcal / 600) * 100)); }
@@ -371,7 +388,7 @@ app.get('/api/product/:barcode', async (req, res) => {
                 if (t && !allergens.includes(mapped)) allergens.push(mapped);
               });
             }
-            return { calories: { value: kcal, level: energyLevel, percent }, gluten: { hasGluten, details: glutenDetails }, allergens, ingredientsText: item.ingredients || "" };
+            return { calories: { value: kcal, level: energyLevel, percent }, gluten: { hasGluten, details: glutenDetails }, sugars: { sugars: sugarsVal, carbohydrates: carbsVal, fiber: fiberVal }, saturatedFat: satFatVal, sodium: sodiumVal, allergens, ingredientsText: item.ingredients || "" };
           }
         }
       } catch (error) {
@@ -518,6 +535,15 @@ app.get('/api/product/:barcode', async (req, res) => {
             p.ingredients_text = enrichment.ingredientsText;
             p._gluten_enriched = enrichment.gluten;
           }
+          p._sugars_enriched = enrichment.sugars;
+          if (enrichment.saturatedFat != null && (!p.nutriments || p.nutriments['saturated-fat_100g'] === undefined)) {
+            if (!p.nutriments) p.nutriments = {};
+            p.nutriments['saturated-fat_100g'] = enrichment.saturatedFat;
+          }
+          if (enrichment.sodium != null && (!p.nutriments || p.nutriments['sodium_100g'] === undefined)) {
+            if (!p.nutriments) p.nutriments = {};
+            p.nutriments['sodium_100g'] = Math.round(enrichment.sodium) / 1000;
+          }
           p._enrichedFrom = "USDA (por nombre)";
         }
       }
@@ -537,6 +563,14 @@ app.get('/api/product/:barcode', async (req, res) => {
           fallbackResult.product.gluten = enrichment.gluten;
         }
         fallbackResult.product.allergens = enrichment.allergens;
+        fallbackResult.product._sugars_enriched = enrichment.sugars;
+        if (!fallbackResult.product.nutriments) fallbackResult.product.nutriments = {};
+        if (enrichment.saturatedFat != null && fallbackResult.product.nutriments['saturated-fat_100g'] === undefined) {
+          fallbackResult.product.nutriments['saturated-fat_100g'] = enrichment.saturatedFat;
+        }
+        if (enrichment.sodium != null && fallbackResult.product.nutriments['sodium_100g'] === undefined) {
+          fallbackResult.product.nutriments['sodium_100g'] = Math.round(enrichment.sodium) / 1000;
+        }
         fallbackResult.product._enrichedFrom = "USDA (por nombre)";
       }
       const respData = { ...fallbackResult, sourceResults };
@@ -555,8 +589,12 @@ app.get('/api/product/:barcode', async (req, res) => {
           name: groqId.name, brand: groqId.brand, image: "", isFood: true,
           category: "Comida / Bebida (Identificado por IA)",
           gluten: enrichment.gluten, calories: enrichment.calories,
-          allergens: enrichment.allergens, nutriscore: "-", isFromFallback: true, _enrichedFrom: "USDA (IA + nombre)"
+          allergens: enrichment.allergens, nutriscore: "-", isFromFallback: true,
+          _enrichedFrom: "USDA (IA + nombre)", _sugars_enriched: enrichment.sugars,
+          nutriments: {}
         };
+        if (enrichment.saturatedFat != null) gp.nutriments['saturated-fat_100g'] = enrichment.saturatedFat;
+        if (enrichment.sodium != null) gp.nutriments['sodium_100g'] = Math.round(enrichment.sodium) / 1000;
         const respData = { status: 1, source: 'local', sourceLabel: 'Groq + USDA', product: gp, sourceResults };
         setCacheEntry(barcode, respData, "Groq+USDA", null);
         return res.json(respData);
@@ -591,10 +629,24 @@ app.post('/api/product', (req, res) => {
 });
 
 app.post('/api/ai-query', async (req, res) => {
-  const { name, brand, ingredients, allergens } = req.body;
+  const { name, brand, ingredients, allergens, sugars, carbohydrates, fiber, isBeverage } = req.body;
   if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
 
-  const prompt = `Eres un experto en análisis de alimentos. Analiza el producto "${name}"${brand ? ` de la marca "${brand}"` : ''}.${ingredients ? `\n\nLista de ingredientes: "${ingredients}"` : ''}${allergens && allergens.length ? `\n\nAlérgenos declarados: ${allergens.join(", ")}` : ''}
+  let nutritionStr = '';
+  if (sugars !== undefined && sugars !== null) {
+    nutritionStr += `\n\nAzúcares por 100g: ${sugars}g`;
+  }
+  if (carbohydrates !== undefined && carbohydrates !== null) {
+    nutritionStr += `\nCarbohidratos por 100g: ${carbohydrates}g`;
+  }
+  if (fiber !== undefined && fiber !== null) {
+    nutritionStr += `\nFibra por 100g: ${fiber}g`;
+  }
+  if (isBeverage) {
+    nutritionStr += `\nNota: Este producto es una bebida.`;
+  }
+
+  const prompt = `Eres un experto en análisis de alimentos. Analiza el producto "${name}"${brand ? ` de la marca "${brand}"` : ''}.${ingredients ? `\n\nLista de ingredientes: "${ingredients}"` : ''}${allergens && allergens.length ? `\n\nAlérgenos declarados: ${allergens.join(", ")}` : ''}${nutritionStr}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, sin markdown, sin bloques de código:
 
@@ -604,6 +656,11 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, 
     "details": "Justificación breve con ingredientes específicos detectados"
   },
   "allergens": ["Leche", "Soja"],
+  "diabetes": {
+    "risk": "bajo",
+    "glycemicImpact": "bajo",
+    "notes": "Explicación breve basada en azúcares, carbohidratos, fibra e ingredientes"
+  },
   "confidence": "alta/media/baja",
   "notes": "notas adicionales"
 }
@@ -616,7 +673,11 @@ REGLAS ESTRICTAS:
 - Distingue entre "contiene gluten como ingrediente" (hasGluten: true) y "puede contener trazas" (hasGluten: false, menciónalo en notes).
 - SI TIENES DUDAS, usa confidence "baja" y explica en notes.
 - No inventes ingredientes. Si la lista de ingredientes no contiene algo, no lo incluyas en tu análisis.
-- No incluyas gluten ni cereales con gluten (trigo, cebada, centeno, avena) en la lista de alérgenos, ya que el gluten se analiza en un campo separado.`;
+- No incluyas gluten ni cereales con gluten (trigo, cebada, centeno, avena) en la lista de alérgenos, ya que el gluten se analiza en un campo separado.
+- DIABETES: risk debe ser "bajo", "medio" o "alto" según la cantidad de azúcares por 100g, carbohidratos totales, y fibra (la fibra mitiga el impacto). Usa las tablas de referencia de la OMS: bajo ≤5g sólidos / ≤2.5g bebidas, alto >22.5g sólidos / >11.25g bebidas.
+- DIABETES: glycemicImpact debe estimar si el producto tiene índice glucémico bajo, medio o alto según ingredientes, presencia de fibra y tipo de carbohidratos.
+- DIABETES: Si no hay datos de azúcares ni carbohidratos, usa riesgo "bajo" con confidence "baja" y explain en notes.
+- No incluyas información de diabetes en el campo "notes" principal, úsala en "diabetes.notes".`;
 
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {

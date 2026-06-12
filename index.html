@@ -201,8 +201,13 @@
               <span class="badge badge-food">Alimento Confirmado</span>
               <h3 id="product-name">Nombre del Producto</h3>
               <p id="product-brand" class="brand-text">Marca del Producto</p>
-              <p class="barcode-text">Cód: <span id="product-barcode">0000000000</span>0</p>
-              
+              <p class="barcode-text">Cód: <span id="product-barcode">0000000000</span></p>
+              <div id="dietary-badges" class="dietary-badges hidden">
+                <span id="badge-vegan" class="dietary-badge badge-vegan hidden">🌱 Vegano</span>
+                <span id="badge-not-vegan" class="dietary-badge badge-not-vegan hidden">❌ No vegano</span>
+                <span id="badge-vegetarian" class="dietary-badge badge-vegetarian hidden">🥦 Vegetariano</span>
+                <span id="badge-kosher" class="dietary-badge badge-kosher hidden">✡️ Kosher</span>
+              </div>
             </div>
           </div>
 
@@ -216,7 +221,7 @@
 
           <div class="analysis-grid" id="analysis-grid">
             <!-- TARJETA GLUTEN -->
-            <div class="analysis-card" id="card-gluten">
+            <div class="analysis-card full-width" id="card-gluten">
               <div class="card-icon-wrapper">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
@@ -225,6 +230,46 @@
               <div class="card-details">
                 <h4>Gluten</h4>
                 <p id="gluten-status" class="status-value">Analizando...</p>
+              </div>
+            </div>
+
+            <!-- TARJETA AZÚCARES -->
+            <div class="analysis-card hidden" id="card-sugars">
+              <div class="card-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                  <line x1="3" y1="6" x2="21" y2="6"/>
+                  <path d="M16 10a4 4 0 0 1-8 0"/>
+                </svg>
+              </div>
+              <div class="card-details">
+                <h4>Azúcares</h4>
+                <p id="sugars-val" class="status-value">--</p>
+                <div class="progress-bar-container">
+                  <div id="sugars-progress" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <span id="sugars-level" class="level-indicator">--</span>
+              </div>
+            </div>
+
+            <!-- TARJETA CARBOHIDRATOS -->
+            <div class="analysis-card hidden" id="card-carbs">
+              <div class="card-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </div>
+              <div class="card-details">
+                <h4>Carbohidratos</h4>
+                <p id="carbs-val" class="status-value">--</p>
+                <p id="carbs-net" class="carbs-net-text hidden"></p>
+                <div class="progress-bar-container">
+                  <div id="carbs-progress" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <span id="carbs-level" class="level-indicator">--</span>
               </div>
             </div>
 
@@ -242,6 +287,26 @@
                   <div id="calories-progress" class="progress-bar" style="width: 0%"></div>
                 </div>
                 <span id="calories-level" class="level-indicator">Normal</span>
+              </div>
+            </div>
+
+            <!-- TARJETA PROTEÍNAS -->
+            <div class="analysis-card hidden" id="card-proteins">
+              <div class="card-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  <line x1="8" y1="7" x2="16" y2="7"/>
+                  <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+              </div>
+              <div class="card-details">
+                <h4>Proteínas</h4>
+                <p id="proteins-val" class="status-value">--</p>
+                <div class="progress-bar-container">
+                  <div id="proteins-progress" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <span id="proteins-level" class="level-indicator">--</span>
               </div>
             </div>
 
@@ -272,6 +337,31 @@
                 </div>
               </div>
             </div>
+
+            <!-- SELLOS MEXICANOS NOM-051 -->
+            <div class="analysis-card full-width hidden" id="card-sellos">
+              <div class="card-details" style="padding:8px 0;width:100%;">
+                <h4 style="padding:0 16px;margin-bottom:10px;">Sellos de advertencia de Secretaría de Salud</h4>
+                <div id="sellos-container" class="sellos-container"></div>
+                <p id="sellos-disclaimer" class="sellos-disclaimer" style="margin:6px 16px 4px;font-size:0.7rem;color:var(--text-muted);text-align:center;">Basado en la información declarada del producto. Puede no coincidir con el etiquetado físico actual.</p>
+              </div>
+            </div>
+
+            <div class="analysis-card full-width card-collapsible hidden" id="ingredients-section">
+              <details class="ingredients-details">
+                <summary>📋 Lista de ingredientes</summary>
+                <p id="ingredients-text" class="ingredients-text"></p>
+              </details>
+            </div>
+
+            <div class="analysis-card full-width card-collapsible hidden" id="nutrition-section">
+              <details class="ingredients-details">
+                <summary>📊 Información nutricional</summary>
+                <table class="nutrition-table" id="nutrition-table">
+                  <tbody id="nutrition-tbody"></tbody>
+                </table>
+              </details>
+            </div>
           </div>
 
           <div class="ai-query-section hidden" id="ai-query-section">
@@ -282,6 +372,11 @@
             <div id="ai-query-result" class="hidden" style="margin-top:12px;">
               <div id="ai-gluten-line" style="margin-bottom:8px;font-size:0.9rem;"></div>
               <div id="ai-allergens-line" style="margin-bottom:8px;font-size:0.9rem;"></div>
+              <div id="ai-diabetes-line" class="hidden" style="margin-bottom:8px;font-size:0.9rem;">
+                <strong>🚦 Riesgo diabetes:</strong> <span id="ai-diabetes-risk"></span><br>
+                <strong>📊 Impacto glucémico:</strong> <span id="ai-glycemic-impact"></span><br>
+                <span id="ai-diabetes-notes" style="font-size:0.8rem;color:var(--text-secondary);font-style:italic;"></span>
+              </div>
               <div id="ai-confidence-line" style="font-size:0.8rem;color:var(--text-muted);"></div>
               <div id="ai-notes-line" style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary);font-style:italic;"></div>
             </div>

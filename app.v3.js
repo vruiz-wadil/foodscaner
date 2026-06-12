@@ -20,16 +20,36 @@ const productImg = document.getElementById("product-img");
 const productName = document.getElementById("product-name");
 const productBrand = document.getElementById("product-brand");
 const productBarcode = document.getElementById("product-barcode");
+const dietaryBadges = document.getElementById("dietary-badges");
+const badgeVegan = document.getElementById("badge-vegan");
+const badgeNotVegan = document.getElementById("badge-not-vegan");
+const badgeVegetarian = document.getElementById("badge-vegetarian");
+const badgeKosher = document.getElementById("badge-kosher");
 const glutenStatus = document.getElementById("gluten-status");
 const cardGluten = document.getElementById("card-gluten");
 const caloriesVal = document.getElementById("calories-val");
 const caloriesProgress = document.getElementById("calories-progress");
 const caloriesLevel = document.getElementById("calories-level");
 const cardCalories = document.getElementById("card-calories");
+const sugarsVal = document.getElementById("sugars-val");
+const sugarsProgress = document.getElementById("sugars-progress");
+const sugarsLevel = document.getElementById("sugars-level");
+const cardSugars = document.getElementById("card-sugars");
+const proteinsVal = document.getElementById("proteins-val");
+const proteinsProgress = document.getElementById("proteins-progress");
+const proteinsLevel = document.getElementById("proteins-level");
+const cardProteins = document.getElementById("card-proteins");
 const allergensList = document.getElementById("allergens-list");
 const allergensSafeMsg = document.getElementById("allergens-safe-msg");
 const noNutritionAlert = document.getElementById("no-nutrition-alert");
 const analysisGrid = document.getElementById("analysis-grid");
+const cardCarbs = document.getElementById("card-carbs");
+const carbsVal = document.getElementById("carbs-val");
+const carbsNet = document.getElementById("carbs-net");
+const carbsProgress = document.getElementById("carbs-progress");
+const carbsLevel = document.getElementById("carbs-level");
+const cardSellos = document.getElementById("card-sellos");
+const sellosContainer = document.getElementById("sellos-container");
 
 // Result Elements (Rejected)
 const rejectedTitle = document.getElementById("rejected-title");
@@ -407,7 +427,7 @@ function parseApiProduct(product) {
   const enrichedGluten = product._gluten_enriched;
 
   let hasGluten = false;
-  let glutenDetails = (glutenDataAvailable || enrichedGluten) ? "Sin ingredientes con gluten detectados en la información declarada" : "Sin información de gluten";
+  let glutenDetails = (glutenDataAvailable || enrichedGluten) ? "Este producto no se declara libre de gluten, pero no se encontraron ingredientes que indiquen su presencia" : "Sin información de gluten";
   let glutenClassification = !glutenDataAvailable && !enrichedGluten ? "no_info" : "declared";
 
   const isGf = isLabeledGlutenFree || hasGlutenFreeClaim;
@@ -426,11 +446,11 @@ function parseApiProduct(product) {
       glutenDetails = "Sin Gluten (Certificado)";
     } else if (hasGlutenFreeClaim) {
       glutenClassification = "declared";
-      glutenDetails = "Sin ingredientes con gluten detectados en la información declarada";
+      glutenDetails = "Este producto no se declara libre de gluten, pero no se encontraron ingredientes que indiquen su presencia";
     }
   } else if (isGf) {
     glutenClassification = isLabeledGlutenFree ? "certified" : "declared";
-    glutenDetails = isLabeledGlutenFree ? "Sin Gluten (Certificado)" : "Sin ingredientes con gluten detectados en la información declarada";
+    glutenDetails = isLabeledGlutenFree ? "Sin Gluten (Certificado)" : "Este producto no se declara libre de gluten, pero no se encontraron ingredientes que indiquen su presencia";
   }
 
   // Calories parser
@@ -458,6 +478,87 @@ function parseApiProduct(product) {
   } else {
     energyLevel = "Bajo";
     percent = Math.max(3, Math.round((kcal / 150) * 50));
+  }
+
+  // Sugars and carbohydrates parser
+  let sugars = null;
+  let carbs = null;
+  let fiber = null;
+  let proteins = null;
+  if (product.nutriments) {
+    if (product.nutriments["sugars_100g"] !== undefined) sugars = product.nutriments["sugars_100g"];
+    else if (product.nutriments["sugars"] !== undefined) sugars = product.nutriments["sugars"];
+    if (product.nutriments["carbohydrates_100g"] !== undefined) carbs = product.nutriments["carbohydrates_100g"];
+    else if (product.nutriments["carbohydrates"] !== undefined) carbs = product.nutriments["carbohydrates"];
+    if (product.nutriments["fiber_100g"] !== undefined) fiber = product.nutriments["fiber_100g"];
+    else if (product.nutriments["fiber"] !== undefined) fiber = product.nutriments["fiber"];
+    if (product.nutriments["proteins_100g"] !== undefined) proteins = product.nutriments["proteins_100g"];
+    else if (product.nutriments["proteins"] !== undefined) proteins = product.nutriments["proteins"];
+  }
+
+  // Saturated fat and sodium for Mexican warning seals
+  let saturatedFat = null;
+  let sodium = null;
+  let sodiumSource = "nutriments";
+  if (product.nutriments) {
+    if (product.nutriments["saturated-fat_100g"] !== undefined) saturatedFat = product.nutriments["saturated-fat_100g"];
+    else if (product.nutriments["saturated-fat"] !== undefined) saturatedFat = product.nutriments["saturated-fat"];
+    if (product.nutriments["sodium_100g"] !== undefined) sodium = product.nutriments["sodium_100g"];
+    else if (product.nutriments["sodium"] !== undefined) sodium = product.nutriments["sodium"];
+  }
+
+  // Fallback 1: estimate sodium from salt when sodium is missing
+  if (sodium === null && product.nutriments) {
+    const saltVal = product.nutriments["salt_100g"] !== undefined ? product.nutriments["salt_100g"] : product.nutriments["salt"];
+    if (saltVal !== undefined) {
+      sodium = saltVal * 0.393;
+      sodiumSource = "salt";
+    }
+  }
+
+  // Fallback 2: parse ingredients text for explicit salt percentage
+  if (product.ingredients_text && (sodium === null || (product.nutriments && sodium < 0.3))) {
+    const saltPctMatch = product.ingredients_text.match(/sal\s*(?:\w+\s+)*(\d+[.,]\d*)%/i);
+    if (saltPctMatch) {
+      const pct = parseFloat(saltPctMatch[1].replace(',', '.'));
+      if (pct > 0 && pct <= 100) {
+        const estimatedSodium = pct * 0.393;
+        if (sodium === null || estimatedSodium > sodium) {
+          sodium = estimatedSodium;
+          sodiumSource = "ingredients";
+        }
+      }
+    }
+  }
+
+  // Check enriched USDA data (only override if value is actually a number)
+  if (product._sugars_enriched) {
+    if (product._sugars_enriched.sugars != null && !isNaN(product._sugars_enriched.sugars)) sugars = product._sugars_enriched.sugars;
+    if (product._sugars_enriched.carbohydrates != null && !isNaN(product._sugars_enriched.carbohydrates)) carbs = product._sugars_enriched.carbohydrates;
+    if (product._sugars_enriched.fiber != null && !isNaN(product._sugars_enriched.fiber)) fiber = product._sugars_enriched.fiber;
+  }
+
+  // Detect if product is a beverage
+  const beverageKeywords = ["bebida", "refresco", "jugo", "zumo", "agua", "drink", "beverage", "soda", "néctar", "infusión", "té", "café", "bebible"];
+  const categoriesLower = (product.categories || "").toLowerCase();
+  const isBeverage = beverageKeywords.some(k => categoriesLower.includes(k));
+
+  // Sugar level thresholds (UK NHS traffic light system)
+  let sugarLevel = "Bajo";
+  let sugarPercent = 0;
+  const sugarHighThreshold = isBeverage ? 11.25 : 22.5;
+  const sugarLowThreshold = isBeverage ? 2.5 : 5;
+  if (sugars !== null) {
+    if (sugars > sugarHighThreshold) {
+      sugarLevel = "Alto";
+      sugarPercent = Math.min(100, Math.round((sugars / (sugarHighThreshold * 1.5)) * 100));
+    } else if (sugars > sugarLowThreshold) {
+      sugarLevel = "Medio";
+      sugarPercent = Math.round((sugars / sugarHighThreshold) * 100);
+    } else {
+      sugarLevel = "Bajo";
+      sugarPercent = Math.max(3, Math.round((sugars / sugarLowThreshold) * 50));
+    }
   }
 
   // Allergens extraction
@@ -508,7 +609,38 @@ function parseApiProduct(product) {
     });
   }
 
+  // Parsear declaraciones explícitas "Contiene:" / "Contains:" del ingredients_text
+  // (declaraciones del fabricante, no deducción por palabras clave)
+  const parseContieneDeclarations = (text) => {
+    const regex = /(?:contiene|contains)\s*:\s*([^.\n]+?)(?=(?:puede\s+contener|may\s+contain|\.|\n|$))/i;
+    const match = text.match(regex);
+    if (!match) return [];
+    // Split por coma primero, luego por " y " / " & " / " and "
+    return match[1].split(',').flatMap(part =>
+      part.trim().split(/\s+(?:y|&|and)\s+/).map(s => s.trim())
+    ).filter(s => s.length > 1);
+  };
+  if (product.ingredients_text) {
+    parseContieneDeclarations(product.ingredients_text).forEach(item => {
+      const itemLower = item.toLowerCase().replace(/\btrazas?\s+de\s+/g, "");
+      const known = COMMON_ALLERGENS.find(ca => ca.match.some(m => itemLower.includes(m)));
+      if (known) {
+        if (!allergensList.includes(known.label)) allergensList.push(known.label);
+      } else {
+        const extraKey = Object.keys(EXTRA_ALLERGEN_ICONS).find(k => itemLower.includes(k));
+        if (extraKey) {
+          const display = extraKey.charAt(0).toUpperCase() + extraKey.slice(1);
+          if (!allergensList.includes(display)) allergensList.push(display);
+        } else if (itemLower && !allergensList.includes(itemLower)) {
+          const cleaned = itemLower.charAt(0).toUpperCase() + itemLower.slice(1);
+          if (!allergensList.includes(cleaned)) allergensList.push(cleaned);
+        }
+      }
+    });
+  }
+
   // Traces: solo de campos explícitos de la base de datos (traces_tags, traces)
+  // más declaraciones "Puede contener:" / "May contain:" del ingredients_text
   const tracesList = [];
 
   // Add traces from traces_tags
@@ -527,12 +659,87 @@ function parseApiProduct(product) {
     });
   }
 
-  // Nota: Los alérgenos se obtienen exclusivamente de bases de datos (OFF, USDA),
+  // Parsear "Puede contener:" / "May contain:" del ingredients_text
+  const parsePuedeContenerDeclarations = (text) => {
+    const regex = /(?:puede\s+contener|may\s+contain)\s*:\s*([^.\n]+?)(?=(?:\.|\n|$))/i;
+    const match = text.match(regex);
+    if (!match) return [];
+    return match[1].split(',').flatMap(part =>
+      part.trim().split(/\s+(?:y|&|and)\s+/).map(s => s.trim())
+    ).filter(s => s.length > 1);
+  };
+  if (product.ingredients_text) {
+    parsePuedeContenerDeclarations(product.ingredients_text).forEach(item => {
+      const itemLower = item.toLowerCase().replace(/\btrazas?\s+de\s+/g, "");
+      const known = COMMON_ALLERGENS.find(ca => ca.match.some(m => itemLower.includes(m)));
+      if (known) {
+        if (!allergensList.includes(known.label) && !tracesList.includes(known.label)) {
+          tracesList.push(known.label);
+        }
+      } else {
+        const extraKey = Object.keys(EXTRA_ALLERGEN_ICONS).find(k => itemLower.includes(k));
+        if (extraKey) {
+          const display = extraKey.charAt(0).toUpperCase() + extraKey.slice(1);
+          if (!allergensList.includes(display) && !tracesList.includes(display)) {
+            tracesList.push(display);
+          }
+        } else if (itemLower && !tracesList.includes(itemLower)) {
+          const cleaned = itemLower.charAt(0).toUpperCase() + itemLower.slice(1);
+          if (!allergensList.includes(cleaned) && !tracesList.includes(cleaned)) {
+            tracesList.push(cleaned);
+          }
+        }
+      }
+    });
+  }
+
+  // Nota: Los alérgenos se obtienen exclusivamente de bases de datos (OFF, USDA)
+  // y de declaraciones explícitas del fabricante ("Contiene:", "Puede contener:"),
   // no por detección por palabras clave en ingredientes.
 
   // Filter out gluten-related items from allergens and traces (handled in dedicated section)
   const filteredAllergens = allergensList.filter(a => !isGlutenRelated(a));
   const filteredTraces = tracesList.filter(t => !isGlutenRelated(t));
+
+  // Dietary info (vegan, vegetarian, kosher)
+  const dietary = { vegan: null, vegetarian: null, kosher: null };
+  const analysisTags = (product.ingredients_analysis_tags || []).map(t => t.toLowerCase());
+  if (labelsTags.some(t => t === 'en:vegan')) dietary.vegan = true;
+  if (labelsTags.some(t => t === 'en:vegetarian')) dietary.vegetarian = true;
+  if (labelsTags.some(t => t.includes('kosher'))) dietary.kosher = true;
+  if (analysisTags.includes('en:non-vegan')) dietary.vegan = false;
+  if (analysisTags.includes('en:vegan') && dietary.vegan !== false) dietary.vegan = true;
+  if (analysisTags.includes('en:vegetarian')) dietary.vegetarian = true;
+
+  // Mexican warning seals (NOM-051 Fase 2)
+  const sellos = [];
+  const hasNutritionData = kcal > 0 || sugars !== null || saturatedFat !== null || sodium !== null;
+  if (hasNutritionData) {
+    const k = Math.round(kcal);
+    const kcalThreshold = isBeverage ? 70 : 275;
+    if (k >= kcalThreshold) sellos.push({ label: "CALORÍAS", value: k + " kcal", threshold: "≥" + kcalThreshold + " kcal" });
+
+    if (sugars !== null && k > 0) {
+      const pctSugar = (sugars * 4 / k) * 100;
+      if (pctSugar >= 10) sellos.push({ label: "AZÚCARES", value: Math.round(pctSugar * 10) / 10 + "%", threshold: "≥10%" });
+    } else if (sugars !== null && k === 0 && sugars > 0) {
+      if (!isBeverage && sugars >= 10) sellos.push({ label: "AZÚCARES", value: sugars + "g", threshold: "≥10g" });
+      else if (isBeverage && sugars >= 5) sellos.push({ label: "AZÚCARES", value: sugars + "g", threshold: "≥5g" });
+    }
+
+    if (saturatedFat !== null && k > 0) {
+      const pctSatFat = (saturatedFat * 9 / k) * 100;
+      if (pctSatFat >= 10) sellos.push({ label: "GRASAS SATURADAS", value: Math.round(pctSatFat * 10) / 10 + "%", threshold: "≥10%" });
+    }
+
+    if (sodium !== null) {
+      const sodiumMg = Math.round(sodium * 1000);
+      const sodiumThreshold = isBeverage ? 45 : 300;
+      const exceedsFlat = sodiumMg >= sodiumThreshold;
+      const exceedsPerCal = k > 0 && (sodiumMg / k) >= 1;
+      if (exceedsFlat || exceedsPerCal) sellos.push({ label: "SODIO", value: sodiumMg + "mg", threshold: "≥" + sodiumThreshold + "mg" });
+    }
+  }
 
   // Nutriscore
   const nutriscore = product.nutriscore_grade || product.nutrition_grades || "-";
@@ -557,12 +764,30 @@ function parseApiProduct(product) {
       level: energyLevel,
       percent: percent
     },
+    sugars: {
+      value: sugars !== null ? Math.round(sugars * 10) / 10 : null,
+      level: sugarLevel,
+      percent: sugarPercent
+    },
+    carbohydrates: {
+      value: carbs !== null ? Math.round(carbs * 10) / 10 : null,
+      fiber: fiber !== null ? Math.round(fiber * 10) / 10 : null
+    },
+    proteins: {
+      value: proteins !== null ? Math.round(proteins * 10) / 10 : null,
+      level: proteins !== null ? (proteins > 10 ? "Alto" : proteins > 3 ? "Moderado" : "Bajo") : null,
+      percent: proteins !== null ? Math.min(100, Math.round((proteins / 20) * 100)) : 0
+    },
+    isBeverage,
     allergens: filteredAllergens,
     allergensDataAvailable,
     traces: [...new Map(filteredTraces.map(t => [t.toLowerCase().trim(), t])).values()],
     nutriscore: nutriscore,
     _enrichedFrom: product._enrichedFrom || null,
-    ingredientsText: product.ingredients_text || null
+    ingredientsText: product.ingredients_text || null,
+    nutriments: product.nutriments || null,
+    dietary,
+    sellos
   };
 }
 
@@ -603,6 +828,18 @@ function renderProductData(product, barcode) {
   
   productBarcode.textContent = barcode;
 
+  // Render dietary badges (vegan, vegetarian, kosher)
+  if (product.dietary) {
+    const d = product.dietary;
+    badgeVegan.classList.toggle("hidden", d.vegan !== true);
+    badgeNotVegan.classList.toggle("hidden", d.vegan !== false);
+    badgeVegetarian.classList.toggle("hidden", d.vegetarian !== true);
+    badgeKosher.classList.toggle("hidden", d.kosher !== true);
+    dietaryBadges.classList.toggle("hidden", !d.vegan && !d.vegetarian && !d.kosher);
+  } else {
+    dietaryBadges.classList.add("hidden");
+  }
+
   if (product.image) {
     productImg.src = product.image;
     productImg.alt = product.name;
@@ -622,17 +859,17 @@ function renderProductData(product, barcode) {
 
   // Render Gluten Card details
   glutenStatus.textContent = product.gluten.details;
-  cardGluten.className = "analysis-card";
+  cardGluten.className = "analysis-card full-width";
   const gc = product.gluten.classification || "declared";
   if (gc === "certified") {
     glutenStatus.className = "status-value gluten-certified";
     cardGluten.style.borderColor = "var(--accent-primary)";
   } else if (gc === "declared") {
     glutenStatus.className = "status-value gluten-declared";
-    cardGluten.style.borderColor = product.gluten.hasGluten ? "var(--accent-alert)" : "var(--accent-primary)";
+    cardGluten.style.borderColor = "var(--accent-alert)";
   } else if (gc === "detected") {
     glutenStatus.className = "status-value gluten-detected";
-    cardGluten.style.borderColor = "var(--accent-alert)";
+    cardGluten.style.borderColor = "var(--accent-error)";
   } else {
     glutenStatus.className = "status-value gluten-unknown";
     cardGluten.style.borderColor = "var(--text-muted)";
@@ -653,6 +890,87 @@ function renderProductData(product, barcode) {
   } else {
     caloriesLevel.className = "level-indicator calories-low";
     caloriesProgress.style.background = "var(--accent-primary)";
+  }
+
+  // Render Sugars Card
+  if (product.sugars && product.sugars.value !== null) {
+    cardSugars.classList.remove("hidden");
+    sugarsVal.textContent = product.sugars.value + " g / 100g";
+    sugarsProgress.style.width = product.sugars.percent + "%";
+    sugarsLevel.textContent = "Nivel de azúcar: " + product.sugars.level;
+    cardSugars.className = "analysis-card";
+    if (product.sugars.level === "Alto") {
+      sugarsLevel.className = "level-indicator sugars-high";
+      sugarsProgress.style.background = "var(--accent-error)";
+    } else if (product.sugars.level === "Medio") {
+      sugarsLevel.className = "level-indicator sugars-mod";
+      sugarsProgress.style.background = "var(--accent-alert)";
+    } else {
+      sugarsLevel.className = "level-indicator sugars-low";
+      sugarsProgress.style.background = "var(--accent-primary)";
+    }
+  } else {
+    cardSugars.classList.add("hidden");
+  }
+
+  // Render Proteins Card
+  if (product.proteins && product.proteins.value !== null) {
+    cardProteins.classList.remove("hidden");
+    proteinsVal.textContent = product.proteins.value + " g / 100g";
+    proteinsProgress.style.width = product.proteins.percent + "%";
+    proteinsLevel.textContent = "Nivel de proteína: " + product.proteins.level;
+    cardProteins.className = "analysis-card";
+    if (product.proteins.level === "Alto") {
+      proteinsLevel.className = "level-indicator proteins-high";
+      proteinsProgress.style.background = "var(--accent-primary)";
+    } else if (product.proteins.level === "Moderado") {
+      proteinsLevel.className = "level-indicator proteins-mod";
+      proteinsProgress.style.background = "var(--accent-alert)";
+    } else {
+      proteinsLevel.className = "level-indicator proteins-low";
+      proteinsProgress.style.background = "var(--text-muted)";
+    }
+  } else {
+    cardProteins.classList.add("hidden");
+  }
+
+  // Render Carbohydrates Card
+  if (cardCarbs && carbsVal && carbsProgress && carbsLevel) {
+    if (product.carbohydrates && product.carbohydrates.value !== null) {
+      cardCarbs.classList.remove("hidden");
+      const total = product.carbohydrates.value;
+      const fiber = product.carbohydrates.fiber;
+      const net = fiber !== null ? Math.round((total - fiber) * 10) / 10 : total;
+      const netLabel = fiber !== null ? ` (Netos: ${net}g)` : "";
+      carbsVal.textContent = total + " g / 100g" + netLabel;
+      if (carbsNet) {
+        if (fiber !== null) {
+          carbsNet.textContent = "Fibra: " + fiber + "g | Netos: " + net + "g";
+          carbsNet.classList.remove("hidden");
+        } else {
+          carbsNet.classList.add("hidden");
+        }
+      }
+      const pct = Math.min(100, Math.round((total / 60) * 100));
+      carbsProgress.style.width = pct + "%";
+      let level = "Moderado";
+      if (total > 30) level = "Alto";
+      else if (total < 10) level = "Bajo";
+      carbsLevel.textContent = "Nivel: " + level;
+      cardCarbs.className = "analysis-card";
+      if (level === "Alto") {
+        carbsLevel.className = "level-indicator carbs-high";
+        carbsProgress.style.background = "var(--accent-error)";
+      } else if (level === "Moderado") {
+        carbsLevel.className = "level-indicator carbs-mod";
+        carbsProgress.style.background = "var(--accent-alert)";
+      } else {
+        carbsLevel.className = "level-indicator carbs-low";
+        carbsProgress.style.background = "var(--accent-primary)";
+      }
+    } else {
+      cardCarbs.classList.add("hidden");
+    }
   }
 
   // Render Allergen Icon Grid + text tags
@@ -742,6 +1060,70 @@ function renderProductData(product, barcode) {
     }
   }
 
+  // Render Mexican warning seals (NOM-051)
+  if (cardSellos && sellosContainer) {
+    sellosContainer.innerHTML = "";
+    if (product.sellos && product.sellos.length > 0) {
+      product.sellos.forEach(sello => {
+        const div = document.createElement("div");
+        div.className = "sello-octagon";
+        div.innerHTML = `<span class="sello-label">EXCESO</span><span class="sello-value">${sello.label}</span><span class="sello-detail">${sello.value}</span><span class="sello-threshold">${sello.threshold}</span>`;
+        sellosContainer.appendChild(div);
+      });
+      cardSellos.classList.remove("hidden");
+    } else {
+      cardSellos.classList.add("hidden");
+    }
+  }
+
+  // Render ingredients list collapsible section
+  const ingredientsSection = document.getElementById("ingredients-section");
+  const ingredientsTextEl = document.getElementById("ingredients-text");
+  if (ingredientsSection && ingredientsTextEl) {
+    if (product.ingredientsText) {
+      ingredientsTextEl.textContent = product.ingredientsText;
+      ingredientsSection.classList.remove("hidden");
+    } else {
+      ingredientsSection.classList.add("hidden");
+    }
+  }
+
+  // Render nutrition info collapsible section
+  const nutritionSection = document.getElementById("nutrition-section");
+  const nutritionTbody = document.getElementById("nutrition-tbody");
+  if (nutritionSection && nutritionTbody) {
+    if (product.nutriments && Object.keys(product.nutriments).length > 0) {
+      const nutrientLabels = {
+        'energy-kcal_100g': 'Energía (kcal)',
+        'energy_100g': 'Energía (kJ)',
+        'fat_100g': 'Grasas',
+        'saturated-fat_100g': 'Grasas saturadas',
+        'carbohydrates_100g': 'Carbohidratos',
+        'sugars_100g': 'Azúcares',
+        'fiber_100g': 'Fibra',
+        'proteins_100g': 'Proteínas',
+        'salt_100g': 'Sal',
+        'sodium_100g': 'Sodio'
+      };
+      const rows = [];
+      Object.keys(nutrientLabels).forEach(key => {
+        if (product.nutriments.hasOwnProperty(key) && product.nutriments[key] !== null && product.nutriments[key] !== undefined) {
+          const val = product.nutriments[key];
+          const unit = key.includes('kcal') ? 'kcal' : key.includes('kJ') ? 'kJ' : 'g';
+          rows.push(`<tr><td>${nutrientLabels[key]}</td><td>${val} ${unit}</td></tr>`);
+        }
+      });
+      if (rows.length > 0) {
+        nutritionTbody.innerHTML = rows.join('');
+        nutritionSection.classList.remove("hidden");
+      } else {
+        nutritionSection.classList.add("hidden");
+      }
+    } else {
+      nutritionSection.classList.add("hidden");
+    }
+  }
+
   runAICheck(product);
 }
 
@@ -771,7 +1153,16 @@ function runAICheck(product) {
   fetch('/api/ai-query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: product.name, brand: product.brand, ingredients: product.ingredientsText || null, allergens: product.allergens || null })
+    body: JSON.stringify({
+      name: product.name,
+      brand: product.brand,
+      ingredients: product.ingredientsText || null,
+      allergens: product.allergens || null,
+      sugars: product.sugars?.value ?? null,
+      carbohydrates: product.carbohydrates?.value ?? null,
+      fiber: product.carbohydrates?.fiber ?? null,
+      isBeverage: product.isBeverage ?? null
+    })
   })
   .then(r => r.json())
   .then(data => {
@@ -827,6 +1218,7 @@ function compareWithDB(aiData, product) {
   const allergensLine = document.getElementById("ai-allergens-line");
   const confidenceLine = document.getElementById("ai-confidence-line");
   const notesLine = document.getElementById("ai-notes-line");
+  const diabetesLine = document.getElementById("ai-diabetes-line");
   if (!result || !glutenLine || !allergensLine || !confidenceLine || !notesLine) return;
 
   glutenLine.innerHTML = "";
@@ -893,7 +1285,23 @@ function compareWithDB(aiData, product) {
     }
   }
 
-  if (hasDiscrepancy) {
+  // Always show diabetes analysis if AI returned it
+  if (aiData.diabetes) {
+    if (diabetesLine) {
+      diabetesLine.classList.remove("hidden");
+      const riskLabels = { bajo: "Bajo 🟢", medio: "Medio 🟡", alto: "Alto 🔴" };
+      const impactLabels = { bajo: "Bajo 🟢", medio: "Medio 🟡", alto: "Alto 🔴" };
+      const riskText = riskLabels[aiData.diabetes.risk] || aiData.diabetes.risk || "N/A";
+      const impactText = impactLabels[aiData.diabetes.glycemicImpact] || aiData.diabetes.glycemicImpact || "N/A";
+      document.getElementById("ai-diabetes-risk").innerHTML = riskText;
+      document.getElementById("ai-glycemic-impact").innerHTML = impactText;
+      document.getElementById("ai-diabetes-notes").textContent = aiData.diabetes.notes || "";
+    }
+  } else if (diabetesLine) {
+    diabetesLine.classList.add("hidden");
+  }
+
+  if (hasDiscrepancy || (aiData.diabetes && aiData.diabetes.risk)) {
     result.classList.remove("hidden");
   } else {
     result.classList.add("hidden");
@@ -907,6 +1315,7 @@ function renderAIResult(data) {
   const allergensLine = document.getElementById("ai-allergens-line");
   const confidenceLine = document.getElementById("ai-confidence-line");
   const notesLine = document.getElementById("ai-notes-line");
+  const diabetesLine = document.getElementById("ai-diabetes-line");
 
   if (glutenLine) {
     const g = data.gluten || {};
@@ -930,6 +1339,19 @@ function renderAIResult(data) {
 
   if (notesLine) {
     notesLine.textContent = data.notes ? `📝 ${data.notes}` : "";
+  }
+
+  if (diabetesLine && data.diabetes) {
+    diabetesLine.classList.remove("hidden");
+    const riskLabels = { bajo: "Bajo 🟢", medio: "Medio 🟡", alto: "Alto 🔴" };
+    const impactLabels = { bajo: "Bajo 🟢", medio: "Medio 🟡", alto: "Alto 🔴" };
+    const riskText = riskLabels[data.diabetes.risk] || data.diabetes.risk || "N/A";
+    const impactText = impactLabels[data.diabetes.glycemicImpact] || data.diabetes.glycemicImpact || "N/A";
+    document.getElementById("ai-diabetes-risk").innerHTML = riskText;
+    document.getElementById("ai-glycemic-impact").innerHTML = impactText;
+    document.getElementById("ai-diabetes-notes").textContent = data.diabetes.notes || "";
+  } else if (diabetesLine) {
+    diabetesLine.classList.add("hidden");
   }
 }
 

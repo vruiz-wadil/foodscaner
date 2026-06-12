@@ -153,9 +153,18 @@ app.get('/api/product/:barcode', async (req, res, next) => {
           console.log(`[USDA] Encontrado en FoodData Central: ${item.description} (GTIN: ${item.gtinUpc})`);
 
           let kcal = 0;
+          let sugarsVal = null;
+          let carbsVal = null;
+          let fiberVal = null;
           if (item.foodNutrients) {
             const energy = item.foodNutrients.find(n => n.nutrientName === "Energy" && n.unitName === "KCAL");
             if (energy) kcal = Math.round(energy.value);
+            const sugars = item.foodNutrients.find(n => n.nutrientName === "Sugars, total" && n.unitName === "G");
+            if (sugars) sugarsVal = Math.round(sugars.value * 10) / 10;
+            const carbs = item.foodNutrients.find(n => n.nutrientName === "Carbohydrate, by difference" && n.unitName === "G");
+            if (carbs) carbsVal = Math.round(carbs.value * 10) / 10;
+            const fiber = item.foodNutrients.find(n => n.nutrientName === "Fiber, total dietary" && n.unitName === "G");
+            if (fiber) fiberVal = Math.round(fiber.value * 10) / 10;
           }
 
           let energyLevel = "Bajo";
@@ -189,7 +198,8 @@ app.get('/api/product/:barcode', async (req, res, next) => {
               gluten: { hasGluten, details: glutenDetails },
               calories: { value: kcal, level: energyLevel, percent },
               allergens: allergens,
-              nutriscore: "-"
+              nutriscore: "-",
+              _sugars_enriched: { sugars: sugarsVal, carbohydrates: carbsVal, fiber: fiberVal }
             }
           };
         }
@@ -393,10 +403,24 @@ app.post('/api/product', (req, res) => {
 });
 
 app.post('/api/ai-query', async (req, res) => {
-  const { name, brand, ingredients, allergens } = req.body;
+  const { name, brand, ingredients, allergens, sugars, carbohydrates, fiber, isBeverage } = req.body;
   if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
 
-  const prompt = `Eres un experto en análisis de alimentos. Analiza el producto "${name}"${brand ? ` de la marca "${brand}"` : ''}.${ingredients ? `\n\nLista de ingredientes: "${ingredients}"` : ''}${allergens && allergens.length ? `\n\nAlérgenos declarados: ${allergens.join(", ")}` : ''}
+  let nutritionStr = '';
+  if (sugars !== undefined && sugars !== null) {
+    nutritionStr += `\n\nAzúcares por 100g: ${sugars}g`;
+  }
+  if (carbohydrates !== undefined && carbohydrates !== null) {
+    nutritionStr += `\nCarbohidratos por 100g: ${carbohydrates}g`;
+  }
+  if (fiber !== undefined && fiber !== null) {
+    nutritionStr += `\nFibra por 100g: ${fiber}g`;
+  }
+  if (isBeverage) {
+    nutritionStr += `\nNota: Este producto es una bebida.`;
+  }
+
+  const prompt = `Eres un experto en análisis de alimentos. Analiza el producto "${name}"${brand ? ` de la marca "${brand}"` : ''}.${ingredients ? `\n\nLista de ingredientes: "${ingredients}"` : ''}${allergens && allergens.length ? `\n\nAlérgenos declarados: ${allergens.join(", ")}` : ''}${nutritionStr}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, sin markdown, sin bloques de código:
 
@@ -406,6 +430,11 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, 
     "details": "Justificación breve con ingredientes específicos detectados"
   },
   "allergens": ["Leche", "Soja"],
+  "diabetes": {
+    "risk": "bajo",
+    "glycemicImpact": "bajo",
+    "notes": "Explicación breve basada en azúcares, carbohidratos, fibra e ingredientes"
+  },
   "confidence": "alta/media/baja",
   "notes": "notas adicionales"
 }
@@ -418,7 +447,11 @@ REGLAS ESTRICTAS:
 - Distingue entre "contiene gluten como ingrediente" (hasGluten: true) y "puede contener trazas" (hasGluten: false, menciónalo en notes).
 - SI TIENES DUDAS, usa confidence "baja" y explica en notes.
 - No inventes ingredientes. Si la lista de ingredientes no contiene algo, no lo incluyas en tu análisis.
-- No incluyas gluten ni cereales con gluten (trigo, cebada, centeno, avena) en la lista de alérgenos, ya que el gluten se analiza en un campo separado.`;
+- No incluyas gluten ni cereales con gluten (trigo, cebada, centeno, avena) en la lista de alérgenos, ya que el gluten se analiza en un campo separado.
+- DIABETES: risk debe ser "bajo", "medio" o "alto" según la cantidad de azúcares por 100g, carbohidratos totales, y fibra (la fibra mitiga el impacto). Usa las tablas de referencia de la OMS: bajo ≤5g sólidos / ≤2.5g bebidas, alto >22.5g sólidos / >11.25g bebidas.
+- DIABETES: glycemicImpact debe estimar si el producto tiene índice glucémico bajo, medio o alto según ingredientes, presencia de fibra y tipo de carbohidratos.
+- DIABETES: Si no hay datos de azúcares ni carbohidratos, usa riesgo "bajo" con confidence "baja" y explain en notes.
+- No incluyas información de diabetes en el campo "notes" principal, úsala en "diabetes.notes".`;
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
