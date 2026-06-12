@@ -393,22 +393,24 @@ function parseApiProduct(product) {
 
   // Check for positive labels indicating gluten-free
   const labelsTags = (product.labels_tags || []).map(t => t.toLowerCase());
-  const isLabeledGlutenFree = labelsTags.some(tag => tag.includes("gluten-free") || tag.includes("sin-gluten") || tag.includes("libre-de-gluten"));
+  const isLabeledGlutenFree = labelsTags.some(tag => tag.includes("gluten-free") || tag.includes("sin-gluten") || tag.includes("libre-de-gluten") || tag.includes("no-gluten"));
 
   // Also check product name and ingredients text for explicit gluten-free claims
   const productName = (product.product_name || "").toLowerCase();
-  const hasGlutenFreeClaim = /gluten\s*free|sin\s*gluten|libre\s*de\s*gluten/i.test(productName) || /gluten\s*free|sin\s*gluten|libre\s*de\s*gluten/i.test(ingredientsText);
+  const hasGlutenFreeClaim = /gluten\s*free|sin\s*gluten|libre\s*de\s*gluten|no\s*gluten/i.test(productName) || /gluten\s*free|sin\s*gluten|libre\s*de\s*gluten|no\s*gluten/i.test(ingredientsText);
 
   const glutenDataAvailable = !!(product.ingredients_text || (product.traces && product.traces !== "undefined") || (product.allergens_tags && product.allergens_tags.length > 0));
 
-  // Use USDA-enriched gluten data if available (takes priority)
+  // Use USDA-enriched gluten data if available (takes priority unless labeled GF)
   const enrichedGluten = product._gluten_enriched;
 
   let hasGluten = false;
   let glutenDetails = (glutenDataAvailable || enrichedGluten) ? "Sin ingredientes con gluten detectados en la información declarada" : "Sin información de gluten";
   let glutenClassification = !glutenDataAvailable && !enrichedGluten ? "no_info" : "declared";
 
-  if (enrichedGluten) {
+  const isGf = isLabeledGlutenFree || hasGlutenFreeClaim;
+
+  if (enrichedGluten && !isGf) {
     hasGluten = enrichedGluten.hasGluten;
     glutenDetails = enrichedGluten.details;
     glutenClassification = "declared";
@@ -427,6 +429,9 @@ function parseApiProduct(product) {
       glutenClassification = "declared";
       glutenDetails = "Sin ingredientes con gluten detectados en la información declarada";
     }
+  } else if (isGf) {
+    glutenClassification = isLabeledGlutenFree ? "certified" : "declared";
+    glutenDetails = isLabeledGlutenFree ? "Sin Gluten (Certificado)" : "Sin ingredientes con gluten detectados en la información declarada";
   }
 
   // Calories parser
