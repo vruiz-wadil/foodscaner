@@ -880,40 +880,41 @@ function parseApiProduct(product) {
   const edulcoranteKeywords = /edulcorante|sucralosa|stevia|glucósido|aspartame|acesulfame|sacarina|ciclamato|neohesperidina|taumatina|neotamo|advantamo|tagatosa|maltitol|lactitol|xilitol|eritritol|isomalt/i;
   const hasEdulcoranteText = edulcoranteKeywords.test(ingredLower);
   if (hasEdulcoranteTag || hasEdulcoranteText) {
-    notRecommended.push({ icon: "👶", grupo: "Niños", razon: "Contiene edulcorantes" });
+    notRecommended.push({ icon: "👶", grupo: "Niños", razon: "Contiene edulcorantes", certain: true });
   }
 
   // Cafeína → niños
   const cafeinaKeywords = /\bcafeína\b|\bcafeina\b|\bcaffeine\b/i;
   if (cafeinaKeywords.test(ingredLower)) {
     if (!notRecommended.some(n => n.grupo === "Niños")) {
-      notRecommended.push({ icon: "👶", grupo: "Niños", razon: "Contiene cafeína" });
+      notRecommended.push({ icon: "👶", grupo: "Niños", razon: "Contiene cafeína", certain: true });
     } else {
       const idx = notRecommended.findIndex(n => n.grupo === "Niños");
       notRecommended[idx].razon += " y cafeína";
+      notRecommended[idx].certain = true;
     }
   }
 
   // Aspartame → fenilcetonúricos
   if (additivesTags.includes("en:e951") || /\baspartame\b/i.test(ingredLower)) {
-    notRecommended.push({ icon: "🧬", grupo: "Fenilcetonúricos", razon: "Contiene aspartame (fenilalanina)" });
+    notRecommended.push({ icon: "🧬", grupo: "Fenilcetonúricos", razon: "Contiene aspartame (fenilalanina)", certain: true });
   }
 
   // Azúcar alto → diabéticos
   if (sugars !== null && sugarLevel === "Alto") {
-    notRecommended.push({ icon: "🩸", grupo: "Diabéticos", razon: `Alto en azúcares (${Math.round(sugars * 10) / 10}g/100g)` });
+    notRecommended.push({ icon: "🩸", grupo: "Diabéticos", razon: `Alto en azúcares (${Math.round(sugars * 10) / 10}g/100g)`, certain: true });
   }
 
   // Sodio alto → hipertensos
   const sodiumMg = sodium !== null ? Math.round(sodium * 1000) : 0;
   if (sodiumMg >= 300) {
-    notRecommended.push({ icon: "❤️", grupo: "Hipertensos", razon: `Alto en sodio (${sodiumMg}mg/100g)` });
+    notRecommended.push({ icon: "❤️", grupo: "Hipertensos", razon: `Alto en sodio (${sodiumMg}mg/100g)`, certain: true });
   }
 
   // Lactosa → intolerantes
   const hasLactosa = filteredAllergens.some(a => a.toLowerCase().includes("leche") || a.toLowerCase().includes("lácteos"));
   if (hasLactosa) {
-    notRecommended.push({ icon: "🥛", grupo: "Intolerantes a lactosa", razon: "Contiene leche o derivados lácteos" });
+    notRecommended.push({ icon: "🥛", grupo: "Intolerantes a lactosa", razon: "Contiene leche o derivados lácteos", certain: true });
   }
 
   // Nutriscore
@@ -1235,7 +1236,7 @@ function renderProductData(product, barcode) {
     if (product.notRecommended && product.notRecommended.length > 0) {
       product.notRecommended.forEach(item => {
         const el = document.createElement("span");
-        el.className = "not-rec-item";
+        el.className = "not-rec-item " + (item.certain !== false ? "certain" : "possible");
         el.title = `${item.grupo}: ${item.razon}`;
         el.innerHTML = `<span class="not-rec-icon">${item.icon}</span><span class="not-rec-grupo">${item.grupo}</span><span class="not-rec-razon">${item.razon}</span>`;
         notRecContainer.appendChild(el);
@@ -1384,7 +1385,7 @@ function runAICheck(product) {
     if (data.notRecommended && Array.isArray(data.notRecommended) && product.notRecommended) {
       data.notRecommended.forEach(aiItem => {
         if (!product.notRecommended.some(n => n.grupo === aiItem.grupo)) {
-          product.notRecommended.push({ icon: "🤖", grupo: aiItem.grupo, razon: aiItem.razon });
+          product.notRecommended.push({ icon: "🤖", grupo: aiItem.grupo, razon: aiItem.razon, certain: false });
         }
       });
       // Re-render not-recommended section
@@ -1394,7 +1395,7 @@ function runAICheck(product) {
         notRecContainer.innerHTML = "";
         product.notRecommended.forEach(item => {
           const el = document.createElement("span");
-          el.className = "not-rec-item";
+          el.className = "not-rec-item " + (item.certain !== false ? "certain" : "possible");
           el.title = `${item.grupo}: ${item.razon}`;
           el.innerHTML = `<span class="not-rec-icon">${item.icon}</span><span class="not-rec-grupo">${item.grupo}</span><span class="not-rec-razon">${item.razon}</span>`;
           notRecContainer.appendChild(el);
