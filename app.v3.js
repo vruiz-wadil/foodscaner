@@ -49,11 +49,6 @@ const rejectedTitle = document.getElementById("rejected-title");
 const rejectedMessage = document.getElementById("rejected-message");
 const rejectedProductName = document.getElementById("rejected-product-name");
 const rejectedProductCategory = document.getElementById("rejected-product-category");
-const notFoundActions = document.getElementById("not-found-actions");
-
-const btnShowRegisterForm = document.getElementById("btn-show-register-form");
-const registerProductFormContainer = document.getElementById("register-product-form-container");
-const newProductForm = document.getElementById("new-product-form");
 
 let currentBarcodeQuery = "";
 let currentDataSources = "";
@@ -111,58 +106,6 @@ function setupEventListeners() {
     }
   });
 
-  // Mostrar u ocultar el formulario de registro local
-  btnShowRegisterForm.addEventListener("click", () => {
-    registerProductFormContainer.classList.toggle("hidden");
-  });
-
-  // Guardar nuevo producto en la base de datos local mediante POST
-  newProductForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (!currentBarcodeQuery) return;
-
-    const allergensRaw = document.getElementById("reg-allergens").value.trim();
-    const allergens = allergensRaw
-      ? allergensRaw.split(",").map(a => a.trim()).filter(a => a.length > 0)
-      : [];
-
-    const newProductData = {
-      name: document.getElementById("reg-name").value.trim(),
-      brand: document.getElementById("reg-brand").value.trim(),
-      isFood: document.getElementById("reg-isfood").value === "true",
-      hasGluten: document.getElementById("reg-gluten").value === "true",
-      calories: parseInt(document.getElementById("reg-calories").value) || 0,
-      allergens: allergens
-    };
-
-    try {
-      const response = await fetch('/api/product', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          barcode: currentBarcodeQuery,
-          product: newProductData
-        })
-      });
-
-      const resData = await response.json();
-
-      if (response.ok && resData.success) {
-        alert("¡Producto registrado con éxito en la Base de Datos Local!");
-        // Ocultar formulario, limpiar entradas y volver a buscar el producto
-        registerProductFormContainer.classList.add("hidden");
-        newProductForm.reset();
-        analyzeBarcode(currentBarcodeQuery);
-      } else {
-        alert("Error al registrar el producto: " + (resData.message || "Error desconocido"));
-      }
-    } catch (err) {
-      console.error("Error al enviar registro local:", err);
-      alert("No se pudo conectar con el servidor local para guardar el producto.");
-    }
-  });
 }
 
 // Camera Scanner Logic using html5-qrcode
@@ -250,9 +193,7 @@ function startScanning(cameraId) {
       stopScanning();
       analyzeBarcode(decodedText);
     },
-    (errorMessage) => {
-      // VERBOSE LOGGING AVOIDED TO REDUCE OVERHEAD
-    }
+    () => {}
   ).catch(err => {
     console.error("Error al iniciar scanner:", err);
   });
@@ -300,14 +241,6 @@ function showState(stateElement) {
   });
   stateElement.classList.add("active");
   
-  // Ocultar acciones de simulación de no encontrado por defecto
-  if (notFoundActions) {
-    notFoundActions.classList.add("hidden");
-  }
-  if (registerProductFormContainer) {
-    registerProductFormContainer.classList.add("hidden");
-  }
-
   if (stateElement !== resultEmpty) {
     const target = stateElement.closest(".results-panel") || stateElement;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -353,13 +286,7 @@ async function analyzeBarcode(barcode) {
     }
     renderConfidenceWidget();
   } catch (error) {
-    console.warn("Fallo de conexión o CORS al consultar la API. Activando simulación offline para el código:", barcode);
-    const simulatedProduct = generateSimulatedProduct(barcode);
-    setTimeout(() => {
-      currentDataSources = "Simulado (Sin Conexión)";
-      renderProductData(simulatedProduct, barcode);
-      renderConfidenceWidget();
-    }, 500);
+    renderNotFound();
   }
 }
 
@@ -633,19 +560,13 @@ function parseApiProduct(product) {
     }
   }
   
-  // Determine energy level thresholds
-  let energyLevel = "Bajo";
-  let percent = 0;
-  if (kcal > 400) {
-    energyLevel = "Alto";
-    percent = Math.min(100, Math.round((kcal / 600) * 100));
-  } else if (kcal >= 150) {
-    energyLevel = "Moderado";
-    percent = Math.round((kcal / 400) * 100);
-  } else {
-    energyLevel = "Bajo";
-    percent = Math.max(3, Math.round((kcal / 150) * 50));
+  function computeEnergyLevel(kcal) {
+    if (kcal > 400) return { level: "Alto", percent: Math.min(100, Math.round((kcal / 600) * 100)) };
+    if (kcal >= 150) return { level: "Moderado", percent: Math.round((kcal / 400) * 100) };
+    return { level: "Bajo", percent: Math.max(3, Math.round((kcal / 150) * 50)) };
   }
+  const el = computeEnergyLevel(kcal);
+  let energyLevel = el.level, percent = el.percent;
 
   // Sugars and carbohydrates parser
   let sugars = null;
@@ -1813,65 +1734,4 @@ function renderError(title, message) {
   rejectedProductCategory.textContent = "-";
 }
 
-// Genera un producto de simulación realista basado en el código de barras
-function generateSimulatedProduct(barcode) {
-  const lastDigit = parseInt(barcode.slice(-1)) || 0;
-  
-  // Usar residuo de la suma de dígitos para alternar tipos de producto
-  const sumDigits = barcode.split("").reduce((acc, val) => acc + (parseInt(val) || 0), 0);
-  const typeKey = sumDigits % 3;
-  
-  if (typeKey === 0) {
-    // Caso de producto NO alimenticio
-    return {
-      name: `Producto de Cuidado Personal Simulado #${barcode.slice(-4)}`,
-      brand: "Simulacro S.A.",
-      image: "",
-      isFood: false,
-      category: "Cuidado e Higiene Personal (No Alimenticio)",
-      isSimulated: true
-    };
-  } else if (typeKey === 1) {
-    // Caso de alimento con gluten y alérgenos
-    return {
-      name: `Galletas de Avena y Miel de Simulación`,
-      brand: "Trigo & Co",
-      image: "",
-      isFood: true,
-      category: "Cereales y Galletas",
-      gluten: {
-        hasGluten: true,
-        details: "Contiene gluten (avena y trigo)"
-      },
-      calories: {
-        value: 395,
-        level: "Moderado",
-        percent: 68
-      },
-      allergens: ["Trigo (Gluten)", "Frutos de cáscara (Nueces)"],
-      nutriscore: "c",
-      isSimulated: true
-    };
-  } else {
-    // Caso de alimento saludable sin gluten y sin alérgenos
-    return {
-      name: `Zumo de Manzana y Pera Natural`,
-      brand: "Fruta Express",
-      image: "",
-      isFood: true,
-      category: "Jugos y Zumos de Frutas",
-      gluten: {
-        hasGluten: false,
-        details: "Sin Gluten (Libre de trazas)"
-      },
-      calories: {
-        value: 48,
-        level: "Bajo",
-        percent: 10
-      },
-      allergens: [],
-      nutriscore: "a",
-      isSimulated: true
-    };
-  }
-}
+
