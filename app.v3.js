@@ -910,7 +910,8 @@ function parseApiProduct(product) {
     notRecommended.push({ icon: "🧬", grupo: "Fenilcetonúricos", razon: "Contiene aspartame (fenilalanina)", certain: true });
   }
 
-  // Diabéticos: alto en azúcares, alto en carbohidratos netos, o bajo en fibra con azúcar medio
+  // Diabéticos: alto en azúcares, alto en carbohidratos netos
+  // El análisis detallado de riesgo se obtiene del widget IA
   const netCarbs = (carbs !== null && fiber !== null) ? carbs - fiber : (carbs !== null ? carbs : null);
   const diabeticReasons = [];
   if (sugars !== null && sugarLevel === "Alto") {
@@ -921,9 +922,6 @@ function parseApiProduct(product) {
     if (netCarbs > carbThreshold && sugarLevel !== "Alto") {
       diabeticReasons.push(`Alto en carbohidratos netos (${Math.round(netCarbs * 10) / 10}g/100g)`);
     }
-  }
-  if (fiber !== null && fiber < 3 && sugars !== null && sugarLevel === "Medio") {
-    diabeticReasons.push(`Bajo en fibra (${Math.round(fiber * 10) / 10}g/100g) con contenido medio de azúcares`);
   }
   if (diabeticReasons.length > 0) {
     notRecommended.push({ icon: "🩸", grupo: "Diabéticos", razon: diabeticReasons.join("; "), certain: true });
