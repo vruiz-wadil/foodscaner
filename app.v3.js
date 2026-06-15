@@ -375,36 +375,31 @@ function renderDietaryBadges(product) {
   const d = product.dietary;
   if (!d) { if (section) section.classList.add("hidden"); return; }
   const g = product.gluten;
-  const glutenRow = document.getElementById("dietary-gluten-attr")?.parentNode;
   const glutenStatus = document.getElementById("dietary-gluten-status");
   const glutenDetail = document.getElementById("dietary-gluten-detail");
-  const veganRow = document.getElementById("dietary-vegan-attr")?.parentNode;
   const veganStatus = document.getElementById("dietary-vegan-status");
   const veganDetail = document.getElementById("dietary-vegan-detail");
-  const vegRow = document.getElementById("dietary-vegetarian-attr")?.parentNode;
   const vegStatus = document.getElementById("dietary-vegetarian-status");
   const vegDetail = document.getElementById("dietary-vegetarian-detail");
-  const kosherRow = document.getElementById("dietary-kosher-attr")?.parentNode;
   const kosherStatus = document.getElementById("dietary-kosher-status");
   const kosherDetail = document.getElementById("dietary-kosher-detail");
-  const halalRow = document.getElementById("dietary-halal-attr")?.parentNode;
   const halalStatus = document.getElementById("dietary-halal-status");
   const halalDetail = document.getElementById("dietary-halal-detail");
-  const organicRow = document.getElementById("dietary-organic-attr")?.parentNode;
   const organicStatus = document.getElementById("dietary-organic-status");
   const organicDetail = document.getElementById("dietary-organic-detail");
-  const nonGmoRow = document.getElementById("dietary-non-gmo-attr")?.parentNode;
   const nonGmoStatus = document.getElementById("dietary-non-gmo-status");
   const nonGmoDetail = document.getElementById("dietary-non-gmo-detail");
-  const noAdditivesRow = document.getElementById("dietary-no-additives-attr")?.parentNode;
   const noAdditivesStatus = document.getElementById("dietary-no-additives-status");
   const noAdditivesDetail = document.getElementById("dietary-no-additives-detail");
-  const palmOilFreeRow = document.getElementById("dietary-palm-oil-free-attr")?.parentNode;
   const palmOilFreeStatus = document.getElementById("dietary-palm-oil-free-status");
   const palmOilFreeDetail = document.getElementById("dietary-palm-oil-free-detail");
-  const fairTradeRow = document.getElementById("dietary-fair-trade-attr")?.parentNode;
   const fairTradeStatus = document.getElementById("dietary-fair-trade-status");
   const fairTradeDetail = document.getElementById("dietary-fair-trade-detail");
+
+  function getRow(attrId) {
+    const el = document.getElementById(attrId);
+    return el ? el.closest(".dietary-row") : null;
+  }
 
   function setStatus(el, row, colorClass, text) {
     el.className = "dietary-status " + colorClass;
@@ -431,16 +426,17 @@ function renderDietaryBadges(product) {
 
   function setupRow(row, detailEl, detailHtml) {
     if (!row || !detailEl) return;
-    row.querySelector(".dietary-row-header") || row.insertAdjacentHTML("afterbegin", '<div class="dietary-row-header"></div>');
-    const header = row.querySelector(".dietary-row-header");
-    const attr = row.querySelector(".dietary-attr");
-    const status = row.querySelector(".dietary-status");
-    const chevron = row.querySelector(".dietary-chevron");
-    if (attr && status && chevron) {
-      header.innerHTML = "";
-      header.appendChild(attr);
-      header.appendChild(status);
-      header.appendChild(chevron);
+    if (!row.querySelector(".dietary-row-header")) {
+      row.insertAdjacentHTML("afterbegin", '<div class="dietary-row-header"></div>');
+      const header = row.querySelector(".dietary-row-header");
+      const attr = row.querySelector(".dietary-attr");
+      const status = row.querySelector(".dietary-status");
+      const chevron = row.querySelector(".dietary-chevron");
+      if (attr && status && chevron) {
+        header.appendChild(attr);
+        header.appendChild(status);
+        header.appendChild(chevron);
+      }
     }
     detailEl.innerHTML = detailHtml || "";
     row.onclick = function(e) {
@@ -452,6 +448,7 @@ function renderDietaryBadges(product) {
 
   // Gluten row
   if (g) {
+    const glutenRow = getRow("dietary-gluten-attr");
     let glutenColor, glutenText;
     if (g.classification === "certified") {
       glutenColor = "db-yes"; glutenText = "Sí";
@@ -470,7 +467,7 @@ function renderDietaryBadges(product) {
 
   function makeDietRow(dietVal, source, detailId, dietName, label, attrId) {
     const statusEl = { vegan: veganStatus, vegetarian: vegStatus, kosher: kosherStatus, halal: halalStatus, organic: organicStatus, nonGmo: nonGmoStatus, noAdditives: noAdditivesStatus, palmOilFree: palmOilFreeStatus, fairTrade: fairTradeStatus }[label];
-    const rowEl = { vegan: veganRow, vegetarian: vegRow, kosher: kosherRow, halal: halalRow, organic: organicRow, nonGmo: nonGmoRow, noAdditives: noAdditivesRow, palmOilFree: palmOilFreeRow, fairTrade: fairTradeRow }[label];
+    const rowEl = getRow(attrId);
     const detailEl = { vegan: veganDetail, vegetarian: vegDetail, kosher: kosherDetail, halal: halalDetail, organic: organicDetail, nonGmo: nonGmoDetail, noAdditives: noAdditivesDetail, palmOilFree: palmOilFreeDetail, fairTrade: fairTradeDetail }[label];
     const attrEl = document.getElementById(attrId);
     if (dietVal === true) {
