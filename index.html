@@ -257,6 +257,85 @@
             </div>
           </div>
 
+            <!-- TARJETA RIESGOS PARA LA SALUD (fuera del grid para que se muestre en fallbacks) -->
+            <div class="analysis-card full-width hidden" id="card-health-risks">
+              <div class="card-details" style="padding:0;width:100%;">
+                <details class="health-risks-details" open>
+                  <summary>🩺 Riesgos para la Salud</summary>
+                  <div class="health-risks-grid">
+                    <!-- DIABETES -->
+                    <div class="analysis-card health-card hidden" id="card-diabetes">
+                      <div class="card-icon-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                        </svg>
+                      </div>
+                      <div class="card-details">
+                        <h4>Riesgo para Diabéticos</h4>
+                        <p id="diabetes-risk" class="status-value">--</p>
+                        <p id="diabetes-impact" class="diabetes-impact-text hidden"></p>
+                        <p id="diabetes-notes" class="diabetes-notes-text hidden"></p>
+                      </div>
+                    </div>
+                    <!-- HIPERTENSIÓN -->
+                    <div class="analysis-card health-card hidden" id="card-hypertension">
+                      <div class="card-icon-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                      </div>
+                      <div class="card-details">
+                        <h4>Riesgo para Hipertensos</h4>
+                        <p id="hypertension-risk" class="status-value">--</p>
+                        <div class="progress-bar-container">
+                          <div id="hypertension-progress" class="progress-bar" style="width:0%"></div>
+                        </div>
+                        <span id="hypertension-level" class="level-indicator">--</span>
+                        <p id="hypertension-sodium" class="hypertension-sodium-text hidden"></p>
+                        <p id="hypertension-notes" class="hypertension-notes-text hidden"></p>
+                      </div>
+                    </div>
+                    <!-- COLESTEROL -->
+                    <div class="analysis-card health-card hidden" id="card-cholesterol">
+                      <div class="card-icon-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                          <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                        </svg>
+                      </div>
+                      <div class="card-details">
+                        <h4>Riesgo por Grasas Saturadas</h4>
+                        <p id="cholesterol-risk" class="status-value">--</p>
+                        <div class="progress-bar-container">
+                          <div id="cholesterol-progress" class="progress-bar" style="width:0%"></div>
+                        </div>
+                        <span id="cholesterol-level" class="level-indicator">--</span>
+                        <p id="cholesterol-satfat" class="cholesterol-satfat-text hidden"></p>
+                        <p id="cholesterol-notes" class="cholesterol-notes-text hidden"></p>
+                      </div>
+                    </div>
+                    <!-- CONTROL DE PESO -->
+                    <div class="analysis-card health-card hidden" id="card-weight">
+                      <div class="card-icon-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                          <path d="M12 20V10M18 20V4M6 20v-4"/>
+                        </svg>
+                      </div>
+                      <div class="card-details">
+                        <h4>Control de Peso</h4>
+                        <p id="weight-density" class="status-value">--</p>
+                        <div class="progress-bar-container">
+                          <div id="weight-progress" class="progress-bar" style="width:0%"></div>
+                        </div>
+                        <span id="weight-level" class="level-indicator">--</span>
+                        <p id="weight-detail" class="weight-detail-text hidden"></p>
+                        <p id="weight-notes" class="weight-notes-text hidden"></p>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+
           <!-- NO RECOMENDADO PARA -->
           <div class="analysis-card full-width hidden" id="card-not-recommended">
             <div class="card-details" style="padding:8px 0;width:100%;">
@@ -369,85 +448,6 @@
               </details>
             </div>
           </div>
-
-            <!-- TARJETA RIESGOS PARA LA SALUD (fuera del grid para que se muestre en fallbacks) -->
-            <div class="analysis-card full-width hidden" id="card-health-risks">
-              <div class="card-details" style="padding:0;width:100%;">
-                <details class="health-risks-details" open>
-                  <summary>🩺 Riesgos para la Salud</summary>
-                  <div class="health-risks-grid">
-                    <!-- DIABETES -->
-                    <div class="analysis-card health-card hidden" id="card-diabetes">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Riesgo para Diabéticos</h4>
-                        <p id="diabetes-risk" class="status-value">--</p>
-                        <p id="diabetes-impact" class="diabetes-impact-text hidden"></p>
-                        <p id="diabetes-notes" class="diabetes-notes-text hidden"></p>
-                      </div>
-                    </div>
-                    <!-- HIPERTENSIÓN -->
-                    <div class="analysis-card health-card hidden" id="card-hypertension">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Riesgo para Hipertensos</h4>
-                        <p id="hypertension-risk" class="status-value">--</p>
-                        <div class="progress-bar-container">
-                          <div id="hypertension-progress" class="progress-bar" style="width:0%"></div>
-                        </div>
-                        <span id="hypertension-level" class="level-indicator">--</span>
-                        <p id="hypertension-sodium" class="hypertension-sodium-text hidden"></p>
-                        <p id="hypertension-notes" class="hypertension-notes-text hidden"></p>
-                      </div>
-                    </div>
-                    <!-- COLESTEROL -->
-                    <div class="analysis-card health-card hidden" id="card-cholesterol">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Riesgo por Grasas Saturadas</h4>
-                        <p id="cholesterol-risk" class="status-value">--</p>
-                        <div class="progress-bar-container">
-                          <div id="cholesterol-progress" class="progress-bar" style="width:0%"></div>
-                        </div>
-                        <span id="cholesterol-level" class="level-indicator">--</span>
-                        <p id="cholesterol-satfat" class="cholesterol-satfat-text hidden"></p>
-                        <p id="cholesterol-notes" class="cholesterol-notes-text hidden"></p>
-                      </div>
-                    </div>
-                    <!-- CONTROL DE PESO -->
-                    <div class="analysis-card health-card hidden" id="card-weight">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <path d="M12 20V10M18 20V4M6 20v-4"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Control de Peso</h4>
-                        <p id="weight-density" class="status-value">--</p>
-                        <div class="progress-bar-container">
-                          <div id="weight-progress" class="progress-bar" style="width:0%"></div>
-                        </div>
-                        <span id="weight-level" class="level-indicator">--</span>
-                        <p id="weight-detail" class="weight-detail-text hidden"></p>
-                        <p id="weight-notes" class="weight-notes-text hidden"></p>
-                      </div>
-                    </div>
-                  </div>
-                </details>
-              </div>
-            </div>
 
             <!-- TARJETA CONFIABILIDAD DEL ANÁLISIS (fuera del grid para que se muestre en fallbacks) -->
             <div class="analysis-card full-width hidden" id="card-confidence">
