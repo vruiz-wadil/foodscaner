@@ -910,9 +910,23 @@ function parseApiProduct(product) {
     notRecommended.push({ icon: "🧬", grupo: "Fenilcetonúricos", razon: "Contiene aspartame (fenilalanina)", certain: true });
   }
 
-  // Azúcar alto → diabéticos
+  // Diabéticos: alto en azúcares, alto en carbohidratos netos, o bajo en fibra con azúcar medio
+  const netCarbs = (carbs !== null && fiber !== null) ? carbs - fiber : (carbs !== null ? carbs : null);
+  const diabeticReasons = [];
   if (sugars !== null && sugarLevel === "Alto") {
-    notRecommended.push({ icon: "🩸", grupo: "Diabéticos", razon: `Alto en azúcares (${Math.round(sugars * 10) / 10}g/100g)`, certain: true });
+    diabeticReasons.push(`Alto en azúcares (${Math.round(sugars * 10) / 10}g/100g)`);
+  }
+  if (netCarbs !== null) {
+    const carbThreshold = isBeverage ? 10 : 20;
+    if (netCarbs > carbThreshold && sugarLevel !== "Alto") {
+      diabeticReasons.push(`Alto en carbohidratos netos (${Math.round(netCarbs * 10) / 10}g/100g)`);
+    }
+  }
+  if (fiber !== null && fiber < 3 && sugars !== null && sugarLevel === "Medio") {
+    diabeticReasons.push(`Bajo en fibra (${Math.round(fiber * 10) / 10}g/100g) con contenido medio de azúcares`);
+  }
+  if (diabeticReasons.length > 0) {
+    notRecommended.push({ icon: "🩸", grupo: "Diabéticos", razon: diabeticReasons.join("; "), certain: true });
   }
 
   // Sodio alto → hipertensos
