@@ -1564,8 +1564,10 @@ function runAICheck(product) {
     }
     const notesEl = document.getElementById("confidence-notes");
     const notesTextEl = document.getElementById("confidence-notes-text");
-    if (data.notes && notesEl && notesTextEl) {
-      notesTextEl.textContent = data.notes;
+    if (notesEl && notesTextEl) {
+      notesTextEl.textContent = !product.ingredientsText
+        ? "No se proporcionó lista de ingredientes. El análisis se basa únicamente en el nombre y la marca del producto, por lo que los resultados pueden ser inexactos."
+        : (data.notes || "");
       notesEl.classList.remove("hidden");
     }
 
