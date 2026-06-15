@@ -619,6 +619,10 @@ function parseApiProduct(product) {
     }
   }
 
+  if (product.nutriments && sodium !== null) {
+    product.nutriments["sodium_100g"] = sodium;
+  }
+
   // Check enriched USDA data (only override if value is actually a number)
   if (product._sugars_enriched) {
     if (product._sugars_enriched.sugars != null && !isNaN(product._sugars_enriched.sugars)) sugars = product._sugars_enriched.sugars;
