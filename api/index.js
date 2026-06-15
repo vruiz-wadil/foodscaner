@@ -109,6 +109,20 @@ const OFF_FRESH_TTL = 3600;      // 1h: serve from cache unconditionally
 const OFF_STALE_TTL = 86400;     // 24h: serve from cache if OFF unchanged
 const FALLBACK_TTL = 604800;     // 7d: serve from cache for non-OFF sources
 
+const GLUTEN_KW = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
+
+function computeEnergyLevel(kcal) {
+  if (kcal > 400) return { level: "Alto", percent: Math.min(100, Math.round((kcal / 600) * 100)) };
+  if (kcal >= 150) return { level: "Moderado", percent: Math.round((kcal / 400) * 100) };
+  return { level: "Bajo", percent: Math.max(3, Math.round((kcal / 150) * 50)) };
+}
+
+function detectGluten(...texts) {
+  const combined = texts.join(" ").toLowerCase();
+  const detected = GLUTEN_KW.filter(kw => combined.includes(kw));
+  return { hasGluten: detected.length > 0, detected };
+}
+
 // --- Product Search ---
 app.get('/api/product/:barcode', async (req, res) => {
   try {
@@ -129,15 +143,17 @@ app.get('/api/product/:barcode', async (req, res) => {
         const host = cached.source.includes("Mundial") ? "world.openfoodfacts.org" : "mx.openfoodfacts.org";
         const currentModified = await checkOFFLastModified(barcode, host);
         if (currentModified !== null && currentModified === cached.offLastModified) {
-          cache[barcode].cachedAt = now;
-          writeCache(cache);
+          const cache2 = readCache();
+          cache2[barcode].cachedAt = now;
+          writeCache(cache2);
           return res.json(cached.response);
         }
       }
 
       if (!isOFF && age < FALLBACK_TTL) {
-        cache[barcode].cachedAt = now;
-        writeCache(cache);
+        const cache2 = readCache();
+        cache2[barcode].cachedAt = now;
+        writeCache(cache2);
         return res.json(cached.response);
       }
 
@@ -259,18 +275,14 @@ app.get('/api/product/:barcode', async (req, res) => {
                 if (energy) kcal = Math.round(energy.value);
               }
 
-              let energyLevel = "Bajo";
-              let percent = 0;
-              if (kcal > 400) { energyLevel = "Alto"; percent = Math.min(100, Math.round((kcal / 600) * 100)); }
-              else if (kcal >= 150) { energyLevel = "Moderado"; percent = Math.round((kcal / 400) * 100); }
-              else { energyLevel = "Bajo"; percent = Math.max(3, Math.round((kcal / 150) * 50)); }
+              const el = computeEnergyLevel(kcal);
+              let energyLevel = el.level, percent = el.percent;
 
               const ingredientsText = (item.ingredients || "").toLowerCase();
               const allergenText = (item.allergenWarning || "").toLowerCase();
-              const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
-              const detectedGluten = glutenKeywords.filter(kw => ingredientsText.includes(kw) || allergenText.includes(kw));
-              const hasGluten = detectedGluten.length > 0;
-            const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "No se detectaron ingredientes con gluten en la base USDA";
+              const gluten = detectGluten(ingredientsText, allergenText);
+              const hasGluten = gluten.hasGluten;
+            const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "No se detectaron ingredientes con gluten en la base USDA";
 
               let allergens = [];
               if (item.allergenWarning) {
@@ -367,16 +379,13 @@ app.get('/api/product/:barcode', async (req, res) => {
               const sod = item.foodNutrients.find(n => n.nutrientName === "Sodium, Na" && (n.unitName === "MG" || n.unitName === "mg"));
               if (sod) sodiumVal = Math.round(sod.value * 10) / 10;
             }
-            let energyLevel = "Bajo", percent = 0;
-            if (kcal > 400) { energyLevel = "Alto"; percent = Math.min(100, Math.round((kcal / 600) * 100)); }
-            else if (kcal >= 150) { energyLevel = "Moderado"; percent = Math.round((kcal / 400) * 100); }
-            else { energyLevel = "Bajo"; percent = Math.max(3, Math.round((kcal / 150) * 50)); }
+            const el = computeEnergyLevel(kcal);
+            let energyLevel = el.level, percent = el.percent;
             const ingredientsText = (item.ingredients || "").toLowerCase();
             const allergenText = (item.allergenWarning || "").toLowerCase();
-            const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
-            const detectedGluten = glutenKeywords.filter(kw => ingredientsText.includes(kw) || allergenText.includes(kw));
-            const hasGluten = detectedGluten.length > 0;
-            const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Sin ingredientes con gluten detectados en la información declarada";
+            const gluten = detectGluten(ingredientsText, allergenText);
+            const hasGluten = gluten.hasGluten;
+            const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "Sin ingredientes con gluten detectados en la información declarada";
             let allergens = [];
             if (item.allergenWarning) {
               const usdaToEn = { milk: "en:milk", eggs: "en:eggs", peanuts: "en:peanuts", soy: "en:soybeans", soybeans: "en:soybeans", wheat: "en:wheat", "tree nuts": "en:nuts", fish: "en:fish", shellfish: "en:crustaceans", sesame: "en:sesame-seeds", mustard: "en:mustard", sulfites: "en:sulphur-dioxide-and-sulphites" };
@@ -419,10 +428,9 @@ app.get('/api/product/:barcode', async (req, res) => {
           const matchesNonFood = nonFoodKeywords.some(kw => categoryLower.includes(kw) || titleLower.includes(kw) || descLower.includes(kw));
           const isFood = !matchesNonFood;
 
-          const glutenKeywords = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye"];
-          const detectedGluten = glutenKeywords.filter(kw => titleLower.includes(kw) || descLower.includes(kw));
-          const hasGluten = detectedGluten.length > 0;
-          const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${detectedGluten.join(", ")})` : "Información no disponible (Requiere verificar el empaque)";
+          const gluten = detectGluten(titleLower, descLower);
+          const hasGluten = gluten.hasGluten;
+          const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "Información no disponible (Requiere verificar el empaque)";
 
           fallbackResult = { status: 1, source: 'local', sourceLabel: 'UpcItemDb', product: {
             name: item.title, brand: item.brand || "Desconocida",
@@ -466,7 +474,7 @@ app.get('/api/product/:barcode', async (req, res) => {
             const foodKw = ["food","beverage","snack","grocery","comida","dulce","galleta","bebida","leche","cereal","pasta","arroz"];
             const nonFoodKw = ["shampoo","soap","jabón","detergent","limpieza","higiene","cosmetics","pet food","mascotas"];
             const isFoodGtin = !nonFoodKw.some(k => titleLower.includes(k) || descLower.includes(k) || catLower.includes(k));
-            const hasGlutenGtin = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye"].some(k => titleLower.includes(k) || descLower.includes(k));
+            const hasGlutenGtin = detectGluten(titleLower, descLower).hasGluten;
             fallbackResult = { status: 1, source: 'local', sourceLabel: 'GTINHub', product: {
               name: nameGtin, brand: brandGtin, image: p.image || "", isFood: isFoodGtin,
               category: p.category || (isFoodGtin ? "Comida / Bebida (GTINHub)" : "No Alimenticio"),

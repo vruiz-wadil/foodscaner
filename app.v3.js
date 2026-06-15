@@ -776,19 +776,15 @@ function parseApiProduct(product) {
     });
   }
 
-  // Parsear declaraciones explícitas "Contiene:" / "Contains:" del ingredients_text
-  // (declaraciones del fabricante, no deducción por palabras clave)
-  const parseContieneDeclarations = (text) => {
-    const regex = /(?:contiene|contains)\s*:\s*([^.\n]+?)(?=(?:puede\s+contener|may\s+contain|\.|\n|$))/i;
+  const parseDeclaration = (text, regex) => {
     const match = text.match(regex);
     if (!match) return [];
-    // Split por coma primero, luego por " y " / " & " / " and "
     return match[1].split(',').flatMap(part =>
       part.trim().split(/\s+(?:y|&|and)\s+/).map(s => s.trim())
     ).filter(s => s.length > 1);
   };
   if (product.ingredients_text) {
-    parseContieneDeclarations(product.ingredients_text).forEach(item => {
+    parseDeclaration(product.ingredients_text, /(?:contiene|contains)\s*:\s*([^.\n]+?)(?=(?:puede\s+contener|may\s+contain|\.|\n|$))/i).forEach(item => {
       const itemLower = item.toLowerCase().replace(/\btrazas?\s+de\s+/g, "");
       const known = COMMON_ALLERGENS.find(ca => ca.match.some(m => itemLower.includes(m)));
       if (known) {
@@ -826,17 +822,8 @@ function parseApiProduct(product) {
     });
   }
 
-  // Parsear "Puede contener:" / "May contain:" del ingredients_text
-  const parsePuedeContenerDeclarations = (text) => {
-    const regex = /(?:puede\s+contener|may\s+contain)\s*:\s*([^.\n]+?)(?=(?:\.|\n|$))/i;
-    const match = text.match(regex);
-    if (!match) return [];
-    return match[1].split(',').flatMap(part =>
-      part.trim().split(/\s+(?:y|&|and)\s+/).map(s => s.trim())
-    ).filter(s => s.length > 1);
-  };
   if (product.ingredients_text) {
-    parsePuedeContenerDeclarations(product.ingredients_text).forEach(item => {
+    parseDeclaration(product.ingredients_text, /(?:puede\s+contener|may\s+contain)\s*:\s*([^.\n]+?)(?=(?:\.|\n|$))/i).forEach(item => {
       const itemLower = item.toLowerCase().replace(/\btrazas?\s+de\s+/g, "");
       const known = COMMON_ALLERGENS.find(ca => ca.match.some(m => itemLower.includes(m)));
       if (known) {
@@ -1089,22 +1076,22 @@ function renderProductData(product, barcode) {
 
   // Gluten card hidden (info shown in dietary table)
 
+  function styleCard(levelEl, progressEl, level, classMap, bgMap) {
+    levelEl.className = classMap[level] || classMap["default"];
+    progressEl.style.background = bgMap[level] || bgMap["default"];
+  }
+
+  const lvlBg = (h, m, l) => ({ Alto: h, Medio: m, Moderado: m, Bajo: l, default: l });
+  const lvlCls = (prefix, h, m, l) => ({ Alto: prefix + h, Medio: prefix + m, Moderado: prefix + m, Bajo: prefix + l, default: prefix + l });
+
   // Render Calories Card details
   caloriesVal.querySelector(".number").textContent = product.calories.value;
   caloriesProgress.style.width = `${product.calories.percent}%`;
   caloriesLevel.textContent = `Nivel de energía: ${product.calories.level}`;
-  
   cardCalories.className = "analysis-card";
-  if (product.calories.level === "Alto") {
-    caloriesLevel.className = "level-indicator calories-high";
-    caloriesProgress.style.background = "var(--accent-error)";
-  } else if (product.calories.level === "Moderado") {
-    caloriesLevel.className = "level-indicator calories-mod";
-    caloriesProgress.style.background = "var(--accent-alert)";
-  } else {
-    caloriesLevel.className = "level-indicator calories-low";
-    caloriesProgress.style.background = "var(--accent-primary)";
-  }
+  styleCard(caloriesLevel, caloriesProgress, product.calories.level,
+    lvlCls("level-indicator calories-", "high", "mod", "low"),
+    lvlBg("var(--accent-error)", "var(--accent-alert)", "var(--accent-primary)"));
 
   // Render Sugars Card
   if (product.sugars && product.sugars.value !== null) {
@@ -1113,16 +1100,9 @@ function renderProductData(product, barcode) {
     sugarsProgress.style.width = product.sugars.percent + "%";
     sugarsLevel.textContent = "Nivel de azúcar: " + product.sugars.level;
     cardSugars.className = "analysis-card";
-    if (product.sugars.level === "Alto") {
-      sugarsLevel.className = "level-indicator sugars-high";
-      sugarsProgress.style.background = "var(--accent-error)";
-    } else if (product.sugars.level === "Medio") {
-      sugarsLevel.className = "level-indicator sugars-mod";
-      sugarsProgress.style.background = "var(--accent-alert)";
-    } else {
-      sugarsLevel.className = "level-indicator sugars-low";
-      sugarsProgress.style.background = "var(--accent-primary)";
-    }
+    styleCard(sugarsLevel, sugarsProgress, product.sugars.level,
+      lvlCls("level-indicator sugars-", "high", "mod", "low"),
+      lvlBg("var(--accent-error)", "var(--accent-alert)", "var(--accent-primary)"));
   } else {
     cardSugars.classList.add("hidden");
   }
@@ -1134,16 +1114,9 @@ function renderProductData(product, barcode) {
     proteinsProgress.style.width = product.proteins.percent + "%";
     proteinsLevel.textContent = "Nivel de proteína: " + product.proteins.level;
     cardProteins.className = "analysis-card";
-    if (product.proteins.level === "Alto") {
-      proteinsLevel.className = "level-indicator proteins-high";
-      proteinsProgress.style.background = "var(--accent-primary)";
-    } else if (product.proteins.level === "Moderado") {
-      proteinsLevel.className = "level-indicator proteins-mod";
-      proteinsProgress.style.background = "var(--accent-alert)";
-    } else {
-      proteinsLevel.className = "level-indicator proteins-low";
-      proteinsProgress.style.background = "var(--text-muted)";
-    }
+    styleCard(proteinsLevel, proteinsProgress, product.proteins.level,
+      lvlCls("level-indicator proteins-", "high", "mod", "low"),
+      lvlBg("var(--accent-primary)", "var(--accent-alert)", "var(--text-muted)"));
   } else {
     cardProteins.classList.add("hidden");
   }
@@ -1172,16 +1145,9 @@ function renderProductData(product, barcode) {
       else if (total < 10) level = "Bajo";
       carbsLevel.textContent = "Nivel: " + level;
       cardCarbs.className = "analysis-card";
-      if (level === "Alto") {
-        carbsLevel.className = "level-indicator carbs-high";
-        carbsProgress.style.background = "var(--accent-error)";
-      } else if (level === "Moderado") {
-        carbsLevel.className = "level-indicator carbs-mod";
-        carbsProgress.style.background = "var(--accent-alert)";
-      } else {
-        carbsLevel.className = "level-indicator carbs-low";
-        carbsProgress.style.background = "var(--accent-primary)";
-      }
+      styleCard(carbsLevel, carbsProgress, level,
+        lvlCls("level-indicator carbs-", "high", "mod", "low"),
+        lvlBg("var(--accent-error)", "var(--accent-alert)", "var(--accent-primary)"));
     } else {
       cardCarbs.classList.add("hidden");
     }
@@ -1365,6 +1331,9 @@ function renderProductData(product, barcode) {
     }
   }
 
+  renderHypertensionCard(product);
+  renderCholesterolCard(product);
+  renderWeightCard(product);
   runAICheck(product);
 }
 
@@ -1653,6 +1622,104 @@ function renderDiabetesCard(d) {
   if (notesEl) {
     notesEl.classList.remove("hidden");
     notesEl.textContent = d.notes || "";
+  }
+  card.classList.remove("hidden");
+}
+
+function renderHypertensionCard(product) {
+  const card = document.getElementById("card-hypertension");
+  const riskEl = document.getElementById("hypertension-risk");
+  const sodiumEl = document.getElementById("hypertension-sodium");
+  const notesEl = document.getElementById("hypertension-notes");
+  if (!card || !riskEl) return;
+  const nutriments = product.nutriments || {};
+  let sodiumMg = null;
+  if (nutriments['sodium_100g'] !== undefined) sodiumMg = Math.round(nutriments['sodium_100g'] * 1000);
+  if (sodiumMg === null && nutriments['salt_100g'] !== undefined) sodiumMg = Math.round(nutriments['salt_100g'] * 0.393 * 1000);
+  if (sodiumMg === null || sodiumMg === 0) { card.classList.add("hidden"); return; }
+  let risk, label;
+  if (sodiumMg > 400) { risk = "alto"; label = "Alto 🔴"; }
+  else if (sodiumMg >= 120) { risk = "medio"; label = "Medio 🟡"; }
+  else { risk = "bajo"; label = "Bajo 🟢"; }
+  riskEl.textContent = label;
+  riskEl.className = "status-value hypertension-risk-" + risk;
+  if (sodiumEl) {
+    sodiumEl.classList.remove("hidden");
+    sodiumEl.textContent = "Sodio: " + sodiumMg + " mg / 100g";
+  }
+  if (notesEl) {
+    const notes = risk === "alto"
+      ? "Alto contenido de sodio. Puede elevar la presión arterial."
+      : risk === "medio"
+        ? "Contenido moderado de sodio. Revisa el consumo diario total."
+        : "Bajo en sodio. Apto para dietas de restricción de sodio.";
+    notesEl.classList.remove("hidden");
+    notesEl.textContent = notes;
+  }
+  card.classList.remove("hidden");
+}
+
+function renderCholesterolCard(product) {
+  const card = document.getElementById("card-cholesterol");
+  const riskEl = document.getElementById("cholesterol-risk");
+  const satfatEl = document.getElementById("cholesterol-satfat");
+  const notesEl = document.getElementById("cholesterol-notes");
+  if (!card || !riskEl) return;
+  const satFat = product.nutriments?.['saturated-fat_100g'];
+  if (satFat === undefined || satFat === null) { card.classList.add("hidden"); return; }
+  const satFatR = Math.round(satFat * 10) / 10;
+  let risk, label;
+  if (satFatR > 6) { risk = "alto"; label = "Alto 🔴"; }
+  else if (satFatR >= 3) { risk = "medio"; label = "Medio 🟡"; }
+  else { risk = "bajo"; label = "Bajo 🟢"; }
+  riskEl.textContent = label;
+  riskEl.className = "status-value cholesterol-risk-" + risk;
+  if (satfatEl) {
+    satfatEl.classList.remove("hidden");
+    satfatEl.textContent = "Grasas saturadas: " + satFatR + " g / 100g";
+  }
+  if (notesEl) {
+    const notes = risk === "alto"
+      ? "Alto en grasas saturadas. La OMS recomienda menos del 10% de las calorías diarias."
+      : risk === "medio"
+        ? "Cantidad moderada de grasas saturadas."
+        : "Bajo en grasas saturadas. Apto para dietas de control de colesterol.";
+    notesEl.classList.remove("hidden");
+    notesEl.textContent = notes;
+  }
+  card.classList.remove("hidden");
+}
+
+function renderWeightCard(product) {
+  const card = document.getElementById("card-weight");
+  const densityEl = document.getElementById("weight-density");
+  const detailEl = document.getElementById("weight-detail");
+  const notesEl = document.getElementById("weight-notes");
+  if (!card || !densityEl) return;
+  const kcal = product.calories?.value || 0;
+  if (kcal === 0) { card.classList.add("hidden"); return; }
+  let risk, label, detail;
+  if (kcal > 300) { risk = "alta"; label = "Alta 🔴"; detail = "Densidad calórica alta (>300 kcal/100g). Porción pequeña = muchas calorías."; }
+  else if (kcal >= 150) { risk = "media"; label = "Media 🟡"; detail = "Densidad calórica moderada (150–300 kcal/100g). Moderar porciones."; }
+  else { risk = "baja"; label = "Baja 🟢"; detail = "Densidad calórica baja (<150 kcal/100g). Apto para control de peso."; }
+  densityEl.textContent = label;
+  densityEl.className = "status-value weight-density-" + risk;
+  if (detailEl) {
+    detailEl.classList.remove("hidden");
+    detailEl.textContent = kcal + " kcal / 100g — " + detail;
+  }
+  if (notesEl) {
+    const extras = [];
+    const sugars = product.sugars?.value;
+    const satFat = product.nutriments?.['saturated-fat_100g'];
+    if (sugars !== null && sugars > 10) extras.push("azúcares elevados (" + sugars + "g)");
+    if (satFat !== null && satFat > 3) extras.push("grasas saturadas elevadas (" + Math.round(satFat * 10) / 10 + "g)");
+    if (extras.length > 0) {
+      notesEl.classList.remove("hidden");
+      notesEl.textContent = "Factores adicionales: " + extras.join(", ") + ".";
+    } else {
+      notesEl.classList.add("hidden");
+    }
   }
   card.classList.remove("hidden");
 }

@@ -15,7 +15,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
   <!-- html5-qrcode CDN -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 </head>
@@ -338,6 +338,48 @@
                 <p id="diabetes-notes" class="diabetes-notes-text hidden"></p>
               </div>
             </div>
+            <!-- TARJETA HIPERTENSIÓN -->
+            <div class="analysis-card full-width hidden" id="card-hypertension">
+              <div class="card-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+              </div>
+              <div class="card-details">
+                <h4>Riesgo para Hipertensos</h4>
+                <p id="hypertension-risk" class="status-value">--</p>
+                <p id="hypertension-sodium" class="hypertension-sodium-text hidden"></p>
+                <p id="hypertension-notes" class="hypertension-notes-text hidden"></p>
+              </div>
+            </div>
+            <!-- TARJETA COLESTEROL -->
+            <div class="analysis-card full-width hidden" id="card-cholesterol">
+              <div class="card-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                  <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                </svg>
+              </div>
+              <div class="card-details">
+                <h4>Riesgo por Grasas Saturadas</h4>
+                <p id="cholesterol-risk" class="status-value">--</p>
+                <p id="cholesterol-satfat" class="cholesterol-satfat-text hidden"></p>
+                <p id="cholesterol-notes" class="cholesterol-notes-text hidden"></p>
+              </div>
+            </div>
+            <!-- TARJETA CONTROL DE PESO -->
+            <div class="analysis-card full-width hidden" id="card-weight">
+              <div class="card-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
+                  <path d="M12 20V10M18 20V4M6 20v-4"/>
+                </svg>
+              </div>
+              <div class="card-details">
+                <h4>Control de Peso</h4>
+                <p id="weight-density" class="status-value">--</p>
+                <p id="weight-detail" class="weight-detail-text hidden"></p>
+                <p id="weight-notes" class="weight-notes-text hidden"></p>
+              </div>
+            </div>
             <!-- TARJETA AZÚCARES -->
             <div class="analysis-card hidden" id="card-sugars">
               <div class="card-icon-wrapper">
@@ -471,6 +513,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.v3.js?v=18" defer></script>
+  <script src="app.v3.js?v=19" defer></script>
 </body>
 </html>

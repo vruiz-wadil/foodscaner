@@ -1405,6 +1405,32 @@ body {
 .level-indicator.carbs-mod { color: var(--accent-alert); }
 .level-indicator.carbs-low { color: var(--accent-primary); }
 
+#card-hypertension .status-value,
+#card-cholesterol .status-value,
+#card-weight .status-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.hypertension-risk-alto, .cholesterol-risk-alto, .weight-density-alta { color: #ef4444; }
+.hypertension-risk-medio, .cholesterol-risk-medio, .weight-density-media { color: #f59e0b; }
+.hypertension-risk-bajo, .cholesterol-risk-bajo, .weight-density-baja { color: #10b981; }
+.hypertension-sodium-text,
+.cholesterol-satfat-text,
+.weight-detail-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+}
+.hypertension-notes-text,
+.cholesterol-notes-text,
+.weight-notes-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 4px 0 0;
+}
+
 /* Confidence card */
 .confidence-section {
   margin-top: 8px;
