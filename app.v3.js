@@ -1549,10 +1549,16 @@ function runAICheck(product) {
     const confidenceEl = document.getElementById("confidence-ai");
     const aiLevelEl = document.getElementById("confidence-ai-level");
     if (data.confidence && confidenceEl && aiLevelEl) {
-      const level = (data.confidence || "").toLowerCase();
+      let level = (data.confidence || "").toLowerCase();
+      let note = "";
+      // Si no hay lista de ingredientes, forzar confianza baja (la IA solo puede basarse en conocimiento general)
+      if (!product.ingredientsText) {
+        level = "baja";
+        note = " — Sin lista de ingredientes";
+      }
       const emojis = { alta: "🟢", media: "🟡", baja: "🔴" };
       const labels = { alta: "Alta", media: "Media", baja: "Baja" };
-      aiLevelEl.innerHTML = `${emojis[level] || "⚪"} ${labels[level] || data.confidence || "N/A"}`;
+      aiLevelEl.innerHTML = `${emojis[level] || "⚪"} ${labels[level] || data.confidence || "N/A"}${note}`;
       aiLevelEl.className = "confidence-ai-level confidence-ai-" + (level === "alta" ? "alta" : level === "media" ? "media" : "baja");
       confidenceEl.classList.remove("hidden");
     }
