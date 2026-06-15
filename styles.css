@@ -645,6 +645,7 @@ body {
   align-items: flex-start;
   justify-content: flex-start;
   gap: 24px;
+  overflow-x: hidden;
 }
 
 .product-header {
