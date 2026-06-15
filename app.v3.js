@@ -1658,9 +1658,9 @@ function renderWeightCard(product) {
   const kcal = product.calories?.value || 0;
   if (kcal === 0) { card.classList.add("hidden"); showHealthRisks(); return; }
   let risk, label, detail;
-  if (kcal > 300) { risk = "alta"; label = "Alto 🔴"; detail = "Alta densidad calórica (>300 kcal/100g). Dificulta el control de peso: una porción pequeña ya aporta muchas calorías."; }
-  else if (kcal >= 150) { risk = "media"; label = "Medio 🟡"; detail = "Densidad calórica moderada (150–300 kcal/100g). Requiere moderar porciones para controlar peso."; }
-  else { risk = "baja"; label = "Bajo 🟢"; detail = "Baja densidad calórica (<150 kcal/100g). Favorece el control de peso: puedes comer un volumen mayor por pocas calorías."; }
+  if (kcal > 300) { risk = "alta"; label = "Alta 🔴"; detail = ">300 kcal/100g. Porción pequeña = muchas calorías. Dificulta mantener un peso saludable."; }
+  else if (kcal >= 150) { risk = "media"; label = "Media 🟡"; detail = "150–300 kcal/100g. Densidad moderada: requiere controlar el tamaño de la porción."; }
+  else { risk = "baja"; label = "Baja 🟢"; detail = "<150 kcal/100g. Puedes comer un volumen mayor por pocas calorías. Favorece el control de peso."; }
   densityEl.textContent = label;
   densityEl.className = "status-value weight-density-" + risk;
   setRiskBar(progressEl, levelEl, risk, (kcal / 600) * 100);
