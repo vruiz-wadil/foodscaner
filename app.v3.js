@@ -460,28 +460,25 @@ function renderDietaryBadges(product) {
     setupRow(glutenRow, glutenDetail, buildGlutenDetail(g));
   }
 
+  const defaultLabels = { vegan: "🌱 Vegano", vegetarian: "🥦 Vegetariano", kosher: "✡️ Kosher", halal: "🌙 Halal", organic: "🌿 Orgánico", nonGmo: "🧬 Sin OGM", noAdditives: "🧪 Sin Aditivos", palmOilFree: "🌴 Sin Aceite de Palma", fairTrade: "🤝 Comercio Justo" };
+
   function makeDietRow(dietVal, source, detailId, dietName, label, attrId) {
     const statusEl = { vegan: veganStatus, vegetarian: vegStatus, kosher: kosherStatus, halal: halalStatus, organic: organicStatus, nonGmo: nonGmoStatus, noAdditives: noAdditivesStatus, palmOilFree: palmOilFreeStatus, fairTrade: fairTradeStatus }[label];
     const rowEl = getRow(attrId);
     const detailEl = { vegan: veganDetail, vegetarian: vegDetail, kosher: kosherDetail, halal: halalDetail, organic: organicDetail, nonGmo: nonGmoDetail, noAdditives: noAdditivesDetail, palmOilFree: palmOilFreeDetail, fairTrade: fairTradeDetail }[label];
     const attrEl = document.getElementById(attrId);
+    if (attrEl && defaultLabels[label]) attrEl.textContent = defaultLabels[label];
     if (dietVal === true) {
-      if (attrEl) attrEl.textContent = label === "noAdditives" ? "🧪 Sin Aditivos" : label === "palmOilFree" ? "🌴 Sin Aceite de Palma" : label === "fairTrade" ? "🤝 Comercio Justo" : label === "nonGmo" ? "🧬 Sin OGM" : label === "vegetarian" ? "🥦 Vegetariano" : label === "vegan" ? "🌱 Vegano" : label === "kosher" ? "✡️ Kosher" : label === "halal" ? "🌙 Halal" : label === "organic" ? "🌿 Orgánico" : attrEl.textContent;
       const isDb = source === 'db';
       const color = isDb ? 'db-yes' : 'ai-yes';
       setStatus(statusEl, rowEl, color, isDb ? "Sí" : "Probable");
       setupRow(rowEl, detailEl, buildDetailText(color, dietName, d[label + "Detail"] || ""));
     } else if (dietVal === false) {
-      if (attrEl) attrEl.textContent = label === "nonGmo" ? "🧬 Con OGM" : label === "noAdditives" ? "🧪 Con Aditivos" : label === "palmOilFree" ? "🌴 Con Aceite de Palma" : label === "vegan" ? "❌ No vegano" : label === "vegetarian" ? "❌ No vegetariano" : label === "kosher" ? "❌ No kosher" : label === "halal" ? "❌ No halal" : label === "organic" ? "❌ No orgánico" : label === "fairTrade" ? "❌ No comercio justo" : attrEl.textContent;
       const isDb = source === 'db';
       const color = isDb ? 'db-no' : 'ai-no';
       setStatus(statusEl, rowEl, color, isDb ? "No" : "Probable No");
       setupRow(rowEl, detailEl, buildDetailText(color, dietName, d[label + "Detail"] || ""));
     } else {
-      if (attrEl && ["vegan","vegetarian","kosher","halal","organic","nonGmo","noAdditives","palmOilFree","fairTrade"].includes(label)) {
-        const defaultLabels = { vegan: "🌱 Vegano", vegetarian: "🥦 Vegetariano", kosher: "✡️ Kosher", halal: "🌙 Halal", organic: "🌿 Orgánico", nonGmo: "🧬 Sin OGM", noAdditives: "🧪 Sin Aditivos", palmOilFree: "🌴 Sin Aceite de Palma", fairTrade: "🤝 Comercio Justo" };
-        attrEl.textContent = defaultLabels[label] || attrEl.textContent;
-      }
       setStatus(statusEl, rowEl, "unknown", "Sin Info");
       setupRow(rowEl, detailEl, buildDetailText("unknown", dietName));
     }
