@@ -4,7 +4,7 @@
   </h1>
   <p><strong>¿Puedo comerlo? Escanea y lo sabes en segundos.</strong></p>
   <p>
-    <a href="https://foodscaner-phi.vercel.app" target="_blank">foodscaner-phi.vercel.app</a>
+    <a href="https://yomiscan.vercel.app" target="_blank">yomiscan.vercel.app</a>
   </p>
 </div>
 
