@@ -9,6 +9,7 @@ app.use(express.json());
 
 const DB_PATH = '/tmp/local_mexican_products.json';
 const CACHE_PATH = '/tmp/foodscaner_cache.json';
+const AI_CACHE_PATH = '/tmp/foodscaner_ai_cache.json';
 
 const CANDIDATES = [
   path.join(__dirname, '..', 'local_mexican_products.json'),
@@ -86,6 +87,32 @@ function removeCacheEntry(barcode) {
   const cache = readCache();
   delete cache[barcode];
   writeCache(cache);
+}
+
+function readAiCache() {
+  try {
+    if (!fs.existsSync(AI_CACHE_PATH)) return {};
+    return JSON.parse(fs.readFileSync(AI_CACHE_PATH, 'utf8'));
+  } catch { return {}; }
+}
+
+function writeAiCache(cache) {
+  try { fs.writeFileSync(AI_CACHE_PATH, JSON.stringify(cache, null, 2), 'utf8'); } catch {}
+}
+
+function getAiCacheEntry(key) {
+  const cache = readAiCache();
+  const entry = cache[key];
+  if (!entry) return null;
+  const age = Math.floor(Date.now() / 1000) - entry.cachedAt;
+  if (age > 86400) return null; // 24h TTL
+  return entry.response;
+}
+
+function setAiCacheEntry(key, response) {
+  const cache = readAiCache();
+  cache[key] = { response, cachedAt: Math.floor(Date.now() / 1000) };
+  writeAiCache(cache);
 }
 
 // Lightweight OFF freshness check: fetch only last_modified_t (tiny payload)
@@ -598,6 +625,11 @@ app.post('/api/ai-query', async (req, res) => {
   const { name, brand, ingredients, allergens, sugars, carbohydrates, fiber, isBeverage, dietary } = req.body;
   if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
 
+  // AI cache: misma consulta repetida dentro de 24h devuelve resultado previo
+  const cacheKey = [name, brand, ingredients, sugars, carbohydrates, fiber, isBeverage].join('|');
+  const cached = getAiCacheEntry(cacheKey);
+  if (cached) return res.json(cached);
+
   let nutritionStr = '';
   if (sugars !== undefined && sugars !== null) {
     nutritionStr += `\n\nAzúcares por 100g: ${sugars}g`;
@@ -696,6 +728,7 @@ REGLAS ESTRICTAS:
     }
 
     res.json(parsed);
+    setAiCacheEntry(cacheKey, parsed);
   } catch (err) {
     res.json({ error: "Error inesperado en análisis IA. Los datos del producto ya están visibles." });
   }
