@@ -1953,10 +1953,24 @@ function initOcrHandlers() {
         });
 
         URL.revokeObjectURL(imgUrl);
+        const rawText = result.data.text.trim() || "(No text detected)";
+
+        // Process with AI to clean text
+        if (progress) progress.style.width = "85%";
+        const aiResponse = await fetch("/api/ocr/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rawText }),
+          signal: AbortSignal.timeout(30000)
+        });
+
+        if (!aiResponse.ok) throw new Error("AI processing failed");
+        const aiData = await aiResponse.json();
+        const cleanedText = aiData.cleanedText;
 
         const textArea = document.getElementById("ocr-result");
         if (textArea) {
-          textArea.value = result.data.text.trim() || "(No text detected)";
+          textArea.value = cleanedText;
         }
 
         if (progress) progress.style.width = "100%";
@@ -1988,7 +2002,7 @@ function initOcrHandlers() {
 
       saveBtn.disabled = true;
       const originalText = saveBtn.textContent;
-      saveBtn.textContent = "🤖 Procesando con IA...";
+      saveBtn.textContent = "💾 Guardando...";
       const textArea = document.getElementById("ocr-result");
       const ingredients = textArea?.value || "";
 
@@ -1996,24 +2010,16 @@ function initOcrHandlers() {
         const response = await fetch("/api/products/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ barcode: currentBarcode, ingredients }),
-          signal: AbortSignal.timeout(30000)
+          body: JSON.stringify({ barcode: currentBarcode, ingredients })
         });
 
         if (!response.ok) throw new Error(`Error ${response.status}`);
-        const result = await response.json();
-
-        // Show cleaned text
-        if (textArea) {
-          textArea.value = result.cleanedText;
-          textArea.setAttribute("readonly", "readonly");
-        }
 
         document.getElementById("ocr-step-3").classList.add("hidden");
         document.getElementById("ocr-step-4").classList.remove("hidden");
       } catch (err) {
         console.error("Save error:", err);
-        alert("Error al procesar: " + err.message);
+        alert("Error al guardar: " + err.message);
         saveBtn.disabled = false;
         saveBtn.textContent = originalText;
       }

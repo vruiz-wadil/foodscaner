@@ -830,6 +830,34 @@ app.post('/api/cache/refresh/:barcode', async (req, res) => {
   }
 });
 
+// Process raw OCR text with AI to clean and extract ingredients
+app.post('/api/ocr/process', async (req, res) => {
+  try {
+    const { rawText } = req.body;
+    if (!rawText) {
+      return res.status(400).json({ error: 'Missing rawText' });
+    }
+
+    const cleaningPrompt = `El siguiente texto fue extraído de una imagen de una lista de ingredientes usando OCR.
+Por favor, corrige los errores de OCR y extrae SOLO la lista de ingredientes limpia, sin explicaciones adicionales.
+Retorna solo la lista de ingredientes separados por comas.
+
+Texto OCR:
+${rawText}
+
+Ingredientes limpios (solo la lista, separada por comas):`;
+
+    const aiResult = await callGroq(cleaningPrompt, 'llama-3.3-70b-versatile', 1000);
+    const cleanedText = aiResult.content.trim();
+
+    res.json({ status: 'ok', cleanedText });
+  } catch (error) {
+    console.error('[OCR Process] Error:', error.message);
+    res.status(500).json({ error: 'Error al procesar OCR: ' + error.message });
+  }
+});
+
+// Save processed ingredients to Firebase
 app.post('/api/products/ocr', async (req, res) => {
   try {
     const { barcode, ingredients } = req.body;
@@ -837,30 +865,15 @@ app.post('/api/products/ocr', async (req, res) => {
       return res.status(400).json({ error: 'Missing barcode or ingredients' });
     }
 
-    // Clean and extract ingredients using AI
-    const cleaningPrompt = `El siguiente texto fue extraído de una imagen de una lista de ingredientes usando OCR.
-Por favor, corrige los errores de OCR y extrae SOLO la lista de ingredientes limpia, sin explicaciones adicionales.
-Retorna solo la lista de ingredientes separados por comas.
-
-Texto OCR:
-${ingredients}
-
-Ingredientes limpios (solo la lista, separada por comas):`;
-
-    const aiResult = await callGroq(cleaningPrompt, 'llama-3.3-70b-versatile', 1000);
-    const cleanedIngredients = aiResult.content.trim();
-
-    await fireSetOcrData(barcode, cleanedIngredients);
+    await fireSetOcrData(barcode, ingredients);
     res.json({
       status: 'ok',
-      message: 'Ingredientes procesados y guardados correctamente',
-      barcode,
-      originalText: ingredients,
-      cleanedText: cleanedIngredients
+      message: 'Ingredientes guardados correctamente',
+      barcode
     });
   } catch (error) {
-    console.error('[OCR] Error:', error.message);
-    res.status(500).json({ error: 'Error al procesar ingredientes: ' + error.message });
+    console.error('[OCR Save] Error:', error.message);
+    res.status(500).json({ error: 'Error al guardar ingredientes: ' + error.message });
   }
 });
 
