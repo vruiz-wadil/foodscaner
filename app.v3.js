@@ -310,6 +310,13 @@ async function analyzeBarcode(barcode) {
       product = parseApiProduct(data.product);
     }
 
+    // Ensure ingredientsText exists (for OCR button visibility)
+    if (!product.ingredientsText && !product.ingredients_text) {
+      product.ingredientsText = null;
+    } else if (!product.ingredientsText && product.ingredients_text) {
+      product.ingredientsText = product.ingredients_text;
+    }
+
     // Preserve cache/verification flags
     product._fromCache = data._fromCache || false;
     product._verified = data._verified || false;
