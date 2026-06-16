@@ -153,15 +153,55 @@ async function callAI(prompt, groqModel = 'llama-3.3-70b-versatile', max_tokens 
 
 function isValidBarcode(s) { return /^\d{8,14}$/.test(s); }
 
+// ponytail: fuzzy barcode search - generates variations if exact match fails
+function generateBarcodeVariations(barcode) {
+  const variations = [barcode];
+
+  // Remove last digit (check digit variation)
+  if (barcode.length > 8) {
+    variations.push(barcode.slice(0, -1));
+  }
+
+  // Try with 750 prefix (Mexico)
+  if (!barcode.startsWith('750')) {
+    variations.push(`750${barcode.slice(-10)}`);
+  }
+
+  // Try removing first digits if too long
+  if (barcode.length > 12) {
+    variations.push(barcode.slice(-12));
+    variations.push(barcode.slice(-13));
+  }
+
+  // Try padding with zeros if too short
+  if (barcode.length < 12) {
+    variations.push(barcode.padStart(12, '0'));
+    variations.push(barcode.padStart(13, '0'));
+  }
+
+  return [...new Set(variations)].filter(b => isValidBarcode(b));
+}
+
 // --- Product Search ---
 app.get('/api/product/:barcode', async (req, res) => {
   try {
     const barcode = req.params.barcode;
     if (!isValidBarcode(barcode)) return res.status(400).json({ status: 0, message: "Código de barras inválido" });
+
+    const barcodeVariations = generateBarcodeVariations(barcode);
     const now = Math.floor(Date.now() / 1000);
 
-    // ----- CACHE LOOKUP -----
-    const cached = await getCacheEntry(barcode);
+    // ----- CACHE LOOKUP (try all variations) -----
+    let cached = null;
+    let cachedBarcode = barcode;
+    for (const variant of barcodeVariations) {
+      cached = await getCacheEntry(variant);
+      if (cached) {
+        cachedBarcode = variant;
+        break;
+      }
+    }
+
     if (cached) {
       cached.response._fromCache = true;
       const age = now - cached.cachedAt;
@@ -173,31 +213,34 @@ app.get('/api/product/:barcode', async (req, res) => {
 
       if (isOFF && cached.offLastModified !== undefined && age < OFF_STALE_TTL) {
         const host = cached.source.includes("Mundial") ? "world.openfoodfacts.org" : "mx.openfoodfacts.org";
-        const currentModified = await checkOFFLastModified(barcode, host);
+        const currentModified = await checkOFFLastModified(cachedBarcode, host);
         if (currentModified !== null && currentModified === cached.offLastModified) {
-          memoryCache[barcode].cachedAt = now;
+          memoryCache[cachedBarcode].cachedAt = now;
           return res.json(cached.response);
         }
       }
 
       if (!isOFF && age < FALLBACK_TTL) {
-        memoryCache[barcode].cachedAt = now;
+        memoryCache[cachedBarcode].cachedAt = now;
         return res.json(cached.response);
       }
 
-      await removeCacheEntry(barcode);
+      await removeCacheEntry(cachedBarcode);
     }
 
     // ----- FULL QUERY (cache miss or stale) -----
     async function queryOFF(host) {
-      try {
-        const url = `https://${host}/api/v2/product/${barcode}.json`;
-        const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === 1 && data.product) return data;
-        }
-      } catch (e) { console.warn('[OFF] query error:', e.message); }
+      // Try all barcode variations
+      for (const variant of barcodeVariations) {
+        try {
+          const url = `https://${host}/api/v2/product/${variant}.json`;
+          const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === 1 && data.product) return data;
+          }
+        } catch (e) { console.warn(`[OFF] query error for ${variant}:`, e.message); }
+      }
       return null;
     }
 
@@ -254,67 +297,70 @@ app.get('/api/product/:barcode', async (req, res) => {
     } else if (!res.headersSent) {
       async function queryUSDA(barcode) {
         try {
-          console.log(`[USDA] Buscando en FoodData Central: ${barcode}`);
-          const response = await fetch(
-            `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${process.env.USDA_API_KEY}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ query: barcode, dataType: ["Branded"], pageSize: 5 }),
-              signal: AbortSignal.timeout(8000)
-            }
-          );
-          if (response.ok) {
-            const data = await response.json();
-            if (data.foods && data.foods.length > 0) {
-              const matched = data.foods.find(f => {
-                const upc = (f.gtinUpc || "").replace(/\D/g, "");
-                const barcodeClean = barcode.replace(/\D/g, "");
-                return upc && (upc === barcodeClean || upc.endsWith(barcodeClean) || barcodeClean.endsWith(upc));
-              });
-              if (!matched) {
-                console.log(`[USDA] Resultado descartado: ningún GTIN coincide con ${barcode}`);
-                return null;
+          // Try each barcode variation
+          for (const variant of barcodeVariations) {
+            console.log(`[USDA] Buscando en FoodData Central: ${variant}`);
+            const response = await fetch(
+              `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${process.env.USDA_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: variant, dataType: ["Branded"], pageSize: 5 }),
+                signal: AbortSignal.timeout(8000)
               }
-              const item = matched;
-              console.log(`[USDA] Encontrado en FoodData Central: ${item.description} (GTIN: ${item.gtinUpc})`);
-
-              let kcal = 0;
-              if (item.foodNutrients) {
-                const energy = item.foodNutrients.find(n => n.nutrientName === "Energy" && n.unitName === "KCAL");
-                if (energy) kcal = Math.round(energy.value);
-              }
-
-              const el = computeEnergyLevel(kcal);
-              let energyLevel = el.level, percent = el.percent;
-
-              const ingredientsText = (item.ingredients || "").toLowerCase();
-              const allergenText = (item.allergenWarning || "").toLowerCase();
-              const gluten = detectGluten(ingredientsText, allergenText);
-              const hasGluten = gluten.hasGluten;
-              const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "No se detectaron ingredientes con gluten en la base USDA";
-
-              let allergens = [];
-              if (item.allergenWarning) {
-                item.allergenWarning.split(",").forEach(a => { const t = a.trim(); if (t && !allergens.includes(t)) allergens.push(t); });
-              }
-
-              return {
-                status: 1,
-                source: 'local',
-                sourceLabel: 'USDA FoodData Central',
-                product: {
-                  name: item.description || "Producto Desconocido",
-                  brand: item.brandName || item.brandOwner || "Desconocida",
-                  image: "",
-                  isFood: true,
-                  category: item.brandedFoodCategory || item.foodCategory || "Alimento (USDA)",
-                  gluten: { hasGluten, details: glutenDetails },
-                  calories: { value: kcal, level: energyLevel, percent },
-                  allergens: allergens,
-                  nutriscore: "-"
+            );
+            if (response.ok) {
+              const data = await response.json();
+              if (data.foods && data.foods.length > 0) {
+                const matched = data.foods.find(f => {
+                  const upc = (f.gtinUpc || "").replace(/\D/g, "");
+                  const variantClean = variant.replace(/\D/g, "");
+                  return upc && (upc === variantClean || upc.endsWith(variantClean) || variantClean.endsWith(upc));
+                });
+                if (!matched) {
+                  console.log(`[USDA] Resultado descartado: ningún GTIN coincide con ${variant}`);
+                  continue;
                 }
-              };
+                const item = matched;
+                console.log(`[USDA] Encontrado en FoodData Central: ${item.description} (GTIN: ${item.gtinUpc})`);
+
+                let kcal = 0;
+                if (item.foodNutrients) {
+                  const energy = item.foodNutrients.find(n => n.nutrientName === "Energy" && n.unitName === "KCAL");
+                  if (energy) kcal = Math.round(energy.value);
+                }
+
+                const el = computeEnergyLevel(kcal);
+                let energyLevel = el.level, percent = el.percent;
+
+                const ingredientsText = (item.ingredients || "").toLowerCase();
+                const allergenText = (item.allergenWarning || "").toLowerCase();
+                const gluten = detectGluten(ingredientsText, allergenText);
+                const hasGluten = gluten.hasGluten;
+                const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "No se detectaron ingredientes con gluten en la base USDA";
+
+                let allergens = [];
+                if (item.allergenWarning) {
+                  item.allergenWarning.split(",").forEach(a => { const t = a.trim(); if (t && !allergens.includes(t)) allergens.push(t); });
+                }
+
+                return {
+                  status: 1,
+                  source: 'local',
+                  sourceLabel: 'USDA FoodData Central',
+                  product: {
+                    name: item.description || "Producto Desconocido",
+                    brand: item.brandName || item.brandOwner || "Desconocida",
+                    image: "",
+                    isFood: true,
+                    category: item.brandedFoodCategory || item.foodCategory || "Alimento (USDA)",
+                    gluten: { hasGluten, details: glutenDetails },
+                    calories: { value: kcal, level: energyLevel, percent },
+                    allergens: allergens,
+                    nutriscore: "-"
+                  }
+                };
+              }
             }
           }
         } catch (error) {
