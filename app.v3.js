@@ -1352,6 +1352,8 @@ function runAICheck(product) {
     // Merge AI notRecommended data (append any AI-discovered groups not already in OFF detection)
     if (data.notRecommended && Array.isArray(data.notRecommended) && product.notRecommended) {
       data.notRecommended.forEach(aiItem => {
+        const reason = (aiItem.razon || '').toLowerCase();
+        if (reason.includes('no aplica') || reason.includes('no contiene') || reason.includes('no apto') || reason.includes('no es')) return;
         if (!product.notRecommended.some(n => n.grupo === aiItem.grupo)) {
           product.notRecommended.push({ icon: "🤖", grupo: aiItem.grupo, razon: aiItem.razon, certain: false });
         }
