@@ -979,6 +979,25 @@ function parseApiProduct(product) {
 // Format numeric value to show at most 2 decimal places, strip trailing zeros
 function fmt(n) { return n === null || n === undefined || isNaN(n) ? n : parseFloat(Number(n).toFixed(2)); }
 
+function renderNotRecommended(product) {
+  const cardNotRec = document.getElementById("card-not-recommended");
+  const notRecContainer = document.getElementById("not-recommended-container");
+  if (!cardNotRec || !notRecContainer) return;
+  notRecContainer.innerHTML = "";
+  if (product.notRecommended && product.notRecommended.length > 0) {
+    product.notRecommended.forEach(item => {
+      const el = document.createElement("span");
+      el.className = "not-rec-item " + (item.certain !== false ? "certain" : "possible");
+      el.title = `${item.grupo}: ${item.razon}`;
+      el.innerHTML = `<span class="not-rec-icon">${item.icon}</span><span class="not-rec-grupo">${esc(item.grupo)}</span><span class="not-rec-razon">${esc(item.razon)}</span>`;
+      notRecContainer.appendChild(el);
+    });
+  } else {
+    notRecContainer.innerHTML = '<span class="not-rec-none">No se declaran restricciones para este producto.</span>';
+  }
+  cardNotRec.classList.remove("hidden");
+}
+
 // Render dynamic results onto success screen
 function renderProductData(product, barcode) {
   if (!product.isFood) {
@@ -1252,23 +1271,7 @@ function renderProductData(product, barcode) {
   }
 
   // Render No Recomendado Para section
-  const cardNotRec = document.getElementById("card-not-recommended");
-  const notRecContainer = document.getElementById("not-recommended-container");
-  if (cardNotRec && notRecContainer) {
-    notRecContainer.innerHTML = "";
-    if (product.notRecommended && product.notRecommended.length > 0) {
-      product.notRecommended.forEach(item => {
-        const el = document.createElement("span");
-        el.className = "not-rec-item " + (item.certain !== false ? "certain" : "possible");
-        el.title = `${item.grupo}: ${item.razon}`;
-        el.innerHTML = `<span class="not-rec-icon">${item.icon}</span><span class="not-rec-grupo">${esc(item.grupo)}</span><span class="not-rec-razon">${esc(item.razon)}</span>`;
-        notRecContainer.appendChild(el);
-      });
-      cardNotRec.classList.remove("hidden");
-    } else {
-      cardNotRec.classList.add("hidden");
-    }
-  }
+  renderNotRecommended(product);
 
   // Render ingredients list collapsible section
   const ingredientsSection = document.getElementById("ingredients-section");
@@ -1399,19 +1402,7 @@ function runAICheck(product) {
           product.notRecommended.push({ icon: "🤖", grupo: aiItem.grupo, razon: aiItem.razon, certain: false });
         }
       });
-      const cardNotRec = document.getElementById("card-not-recommended");
-      const notRecContainer = document.getElementById("not-recommended-container");
-      if (cardNotRec && notRecContainer) {
-        notRecContainer.innerHTML = "";
-        product.notRecommended.forEach(item => {
-          const el = document.createElement("span");
-          el.className = "not-rec-item " + (item.certain !== false ? "certain" : "possible");
-          el.title = `${item.grupo}: ${item.razon}`;
-          el.innerHTML = `<span class="not-rec-icon">${item.icon}</span><span class="not-rec-grupo">${esc(item.grupo)}</span><span class="not-rec-razon">${esc(item.razon)}</span>`;
-          notRecContainer.appendChild(el);
-        });
-        cardNotRec.classList.remove("hidden");
-      }
+      renderNotRecommended();
     }
 
     // Merge AI allergens (solo si hay ingredientes; sin ellos la IA no tiene base)

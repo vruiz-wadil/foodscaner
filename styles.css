@@ -1315,6 +1315,12 @@ body {
   color: var(--text-secondary);
   font-size: 0.75rem;
 }
+.not-rec-none {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-style: italic;
+  padding: 4px 0;
+}
 
 /* Health Risks Section */
 #card-health-risks { padding: 0 !important; overflow: hidden; }
