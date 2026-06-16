@@ -1331,7 +1331,7 @@ function runAICheck(product) {
   errorEl.classList.add("hidden");
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   fetch('/api/ai-query', {
     method: 'POST',

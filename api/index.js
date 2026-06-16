@@ -137,28 +137,15 @@ async function callGroq(prompt, model = 'llama-3.3-70b-versatile', max_tokens = 
   return data.choices?.[0]?.message?.content || "";
 }
 
-async function callGemini(prompt) {
-  let response;
-  // Try OpenAI-compatible endpoint first
-  response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+async function callOpenRouter(prompt) {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'gemini-2.5-flash', messages: [{ role: 'user', content: prompt }], temperature: 0.1 }),
-    signal: AbortSignal.timeout(5000)
+    headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct:free', messages: [{ role: 'user', content: prompt }], temperature: 0.1 }),
+    signal: AbortSignal.timeout(8000)
   });
-  if (response.status === 429) throw new Error("Límite de velocidad excedido. Intenta de nuevo en un minuto.");
-  if (!response.ok) {
-    // Fallback: REST API directa
-    response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      signal: AbortSignal.timeout(5000)
-    });
-    if (!response.ok) throw new Error(`Gemini error: ${response.status}`);
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  }
+  if (response.status === 429) throw new Error("Límite de velocidad excedido en OpenRouter.");
+  if (!response.ok) throw new Error(`OpenRouter error: ${response.status}`);
   const data = await response.json();
   return data.choices?.[0]?.message?.content || "";
 }
@@ -166,8 +153,8 @@ async function callGemini(prompt) {
 async function callAI(prompt, groqModel = 'llama-3.3-70b-versatile', max_tokens = 3000) {
   try { return await callGroq(prompt, groqModel, max_tokens); }
   catch (e) {
-    if (!process.env.GEMINI_API_KEY) throw e;
-    try { return await callGemini(prompt); }
+    if (!process.env.OPENROUTER_API_KEY) throw e;
+    try { return await callOpenRouter(prompt); }
     catch (e2) { throw e2; }
   }
 }
