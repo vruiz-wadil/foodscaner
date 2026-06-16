@@ -1402,7 +1402,7 @@ function runAICheck(product) {
           product.notRecommended.push({ icon: "🤖", grupo: aiItem.grupo, razon: aiItem.razon, certain: false });
         }
       });
-      renderNotRecommended();
+      renderNotRecommended(product);
     }
 
     // Merge AI allergens (solo si hay ingredientes; sin ellos la IA no tiene base)
