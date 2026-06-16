@@ -1278,12 +1278,19 @@ function renderProductData(product, barcode) {
   // Render ingredients list collapsible section
   const ingredientsSection = document.getElementById("ingredients-section");
   const ingredientsTextEl = document.getElementById("ingredients-text");
+  const ocrRequestSection = document.getElementById("ocr-request-section");
   if (ingredientsSection && ingredientsTextEl) {
     if (product.ingredientsText) {
       ingredientsTextEl.textContent = product.ingredientsText;
       ingredientsSection.classList.remove("hidden");
+      if (ocrRequestSection) ocrRequestSection.classList.add("hidden");
     } else {
       ingredientsSection.classList.add("hidden");
+      if (ocrRequestSection) {
+        ocrRequestSection.classList.remove("hidden");
+        const ocrBtn = document.getElementById("btn-ocr-ingredients");
+        if (ocrBtn) ocrBtn.onclick = () => showOcrModal(currentBarcode);
+      }
     }
   }
 
@@ -1860,4 +1867,136 @@ function renderError(title, message) {
   rejectedProductCategory.textContent = "-";
 }
 
+// === OCR INGREDIENT CAPTURE ===
+let currentOcrBarcode = null;
+let Tesseract = window.Tesseract;
+
+function showOcrModal(barcode) {
+  if (!Tesseract) {
+    alert("OCR no está disponible. Intenta recargar la página.");
+    return;
+  }
+  currentOcrBarcode = barcode;
+  const modal = document.getElementById("ocr-modal");
+  if (modal) {
+    modal.classList.remove("hidden");
+    document.getElementById("ocr-step-1").classList.remove("hidden");
+    document.getElementById("ocr-step-2").classList.add("hidden");
+    document.getElementById("ocr-step-3").classList.add("hidden");
+    document.getElementById("ocr-step-4").classList.add("hidden");
+  }
+}
+
+function hideOcrModal() {
+  const modal = document.getElementById("ocr-modal");
+  if (modal) modal.classList.add("hidden");
+  currentOcrBarcode = null;
+}
+
+function initOcrHandlers() {
+  const fileInput = document.getElementById("ocr-photo-input");
+  const uploadBtn = document.getElementById("ocr-upload-btn");
+  const closeBtn = document.getElementById("ocr-modal-close");
+  const editBtn = document.getElementById("ocr-edit-btn");
+  const saveBtn = document.getElementById("ocr-save-btn");
+  const finalCloseBtn = document.getElementById("ocr-close-btn");
+
+  if (uploadBtn) uploadBtn.onclick = () => fileInput?.click();
+
+  if (fileInput) {
+    fileInput.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      document.getElementById("ocr-step-1").classList.add("hidden");
+      document.getElementById("ocr-step-2").classList.remove("hidden");
+
+      try {
+        const imgUrl = URL.createObjectURL(file);
+        const progress = document.getElementById("ocr-progress");
+
+        // Update progress
+        if (progress) {
+          progress.style.width = "30%";
+          setTimeout(() => { if (progress) progress.style.width = "70%"; }, 300);
+        }
+
+        const result = await Tesseract.recognize(imgUrl, 'spa', {
+          logger: m => {
+            if (progress && m.progress) {
+              progress.style.width = (30 + m.progress * 40) + "%";
+            }
+          }
+        });
+
+        URL.revokeObjectURL(imgUrl);
+
+        const textArea = document.getElementById("ocr-result");
+        if (textArea) {
+          textArea.value = result.data.text.trim() || "(No text detected)";
+        }
+
+        if (progress) progress.style.width = "100%";
+
+        setTimeout(() => {
+          document.getElementById("ocr-step-2").classList.add("hidden");
+          document.getElementById("ocr-step-3").classList.remove("hidden");
+        }, 500);
+      } catch (err) {
+        console.error("OCR error:", err);
+        alert("Error al procesar imagen: " + err.message);
+        document.getElementById("ocr-step-2").classList.add("hidden");
+        document.getElementById("ocr-step-1").classList.remove("hidden");
+      }
+    };
+  }
+
+  if (editBtn) {
+    editBtn.onclick = () => {
+      const textArea = document.getElementById("ocr-result");
+      if (textArea) textArea.removeAttribute("readonly");
+      editBtn.style.display = "none";
+    };
+  }
+
+  if (saveBtn) {
+    saveBtn.onclick = async () => {
+      if (!currentOcrBarcode) return;
+
+      saveBtn.disabled = true;
+      const textArea = document.getElementById("ocr-result");
+      const ingredients = textArea?.value || "";
+
+      try {
+        const response = await fetch("/api/products/ocr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ barcode: currentOcrBarcode, ingredients })
+        });
+
+        if (!response.ok) throw new Error(`Error ${response.status}`);
+
+        document.getElementById("ocr-step-3").classList.add("hidden");
+        document.getElementById("ocr-step-4").classList.remove("hidden");
+      } catch (err) {
+        console.error("Save error:", err);
+        alert("Error al guardar: " + err.message);
+        saveBtn.disabled = false;
+      }
+    };
+  }
+
+  if (closeBtn) closeBtn.onclick = hideOcrModal;
+  if (finalCloseBtn) finalCloseBtn.onclick = hideOcrModal;
+
+  const overlay = document.querySelector(".modal-overlay");
+  if (overlay) overlay.onclick = hideOcrModal;
+}
+
+// Call init when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initOcrHandlers);
+} else {
+  initOcrHandlers();
+}
 

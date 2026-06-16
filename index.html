@@ -438,6 +438,11 @@
               </details>
             </div>
 
+            <div class="analysis-card full-width card-collapsible hidden" id="ocr-request-section">
+              <p style="color: #94a3b8; margin: 0 0 12px 0;">No tenemos la lista de ingredientes de este producto. ¿Puedes ayudarnos?</p>
+              <button id="btn-ocr-ingredients" class="btn-primary" style="width: 100%;">📸 Subir foto de ingredientes</button>
+            </div>
+
             <div class="analysis-card full-width card-collapsible hidden" id="nutrition-section">
               <details class="ingredients-details">
                 <summary>📊 Información nutricional</summary>
@@ -495,6 +500,50 @@
       <p>&copy; 2026 Yomi. Desarrollado con tecnolog&iacute;a de Open Food Facts.</p>
     </footer>
   </div>
+
+  <!-- OCR Modal for ingredient capture -->
+  <div id="ocr-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h2>📸 Capturar Ingredientes</h2>
+        <button id="ocr-modal-close" class="modal-close">✕</button>
+      </div>
+
+      <div id="ocr-step-1" class="ocr-step">
+        <p>Toma una foto clara de la lista de ingredientes</p>
+        <div class="camera-container">
+          <input type="file" id="ocr-photo-input" accept="image/*" capture="environment">
+          <button id="ocr-upload-btn" class="btn-primary">📸 Seleccionar Foto</button>
+        </div>
+      </div>
+
+      <div id="ocr-step-2" class="ocr-step hidden">
+        <p>Analizando foto con OCR...</p>
+        <div class="progress-bar">
+          <div id="ocr-progress" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div id="ocr-step-3" class="ocr-step hidden">
+        <p>Ingredientes detectados:</p>
+        <textarea id="ocr-result" class="ocr-textarea" readonly></textarea>
+        <div class="ocr-actions">
+          <button id="ocr-edit-btn" class="btn-secondary">✎ Editar</button>
+          <button id="ocr-save-btn" class="btn-primary">💾 Guardar a Base de Datos</button>
+        </div>
+      </div>
+
+      <div id="ocr-step-4" class="ocr-step hidden">
+        <p>✓ Ingredientes guardados correctamente</p>
+        <p class="ocr-subtitle">Los datos serán verificados por nuestro equipo</p>
+        <button id="ocr-close-btn" class="btn-primary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tesseract.js for OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js" defer></script>
 
   <!-- App Main Javascript -->
   <script src="app.v3.js?v=20" defer></script>

@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetVerifiedProduct, fireGetExtendedCache, fireSetExtendedCache } = require('./firestore');
+const { fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetVerifiedProduct, fireGetExtendedCache, fireSetExtendedCache, fireSetOcrData } = require('./firestore');
 
 // Load verified products database
 let verifiedProducts = {};
@@ -827,6 +827,20 @@ app.post('/api/cache/refresh/:barcode', async (req, res) => {
   } catch (error) {
     console.error('[REFRESH] Error:', error.message);
     res.status(500).json({ error: 'Error al refrescar caché' });
+  }
+});
+
+app.post('/api/products/ocr', async (req, res) => {
+  try {
+    const { barcode, ingredients } = req.body;
+    if (!barcode || !ingredients) {
+      return res.status(400).json({ error: 'Missing barcode or ingredients' });
+    }
+    await fireSetOcrData(barcode, ingredients);
+    res.json({ status: 'ok', message: 'Ingredientes guardados correctamente', barcode });
+  } catch (error) {
+    console.error('[OCR] Error:', error.message);
+    res.status(500).json({ error: 'Error al guardar ingredientes' });
   }
 });
 
