@@ -8,6 +8,9 @@ function esc(s) {
   return div.innerHTML;
 }
 
+// Global state
+let currentBarcode = null;
+
 // DOM Elements
 const btnToggleCamera = document.getElementById("btn-toggle-camera");
 const cameraSelectWrapper = document.getElementById("camera-select-wrapper");
@@ -1007,6 +1010,7 @@ function renderProductData(product, barcode) {
     return;
   }
 
+  currentBarcode = barcode;
   showState(resultSuccess);
 
   // Default data availability when not set by parser
@@ -1868,7 +1872,6 @@ function renderError(title, message) {
 }
 
 // === OCR INGREDIENT CAPTURE ===
-let currentOcrBarcode = null;
 let Tesseract = window.Tesseract;
 
 function showOcrModal(barcode) {
@@ -1876,7 +1879,6 @@ function showOcrModal(barcode) {
     alert("OCR no está disponible. Intenta recargar la página.");
     return;
   }
-  currentOcrBarcode = barcode;
   const modal = document.getElementById("ocr-modal");
   if (modal) {
     modal.classList.remove("hidden");
@@ -1890,7 +1892,7 @@ function showOcrModal(barcode) {
 function hideOcrModal() {
   const modal = document.getElementById("ocr-modal");
   if (modal) modal.classList.add("hidden");
-  currentOcrBarcode = null;
+  currentBarcode = null;
 }
 
 function initOcrHandlers() {
@@ -1961,7 +1963,7 @@ function initOcrHandlers() {
 
   if (saveBtn) {
     saveBtn.onclick = async () => {
-      if (!currentOcrBarcode) return;
+      if (!currentBarcode) return;
 
       saveBtn.disabled = true;
       const textArea = document.getElementById("ocr-result");
@@ -1971,7 +1973,7 @@ function initOcrHandlers() {
         const response = await fetch("/api/products/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ barcode: currentOcrBarcode, ingredients })
+          body: JSON.stringify({ barcode: currentBarcode, ingredients })
         });
 
         if (!response.ok) throw new Error(`Error ${response.status}`);
