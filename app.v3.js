@@ -303,14 +303,20 @@ async function analyzeBarcode(barcode) {
     currentSourceResults = data.sourceResults || [];
 
     // Process and normalize API data
+    let product;
     if (data.source === 'local') {
-      renderProductData(data.product, barcode);
+      product = data.product;
     } else {
-      const parsedProduct = parseApiProduct(data.product);
-      renderProductData(parsedProduct, barcode);
+      product = parseApiProduct(data.product);
     }
+
+    // Preserve cache/verification flags
+    product._fromCache = data._fromCache || false;
+    product._verified = data._verified || false;
+
+    renderProductData(product, barcode);
     renderConfidenceWidget();
-    renderCacheStatus(data, barcode);
+    renderCacheStatus(product, barcode);
   } catch (error) {
     renderNotFound();
   }
