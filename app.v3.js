@@ -802,11 +802,14 @@ function parseApiProduct(product) {
   const filteredTraces = tracesList.filter(t => !isGlutenRelated(t));
 
   // Inferred allergens from product name (shown como "sugerido" no "detectado")
+  // Solo infiere si hay ingredientes disponibles; sin ingredientes la IA no tiene base
   const inferredAllergens = [];
-  const allText = (product.product_name + " " + (product.categories || "")).toLowerCase();
-  const fishKW = ["sardina", "atún", "salmón", "sardine", "tuna", "salmon", "anchova", "boquerón", "caballa", "merluza", "bacalao", "pescado", "fish"];
-  if (fishKW.some(k => allText.includes(k)) && !filteredAllergens.some(a => a.includes("Pescado"))) {
-    inferredAllergens.push("Pescado");
+  if (ingredientsText) {
+    const allText = (product.product_name + " " + (product.categories || "")).toLowerCase();
+    const fishKW = ["sardina", "atún", "salmón", "sardine", "tuna", "salmon", "anchova", "boquerón", "caballa", "merluza", "bacalao", "pescado", "fish"];
+    if (fishKW.some(k => allText.includes(k)) && !filteredAllergens.some(a => a.includes("Pescado"))) {
+      inferredAllergens.push("Pescado");
+    }
   }
 
   // Dietary info with source tracking
@@ -1411,8 +1414,8 @@ function runAICheck(product) {
       }
     }
 
-    // Merge AI allergens
-    if (data.allergens && Array.isArray(data.allergens)) {
+    // Merge AI allergens (solo si hay ingredientes; sin ellos la IA no tiene base)
+    if (data.allergens && Array.isArray(data.allergens) && product.ingredientsText) {
       const allKnown = [
         ...(product.allergens || []),
         ...(product.traces || [])
@@ -1772,13 +1775,13 @@ function renderCacheStatus(fromCache, barcode) {
   if (!el || !badge || !btn) return;
   if (!fromCache) { el.classList.add("hidden"); return; }
   el.classList.remove("hidden");
-  btn.onclick = async () => {
+  btn.onclick = () => {
     btn.disabled = true;
     btn.textContent = "⏳ Actualizando...";
-    try {
-      await fetch("/api/cache/" + barcode, { method: "DELETE" });
-    } catch {}
-    scanBarcode(barcode);
+    fetch("/api/cache/" + barcode, { method: "DELETE", signal: AbortSignal.timeout(8000) })
+      .catch(e => console.warn("Error al borrar caché:", e))
+      .finally(() => { btn.disabled = false; btn.textContent = "🔄 Actualizar"; });
+    analyzeBarcode(barcode);
   };
 }
 
