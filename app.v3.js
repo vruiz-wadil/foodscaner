@@ -780,14 +780,12 @@ function parseApiProduct(product) {
   const filteredAllergens = allergensList.filter(a => !isGlutenRelated(a));
   const filteredTraces = tracesList.filter(t => !isGlutenRelated(t));
 
-  // Name-based allergen fallback: cuando OFF no tiene datos, inferir del nombre/categoría
-  const hasOFFAllergens = allergensList.length > 0 || !!(product.allergens_tags?.length || product.allergens_from_ingredients || ingredientsText);
-  if (!hasOFFAllergens) {
-    const allText = (product.product_name + " " + (product.categories || "")).toLowerCase();
-    const fishKW = ["sardina", "atún", "salmón", "sardine", "tuna", "salmon", "anchova", "boquerón", "caballa", "merluza", "bacalao", "pescado", "fish"];
-    if (fishKW.some(k => allText.includes(k)) && !filteredAllergens.some(a => a.includes("Pescado"))) {
-      filteredAllergens.push("Pescado");
-    }
+  // Inferred allergens from product name (shown como "sugerido" no "detectado")
+  const inferredAllergens = [];
+  const allText = (product.product_name + " " + (product.categories || "")).toLowerCase();
+  const fishKW = ["sardina", "atún", "salmón", "sardine", "tuna", "salmon", "anchova", "boquerón", "caballa", "merluza", "bacalao", "pescado", "fish"];
+  if (fishKW.some(k => allText.includes(k)) && !filteredAllergens.some(a => a.includes("Pescado"))) {
+    inferredAllergens.push("Pescado");
   }
 
   // Dietary info with source tracking
@@ -903,7 +901,7 @@ function parseApiProduct(product) {
   // Nutriscore
   const nutriscore = product.nutriscore_grade || product.nutrition_grades || "-";
 
-  const allergensDataAvailable = allergensList.length > 0 || filteredAllergens.length > 0 || !!(product.allergens_tags?.length || product.allergens_from_ingredients || ingredientsText);
+  const allergensDataAvailable = allergensList.length > 0 || filteredAllergens.length > 0 || inferredAllergens.length > 0 || !!(product.allergens_tags?.length || product.allergens_from_ingredients || ingredientsText);
 
   return {
     name,
@@ -941,6 +939,7 @@ function parseApiProduct(product) {
     isBeverage,
     allergens: filteredAllergens,
     allergensDataAvailable,
+    inferredAllergens,
     traces: [...new Map(filteredTraces.map(t => [t.toLowerCase().trim(), t])).values()],
     nutriscore: nutriscore,
     _enrichedFrom: product._enrichedFrom || null,
@@ -1122,6 +1121,29 @@ function renderProductData(product, barcode) {
         div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>`;
         gridEl.appendChild(div);
       });
+      // Inferred allergens (por nombre, no de BD) marcar como "ai-suggested"
+      if (product.inferredAllergens?.length > 0) {
+        const aiLower = product.inferredAllergens.map(a => a.toLowerCase().trim());
+        COMMON_ALLERGENS.forEach(item => {
+          const matchesAI = item.match.some(m => aiLower.some(a => a.includes(m)));
+          if (matchesAI) {
+            const divs = gridEl.querySelectorAll(".allergen-grid-item");
+            divs.forEach(div => {
+              const label = div.querySelector(".label");
+              if (label && item.match.some(m => label.textContent.toLowerCase().includes(m))) {
+                if (div.classList.contains("safe")) {
+                  div.classList.remove("safe");
+                  div.classList.add("ai-suggested");
+                  const badge = document.createElement("span");
+                  badge.className = "ai-badge";
+                  badge.textContent = "🤖";
+                  div.appendChild(badge);
+                }
+              }
+            });
+          }
+        });
+      }
     }
     if (legendEl) legendEl.classList.remove("hidden");
   }
