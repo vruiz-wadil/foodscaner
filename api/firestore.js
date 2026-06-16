@@ -149,4 +149,76 @@ async function fireSetAiCache(key, response) {
   }
 }
 
-module.exports = { fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache };
+// New: Verified products (permanent database)
+async function fireGetVerifiedProduct(barcode) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const resp = await fetch(await docPath('products_verified', barcode), {
+      headers: { 'Authorization': 'Bearer ' + token },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (resp.status === 404) return null;
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const f = data.fields;
+    if (!f || !f._data?.stringValue) return null;
+    return JSON.parse(f._data.stringValue);
+  } catch (e) {
+    console.warn('[Firestore] getVerifiedProduct error:', e.message);
+    return null;
+  }
+}
+
+// New: Extended cache with AI analysis (expiring)
+async function fireGetExtendedCache(barcode) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const resp = await fetch(await docPath('products_cache_v2', barcode), {
+      headers: { 'Authorization': 'Bearer ' + token },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (resp.status === 404) return null;
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const f = data.fields;
+    if (!f || !f._data?.stringValue) return null;
+    const cached = JSON.parse(f._data.stringValue);
+    const age = Math.floor(Date.now() / 1000) - cached.cachedAt;
+    if (age > cached.expiresIn) return null; // Expired
+    return cached;
+  } catch (e) {
+    console.warn('[Firestore] getExtendedCache error:', e.message);
+    return null;
+  }
+}
+
+async function fireSetExtendedCache(barcode, product, source, aiAnalysis, ttlDays = 7) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return;
+    const now = Math.floor(Date.now() / 1000);
+    const payload = JSON.stringify({
+      product,
+      source,
+      aiAnalysis,
+      cachedAt: now,
+      expiresIn: ttlDays * 24 * 60 * 60,
+      analysisModel: process.env.AI_MODEL || 'groq-llama-3.3-70b'
+    });
+    await fetch(await docPath('products_cache_v2', barcode), {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { _data: { stringValue: payload } } }),
+      signal: AbortSignal.timeout(5000)
+    });
+  } catch (e) {
+    console.warn('[Firestore] setExtendedCache error:', e.message);
+  }
+}
+
+module.exports = {
+  fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
+  fireGetVerifiedProduct, fireGetExtendedCache, fireSetExtendedCache
+};

@@ -1,8 +1,21 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache } = require('./firestore');
+const { fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetVerifiedProduct, fireGetExtendedCache, fireSetExtendedCache } = require('./firestore');
+
+// Load verified products database
+let verifiedProducts = {};
+try {
+  const dbPath = path.join(__dirname, '..', 'products-verified.json');
+  if (fs.existsSync(dbPath)) {
+    verifiedProducts = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+    console.log(`[DB] Loaded ${Object.keys(verifiedProducts).length} verified products`);
+  }
+} catch (e) {
+  console.warn('[DB] Error loading verified products:', e.message);
+}
 
 const app = express();
 
@@ -190,6 +203,23 @@ app.get('/api/product/:barcode', async (req, res) => {
 
     const barcodeVariations = generateBarcodeVariations(barcode);
     const now = Math.floor(Date.now() / 1000);
+
+    // ----- L0: VERIFIED PRODUCTS (Permanent) -----
+    if (verifiedProducts[barcode]) {
+      const verified = verifiedProducts[barcode];
+      console.log(`[VERIFIED] Found: ${barcode}`);
+      return res.json({
+        status: 1,
+        source: 'local',
+        sourceLabel: 'Base Verificada México',
+        product: verified,
+        _verified: true,
+        _freshness: 'verified',
+        sourceResults: [
+          { source: 'Base Verificada México', found: true, productName: verified.name, brandName: verified.brand, allergenInfo: 'Verificado', nutritionInfo: `${verified.calories} kcal` }
+        ]
+      });
+    }
 
     // ----- CACHE LOOKUP (try all variations) -----
     let cached = null;
@@ -763,6 +793,41 @@ REGLAS:
 app.delete('/api/cache/:barcode', async (req, res) => {
   await removeCacheEntry(req.params.barcode);
   res.json({ ok: true, message: "Caché eliminado para " + req.params.barcode });
+});
+
+// Refresh cache: force re-fetch and re-analyze
+app.post('/api/cache/refresh/:barcode', async (req, res) => {
+  const { barcode } = req.params;
+
+  try {
+    // If verified product, refresh AI analysis only
+    if (verifiedProducts[barcode]) {
+      const verified = verifiedProducts[barcode];
+      const aiAnalysis = await callAI(
+        `Analiza: ${verified.name} (${verified.brand}). Ingredientes: ${verified.ingredients}`
+      );
+      await fireSetExtendedCache(barcode, verified, 'Base Verificada México', aiAnalysis, 30);
+      return res.json({
+        status: 'ok',
+        message: 'Producto verificado actualizado',
+        type: 'verified',
+        barcode
+      });
+    }
+
+    // For dynamic products, clear and refetch
+    await removeCacheEntry(barcode);
+
+    res.json({
+      status: 'ok',
+      message: 'Caché eliminado. Próxima búsqueda traerá datos frescos.',
+      type: 'dynamic',
+      barcode
+    });
+  } catch (error) {
+    console.error('[REFRESH] Error:', error.message);
+    res.status(500).json({ error: 'Error al refrescar caché' });
+  }
 });
 
 module.exports = app;
