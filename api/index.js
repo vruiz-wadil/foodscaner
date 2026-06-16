@@ -25,6 +25,39 @@ app.use(express.json());
 const limiter = rateLimit({ windowMs: 60000, max: 30, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
 app.use('/api/', limiter);
 
+// --- Queue for Groq to avoid rate limiting ---
+let groqQueue = [];
+let groqProcessing = false;
+const GROQ_DELAY_MS = 1500; // ponytail: 1.5s between Groq calls to avoid 429
+
+async function queueGroqCall(prompt, model, maxTokens) {
+  return new Promise((resolve, reject) => {
+    groqQueue.push({ prompt, model, maxTokens, resolve, reject });
+    processGroqQueue();
+  });
+}
+
+async function processGroqQueue() {
+  if (groqProcessing || groqQueue.length === 0) return;
+  groqProcessing = true;
+
+  while (groqQueue.length > 0) {
+    const { prompt, model, maxTokens, resolve, reject } = groqQueue.shift();
+    try {
+      const result = await callGroq(prompt, model, maxTokens);
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+    // Wait before next call to avoid rate limiting
+    if (groqQueue.length > 0) {
+      await new Promise(r => setTimeout(r, GROQ_DELAY_MS));
+    }
+  }
+
+  groqProcessing = false;
+}
+
 app.get('/', (req, res) => res.json({ status: 'ok', name: 'foodscaner', version: '1.0.0' }));
 
 // --- Cache Helpers (L1 en memoria, L2 Firestore) ---
@@ -848,7 +881,7 @@ ${rawText}
 Ingredientes limpios (solo la lista, separada por comas):`;
 
     console.log('[OCR Process] Starting AI cleaning...');
-    const aiResult = await callGroq(cleaningPrompt, 'llama-3.3-70b-versatile', 1000);
+    const aiResult = await queueGroqCall(cleaningPrompt, 'llama-3.3-70b-versatile', 1000);
     const cleanedText = aiResult.content.trim();
     console.log('[OCR Process] Cleaned text:', cleanedText.substring(0, 100));
 
