@@ -1066,6 +1066,7 @@ function renderProductData(product, barcode) {
   }
 
   if (product.isFromFallback && !product._enrichedFrom) {
+    console.log('[FALLBACK] Early return - isFromFallback:', product.isFromFallback, '_enrichedFrom:', product._enrichedFrom);
     analysisGrid.classList.add("hidden");
     noNutritionAlert.classList.remove("hidden");
     renderHypertensionCard(product);
@@ -1074,6 +1075,8 @@ function renderProductData(product, barcode) {
     runAICheck(product, barcode);
     return;
   }
+
+  console.log('[NOTFALLBACK] Continuing with full render');
 
   analysisGrid.classList.remove("hidden");
   noNutritionAlert.classList.add("hidden");
