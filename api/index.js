@@ -193,9 +193,17 @@ async function callGemini(prompt) {
 async function callAI(prompt, groqModel = 'llama-3.3-70b-versatile', max_tokens = 3000) {
   if (!process.env.GROQ_API_KEY) return callOpenRouter(prompt);
 
-  // Paralelo: ambos proveedores al mismo tiempo, gana el primero en responder
+  // Todos los modelos de Groq en paralelo + OpenRouter
+  const groqModels = [
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',    // Más rápido
+    'llama-3.1-70b-versatile',
+    'mixtral-8x7b-32768',
+    'gemma-7b-it'              // Muy rápido
+  ];
+
   const results = await Promise.allSettled([
-    queueGroqCall(prompt, groqModel, max_tokens),
+    ...groqModels.map(m => queueGroqCall(prompt, m, max_tokens)),
     callOpenRouter(prompt)
   ]);
 
@@ -889,9 +897,34 @@ ${rawText}
 
 Ingredientes limpios (solo la lista, separada por comas):`;
 
-    console.log('[OCR Process] Starting AI cleaning...');
-    const aiResult = await queueGroqCall(cleaningPrompt, 'llama-3.3-70b-versatile', 1000);
-    const cleanedText = aiResult.content.trim();
+    console.log('[OCR Process] Starting AI cleaning with all Groq models...');
+
+    // Probar todos los modelos de Groq en paralelo - gana el primero
+    const groqModels = [
+      'llama-3.1-8b-instant',    // Más rápido
+      'gemma-7b-it',              // Muy rápido
+      'llama-3.3-70b-versatile',
+      'llama-3.1-70b-versatile',
+      'mixtral-8x7b-32768'
+    ];
+
+    const results = await Promise.allSettled(
+      groqModels.map(m => queueGroqCall(cleaningPrompt, m, 1000))
+    );
+
+    let cleanedText = null;
+    let usedModel = null;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === 'fulfilled' && r.value && r.value.content && r.value.content.length > 0) {
+        cleanedText = r.value.content.trim();
+        usedModel = groqModels[i];
+        console.log('[OCR Process] Used model:', usedModel);
+        break;
+      }
+    }
+
+    if (!cleanedText) throw new Error("Todos los modelos fallaron");
     console.log('[OCR Process] Cleaned text:', cleanedText.substring(0, 100));
 
     res.json({ status: 'ok', cleanedText });
