@@ -1296,8 +1296,9 @@ function renderProductData(product, barcode) {
   const ingredientsSection = document.getElementById("ingredients-section");
   const ingredientsTextEl = document.getElementById("ingredients-text");
   const ocrRequestSection = document.getElementById("ocr-request-section");
+  console.log('[INGREDIENTS] ingredientsText:', product.ingredientsText, 'hasSection:', !!ingredientsSection, 'hasOCR:', !!ocrRequestSection);
   if (ingredientsSection && ingredientsTextEl) {
-    if (product.ingredientsText) {
+    if (product.ingredientsText && product.ingredientsText.trim()) {
       ingredientsTextEl.textContent = product.ingredientsText;
       ingredientsSection.classList.remove("hidden");
       if (ocrRequestSection) ocrRequestSection.classList.add("hidden");
@@ -1307,6 +1308,7 @@ function renderProductData(product, barcode) {
         ocrRequestSection.classList.remove("hidden");
         const ocrBtn = document.getElementById("btn-ocr-ingredients");
         if (ocrBtn) ocrBtn.onclick = () => showOcrModal(currentBarcode);
+        console.log('[OCR] Button shown');
       }
     }
   }
