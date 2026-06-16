@@ -272,6 +272,7 @@ function showState(stateElement) {
 
 // Main Business Logic: Barcode Identification & API Querying
 async function analyzeBarcode(barcode) {
+  console.log('[ANALYZEBARCODE] Starting with:', barcode);
   _lastAiProductKey = "";
   showState(resultLoading);
   currentBarcodeQuery = barcode;
@@ -1018,6 +1019,7 @@ function renderNotRecommended(product) {
 
 // Render dynamic results onto success screen
 function renderProductData(product, barcode) {
+  console.log('[RENDERPRODUCTDATA] Called with:', { barcode, isFood: product.isFood });
   if (!product.isFood) {
     renderRejected(product);
     return;
