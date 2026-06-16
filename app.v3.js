@@ -1935,6 +1935,10 @@ function initOcrHandlers() {
       document.getElementById("ocr-step-2").classList.remove("hidden");
 
       try {
+        if (!Tesseract || !Tesseract.recognize) {
+          throw new Error("Tesseract.js no está cargado. Recarga la página.");
+        }
+
         const imgUrl = URL.createObjectURL(file);
         const progress = document.getElementById("ocr-progress");
 
@@ -1944,6 +1948,7 @@ function initOcrHandlers() {
           setTimeout(() => { if (progress) progress.style.width = "70%"; }, 300);
         }
 
+        console.log('[OCR] Starting Tesseract recognition...');
         const result = await Tesseract.recognize(imgUrl, 'spa', {
           logger: m => {
             if (progress && m.progress) {
@@ -1952,8 +1957,13 @@ function initOcrHandlers() {
           }
         });
 
+        if (!result || !result.data || !result.data.text) {
+          throw new Error("Tesseract no extrajo texto. Intenta con una foto más clara.");
+        }
+
         URL.revokeObjectURL(imgUrl);
         const rawText = result.data.text.trim() || "(No text detected)";
+        console.log('[OCR] Raw text extracted:', rawText.substring(0, 100));
 
         // Process with AI to clean text
         if (progress) progress.style.width = "85%";
@@ -1983,8 +1993,9 @@ function initOcrHandlers() {
           document.getElementById("ocr-step-3").classList.remove("hidden");
         }, 500);
       } catch (err) {
-        console.error("OCR error:", err);
-        alert("Error al procesar imagen: " + err.message);
+        console.error("[OCR] Error:", err);
+        const errorMsg = err?.message || err?.toString?.() || "Error desconocido";
+        alert("Error al procesar imagen:\n" + errorMsg);
         document.getElementById("ocr-step-2").classList.add("hidden");
         document.getElementById("ocr-step-1").classList.remove("hidden");
       }
