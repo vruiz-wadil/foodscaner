@@ -1532,7 +1532,7 @@ function runAICheck(product) {
     errorEl.classList.add("hidden");
   }
 
-  // --- Ejecución secuencial: Groq 70b → Groq 8b → OpenRouter → Gemini 2.5 ---
+  // --- Ejecución secuencial: Groq 70b → Groq 8b (200r/m) → Groq 8b (1000r/m) → OpenRouter → Gemini 2.5 ---
   callProvider('groq&model=llama-3.3-70b-versatile', 7000)
     .then(data => {
       if (data.error) throw new Error(data.error);
@@ -1549,25 +1549,34 @@ function runAICheck(product) {
         })
         .catch(err8b => {
           addProviderLog('Groq 8b', 'fail', err8b.message, err8b.toString());
-          return callProvider('openrouter', 12000)
+          return callProvider('groq&model=llama3-8b-8192', 7000)
             .then(data => {
               if (data.error) throw new Error(data.error);
-              addProviderLog('OpenRouter', 'ok', 'openrouter/free');
+              addProviderLog('Groq 8b-1K', 'ok', 'llama3-8b-8192 (1000r/m)');
               processAIResult(data);
             })
-            .catch(orErr => {
-              addProviderLog('OpenRouter', 'fail', orErr.message, orErr.toString());
-              return callProvider('gemini', 14000)
+            .catch(err8k => {
+              addProviderLog('Groq 8b-1K', 'fail', err8k.message, err8k.toString());
+              return callProvider('openrouter', 12000)
                 .then(data => {
                   if (data.error) throw new Error(data.error);
-                  addProviderLog('Gemini 2.5', 'ok', 'gemini-2.5-flash');
+                  addProviderLog('OpenRouter', 'ok', 'openrouter/free');
                   processAIResult(data);
                 })
-                .catch(gemErr => {
-                  addProviderLog('Gemini 2.5', 'fail', gemErr.message, gemErr.toString());
-                  loadingEl.classList.add("hidden");
-                  errorEl.textContent = 'Análisis IA no disponible. Groq 70b: ' + err70.message + '. Groq 8b: ' + err8b.message + '. OpenRouter: ' + orErr.message + '. Gemini: ' + gemErr.message + '. Los datos de la base de datos ya están visibles.';
-                  errorEl.classList.remove("hidden");
+                .catch(orErr => {
+                  addProviderLog('OpenRouter', 'fail', orErr.message, orErr.toString());
+                  return callProvider('gemini', 14000)
+                    .then(data => {
+                      if (data.error) throw new Error(data.error);
+                      addProviderLog('Gemini 2.5', 'ok', 'gemini-2.5-flash');
+                      processAIResult(data);
+                    })
+                    .catch(gemErr => {
+                      addProviderLog('Gemini 2.5', 'fail', gemErr.message, gemErr.toString());
+                      loadingEl.classList.add("hidden");
+                      errorEl.textContent = 'Análisis IA no disponible. Groq 70b: ' + err70.message + '. Groq 8b: ' + err8b.message + '. Groq 8b-1K: ' + err8k.message + '. OpenRouter: ' + orErr.message + '. Gemini: ' + gemErr.message + '. Los datos de la base de datos ya están visibles.';
+                      errorEl.classList.remove("hidden");
+                    });
                 });
             });
         });
