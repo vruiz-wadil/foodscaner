@@ -161,6 +161,7 @@ async function callGroq(prompt, model = 'llama-3.3-70b-versatile', max_tokens = 
   if (response.status === 429) throw new Error("Límite de velocidad excedido en Groq.");
   if (!response.ok) throw new Error(`Groq error: ${response.status}`);
   const data = await response.json();
+  _lastAiModel = "Groq (llama-3.3-70b)";
   return data.choices?.[0]?.message?.content || "";
 }
 
@@ -181,8 +182,19 @@ async function callOpenRouter(prompt) {
 }
 
 async function callAI(prompt, groqModel = 'llama-3.3-70b-versatile', max_tokens = 3000) {
-  // Groq consistently rate-limited (429). Ir directo a OpenRouter con máximo tiempo disponible.
-  return await callOpenRouter(prompt);
+  if (!process.env.GROQ_API_KEY) return callOpenRouter(prompt);
+
+  // Paralelo: ambos proveedores al mismo tiempo, gana el primero en responder
+  const results = await Promise.allSettled([
+    callGroq(prompt, groqModel, max_tokens),
+    callOpenRouter(prompt)
+  ]);
+
+  for (const r of results) {
+    if (r.status === 'fulfilled' && typeof r.value === 'string' && r.value.length > 0) return r.value;
+  }
+  // Si ambos fallaron, lanzar el error del segundo (OpenRouter)
+  throw results[1].reason || results[0].reason || new Error("Ambos proveedores fallaron");
 }
 
 // --- Product Search ---
