@@ -1532,55 +1532,36 @@ function runAICheck(product) {
     errorEl.classList.add("hidden");
   }
 
-  // --- Ejecución secuencial: Groq 70b → Groq 8b (200r/m) → Groq 8b (1000r/m) → OpenRouter → Gemini 2.5 ---
-  callProvider('groq&model=llama-3.3-70b-versatile', 7000)
-    .then(data => {
-      if (data.error) throw new Error(data.error);
-      addProviderLog('Groq 70b', 'ok', 'llama-3.3-70b-versatile');
-      processAIResult(data);
-    })
-    .catch(err70 => {
-      addProviderLog('Groq 70b', 'fail', err70.message, err70.toString());
-      return callProvider('groq&model=llama-3.1-8b-instant', 7000)
-        .then(data => {
-          if (data.error) throw new Error(data.error);
-          addProviderLog('Groq 8b', 'ok', 'llama-3.1-8b-instant');
-          processAIResult(data);
-        })
-        .catch(err8b => {
-          addProviderLog('Groq 8b', 'fail', err8b.message, err8b.toString());
-          return callProvider('groq&model=llama3-8b-8192', 7000)
-            .then(data => {
-              if (data.error) throw new Error(data.error);
-              addProviderLog('Groq 8b-1K', 'ok', 'llama3-8b-8192 (1000r/m)');
-              processAIResult(data);
-            })
-            .catch(err8k => {
-              addProviderLog('Groq 8b-1K', 'fail', err8k.message, err8k.toString());
-              return callProvider('openrouter', 12000)
-                .then(data => {
-                  if (data.error) throw new Error(data.error);
-                  addProviderLog('OpenRouter', 'ok', 'openrouter/free');
-                  processAIResult(data);
-                })
-                .catch(orErr => {
-                  addProviderLog('OpenRouter', 'fail', orErr.message, orErr.toString());
-                  return callProvider('gemini', 14000)
-                    .then(data => {
-                      if (data.error) throw new Error(data.error);
-                      addProviderLog('Gemini 2.5', 'ok', 'gemini-2.5-flash');
-                      processAIResult(data);
-                    })
-                    .catch(gemErr => {
-                      addProviderLog('Gemini 2.5', 'fail', gemErr.message, gemErr.toString());
-                      loadingEl.classList.add("hidden");
-                      errorEl.textContent = 'Análisis IA no disponible. Groq 70b: ' + err70.message + '. Groq 8b: ' + err8b.message + '. Groq 8b-1K: ' + err8k.message + '. OpenRouter: ' + orErr.message + '. Gemini: ' + gemErr.message + '. Los datos de la base de datos ya están visibles.';
-                      errorEl.classList.remove("hidden");
-                    });
-                });
-            });
-        });
-    });
+  // --- Ejecución secuencial: 7 proveedores en cadena ---
+  const providers = [
+    { query: 'groq&model=llama-3.3-70b-versatile', timeout: 7000, label: 'Groq 70b', model: 'llama-3.3-70b-versatile' },
+    { query: 'groq&model=llama-3.1-8b-instant',    timeout: 7000, label: 'Groq 8b',   model: 'llama-3.1-8b-instant' },
+    { query: 'groq&model=llama3-8b-8192',          timeout: 7000, label: 'Groq 8b-1K', model: 'llama3-8b-8192 (1000r/m)' },
+    { query: 'groq&model=gemma2-9b-it',            timeout: 7000, label: 'Gemma2 9b', model: 'gemma2-9b-it' },
+    { query: 'groq&model=qwen-2.5-32b',             timeout: 7000, label: 'Qwen 32b',  model: 'qwen-2.5-32b' },
+    { query: 'openrouter',                          timeout: 12000, label: 'OpenRouter', model: 'openrouter/free' },
+    { query: 'gemini',                              timeout: 14000, label: 'Gemini 2.5', model: 'gemini-2.5-flash' }
+  ];
+
+  (function tryProvider(i) {
+    if (i >= providers.length) {
+      loadingEl.classList.add("hidden");
+      errorEl.textContent = 'Análisis IA no disponible. Todos los proveedores fallaron. Los datos de la base de datos ya están visibles.';
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    const p = providers[i];
+    callProvider(p.query, p.timeout)
+      .then(data => {
+        if (data.error) throw new Error(data.error);
+        addProviderLog(p.label, 'ok', p.model);
+        processAIResult(data);
+      })
+      .catch(err => {
+        addProviderLog(p.label, 'fail', err.message, err.toString());
+        tryProvider(i + 1);
+      });
+  })(0);
 }
 
 function showDBDisclaimer(product) {
