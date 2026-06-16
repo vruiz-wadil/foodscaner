@@ -277,6 +277,7 @@ async function analyzeBarcode(barcode) {
   try {
     const url = `/api/product/${barcode}`;
     const response = await fetch(url);
+    if (barcode !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
 
     if (response.status === 404) {
       renderNotFound();
@@ -288,6 +289,7 @@ async function analyzeBarcode(barcode) {
     }
 
     const data = await response.json();
+    if (barcode !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
 
     if (data.status === 0 || !data.product) {
       renderNotFound();
@@ -1050,7 +1052,7 @@ function renderProductData(product, barcode) {
     renderHypertensionCard(product);
     renderCholesterolCard(product);
     renderWeightCard(product);
-    runAICheck(product);
+    runAICheck(product, barcode);
     return;
   }
 
@@ -1324,17 +1326,19 @@ function renderProductData(product, barcode) {
   renderHypertensionCard(product);
   renderCholesterolCard(product);
   renderWeightCard(product);
-  runAICheck(product);
+  runAICheck(product, barcode);
 }
 
 let _lastAiProductKey = "";
 
-function runAICheck(product) {
+function runAICheck(product, barcode) {
   showDBDisclaimer(product);
 
   const key = product.name + "|" + product.brand;
   if (key === _lastAiProductKey) return;
   _lastAiProductKey = key;
+
+  const scanToken = barcode;
 
   const loadingEl = document.getElementById("ai-loading");
   const errorEl = document.getElementById("ai-error");
@@ -1545,6 +1549,7 @@ function runAICheck(product) {
   ];
 
   (function tryProvider(i) {
+    if (scanToken !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
     if (i >= providers.length) {
       loadingEl.classList.add("hidden");
       errorEl.textContent = 'Análisis IA no disponible. Todos los proveedores fallaron. Los datos de la base de datos ya están visibles.';
@@ -1554,11 +1559,13 @@ function runAICheck(product) {
     const p = providers[i];
     callProvider(p.query, p.timeout)
       .then(data => {
+        if (scanToken !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
         if (data.error) throw new Error(data.error);
         addProviderLog(p.label, 'ok', p.model);
         processAIResult(data);
       })
       .catch(err => {
+        if (scanToken !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
         addProviderLog(p.label, 'fail', err.message, err.toString());
         tryProvider(i + 1);
       });
