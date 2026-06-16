@@ -1,76 +1,40 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const { fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache } = require('./firestore');
 
 const app = express();
 
+app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json());
 
 const limiter = rateLimit({ windowMs: 60000, max: 30, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
 app.use('/api/', limiter);
 
-const DB_PATH = '/tmp/local_mexican_products.json';
-
-const CANDIDATES = [
-  path.join(__dirname, '..', 'local_mexican_products.json'),
-  path.join(process.cwd(), 'local_mexican_products.json'),
-  path.join(process.cwd(), '..', 'local_mexican_products.json'),
-];
-
-function findInitialDb() {
-  for (const c of CANDIDATES) {
-    if (fs.existsSync(c)) return c;
-  }
-  return null;
-}
-
-const INITIAL_DB_PATH = findInitialDb();
-
-try {
-  if (!fs.existsSync(DB_PATH) && INITIAL_DB_PATH) {
-    fs.copyFileSync(INITIAL_DB_PATH, DB_PATH);
-  }
-} catch (e) { console.warn('[DB] init copy error:', e.message); }
-
-function readLocalDb() {
-  try {
-    if (!fs.existsSync(DB_PATH)) {
-      fs.writeFileSync(DB_PATH, '{}', 'utf8');
-    }
-    return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  } catch (err) {
-    return {};
-  }
-}
-
-function writeLocalDb(db) {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
+app.get('/', (req, res) => res.json({ status: 'ok', name: 'foodscaner', version: '1.0.0' }));
 
 // --- Cache Helpers (L1 en memoria, L2 Firestore) ---
 const memoryCache = {};
 const memoryAiCache = {};
+// ponytail: memoryCache grows unbounded; add TTL+eviction if memory usage becomes concern
+const CACHE_MAX_AGE = 86400; // 24h
 
 async function getCacheEntry(barcode) {
-  if (memoryCache[barcode]) return memoryCache[barcode];
+  const entry = memoryCache[barcode];
+  if (entry) {
+    const age = Math.floor(Date.now() / 1000) - entry.cachedAt;
+    if (age <= CACHE_MAX_AGE) return entry;
+    delete memoryCache[barcode];
+  }
   const fire = await fireGetCache(barcode);
-  if (fire) memoryCache[barcode] = fire;
+  if (fire) memoryCache[barcode] = { ...fire, cachedAt: Math.floor(Date.now() / 1000) };
   return fire;
 }
 
 async function setCacheEntry(barcode, response, source, offLastModified = null) {
   const now = Math.floor(Date.now() / 1000);
   memoryCache[barcode] = { response, source, offLastModified, cachedAt: now };
-  // Awaited (no fire-and-forget): en serverless, la función puede congelarse
-  // justo después de res.json(), matando promesas pendientes y perdiendo la escritura.
   await fireSetCache(barcode, response, source, offLastModified);
 }
 
@@ -272,12 +236,12 @@ app.get('/api/product/:barcode', async (req, res) => {
     const sourceResults = [];
 
     const worldResult = await queryOFF("world.openfoodfacts.org");
-    let worldReturned = await processOFFResult(worldResult, "Open Food Facts (Mundial)", "OFF World");
-    if (worldReturned !== undefined) return;
+    await processOFFResult(worldResult, "Open Food Facts (Mundial)", "OFF World");
+    if (res.headersSent) return;
 
     const mxResult = await queryOFF("mx.openfoodfacts.org");
-    let mxReturned = await processOFFResult(mxResult, "Open Food Facts (MX)", "OFF MX");
-    if (mxReturned !== undefined) return;
+    await processOFFResult(mxResult, "Open Food Facts (MX)", "OFF MX");
+    if (res.headersSent) return;
 
     // USDA FoodData Central — only if not a 750 prefix (doesn't find MX products)
     if (barcode.startsWith("750")) {
@@ -741,3 +705,8 @@ app.delete('/api/cache/:barcode', async (req, res) => {
 module.exports = app;
 module.exports.computeEnergyLevel = computeEnergyLevel;
 module.exports.detectGluten = detectGluten;
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+}
