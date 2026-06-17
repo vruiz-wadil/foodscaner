@@ -1110,9 +1110,8 @@ function renderProductData(product, barcode) {
     }
   }
 
-  if (product.isFromFallback && !product._enrichedFrom) {
-    // Grid visibility is now controlled by ingredients rendering above
-    // Don't force hide it here - ingredients/OCR button may be shown
+  if (product.isFromFallback && !product._enrichedFrom && !product.ingredientsText) {
+    // Only show warning if there's no information at all (no ingredients from OFF or OCR, no enrichment)
     noNutritionAlert.classList.remove("hidden");
     renderHypertensionCard(product);
     renderCholesterolCard(product);
