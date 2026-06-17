@@ -790,10 +790,13 @@ function parseApiProduct(product) {
   const tracesList = [];
 
   // Add traces from traces_tags
+  const irrelevantTags = ["es:nuevo", "nuevo", "desconocido", "unknown"];
   tracesTags.forEach(tag => {
-    const mapped = mapAllergenTag(tag);
-    if (!allergensList.includes(mapped) && !tracesList.includes(mapped)) {
-      tracesList.push(mapped);
+    if (!irrelevantTags.includes(tag.toLowerCase())) {
+      const mapped = mapAllergenTag(tag);
+      if (!allergensList.includes(mapped) && !tracesList.includes(mapped)) {
+        tracesList.push(mapped);
+      }
     }
   });
   if (product.traces && product.traces !== "undefined") {
