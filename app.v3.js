@@ -1145,9 +1145,10 @@ function renderProductData(product, barcode) {
   const lvlCls = (prefix, h, m, l) => ({ Alto: prefix + h, Medio: prefix + m, Moderado: prefix + m, Bajo: prefix + l, default: prefix + l });
 
   // Render Calories Card details
-  caloriesVal.querySelector(".number").textContent = fmt(product.calories.value);
-  caloriesProgress.style.width = `${product.calories.percent}%`;
-  caloriesLevel.textContent = `Nivel de energía: ${product.calories.level}`;
+  const noCalData = product.calories.value === 0 || product.calories.level === "No Especificado";
+  caloriesVal.querySelector(".number").textContent = noCalData ? "—" : fmt(product.calories.value);
+  caloriesProgress.style.width = noCalData ? "0%" : `${product.calories.percent}%`;
+  caloriesLevel.textContent = noCalData ? "Sin datos nutricionales" : `Nivel de energía: ${product.calories.level}`;
   cardCalories.className = "analysis-card";
   styleCard(caloriesLevel, caloriesProgress, product.calories.level,
     lvlCls("level-indicator calories-", "high", "mod", "low"),
