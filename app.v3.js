@@ -544,6 +544,8 @@ function parseApiProduct(product) {
   const allergensTags = (product.allergens_tags || []).map(t => t.toLowerCase());
 
   const hasGlutenAllergenTag = allergensTags.some(tag => tag.includes("gluten") || tag.includes("wheat") || tag.includes("trigo"));
+  const hasGlutenInTraces = /gluten|wheat|trigo/.test(tracesText);
+  const hasGlutenInIngredients = /gluten|harina\s+de\s+trigo|trigo|wheat|cebada|centeno/.test(ingredientsText);
 
   // Check for positive labels indicating gluten-free
   const labelsTags = (product.labels_tags || []).map(t => t.toLowerCase());
@@ -570,14 +572,25 @@ function parseApiProduct(product) {
     glutenDetails = enrichedGluten.details;
     glutenClassification = "declared";
   } else if (glutenDataAvailable) {
-    if (hasGlutenAllergenTag && !isLabeledGlutenFree && !hasGlutenFreeClaim) {
-      hasGluten = true;
-      glutenClassification = "declared";
-      glutenDetails = "Contiene gluten (declarado en etiqueta)";
-    } else if (isLabeledGlutenFree) {
+    if (isLabeledGlutenFree) {
       glutenClassification = "certified";
       glutenDetails = "Sin Gluten (Certificado)";
     } else if (hasGlutenFreeClaim) {
+      glutenClassification = "declared";
+      glutenDetails = "Este producto no se declara libre de gluten, pero no se encontraron ingredientes que indiquen su presencia";
+    } else if (hasGlutenAllergenTag) {
+      hasGluten = true;
+      glutenClassification = "declared";
+      glutenDetails = "Contiene gluten (declarado en etiqueta)";
+    } else if (hasGlutenInIngredients) {
+      hasGluten = true;
+      glutenClassification = "declared";
+      glutenDetails = "Contiene gluten (detectado en ingredientes)";
+    } else if (hasGlutenInTraces) {
+      hasGluten = true;
+      glutenClassification = "declared";
+      glutenDetails = "Puede contener trazas de gluten";
+    } else {
       glutenClassification = "declared";
       glutenDetails = "Este producto no se declara libre de gluten, pero no se encontraron ingredientes que indiquen su presencia";
     }
