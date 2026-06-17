@@ -967,18 +967,20 @@ app.post('/api/nutrition/process', async (req, res) => {
       return res.status(400).json({ error: 'Missing rawText' });
     }
 
-    const cleaningPrompt = `TAREA: Extraer información nutricional de etiqueta extraída por OCR.
+    const cleaningPrompt = `TAREA: Extraer TODA información nutricional disponible de etiqueta extraída por OCR.
 
 INSTRUCCIONES:
-1. Extrae SOLO valores numéricos para: kcal, grasas (g), azúcares (g), carbohidratos (g), proteínas (g), sodio (mg)
-2. Si un valor no está presente, devuelve null
-3. Formato JSON EXACTO (sin explicaciones):
-{"kcal": número, "fat": número, "sugars": número, "carbs": número, "proteins": número, "sodium": número}
+1. Extrae TODOS los valores numéricos disponibles (calorías, grasas, grasas saturadas, colesterol, sodio, carbohidratos, fibra, azúcares, proteínas, etc.)
+2. Si un valor no está presente o es ilegible, NO lo incluyas
+3. Devuelve SOLO JSON sin explicaciones:
+{"Calorías (kcal)": número, "Grasas (g)": número, "Grasas saturadas (g)": número, "Colesterol (mg)": número, "Sodio (mg)": número, "Carbohidratos (g)": número, "Fibra (g)": número, "Azúcares (g)": número, "Proteínas (g)": número}
+4. Usa exactamente los nombres de las claves mostrados arriba
+5. Solo incluye las claves cuyos valores encontraste
 
 Texto OCR:
 ${rawText}
 
-RESPUESTA (solo JSON):`;
+RESPUESTA (solo JSON con valores encontrados):`;
 
     console.log('[Nutrition OCR] Starting AI extraction...');
 

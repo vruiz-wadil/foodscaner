@@ -2107,12 +2107,13 @@ function initNutritionHandlers() {
   const overlay = document.getElementById("nutrition-modal-overlay");
 
   if (uploadBtn && photoInput) {
-    uploadBtn.onclick = async () => {
-      const file = photoInput.files[0];
-      if (!file) {
-        alert("Por favor, selecciona una foto");
-        return;
-      }
+    uploadBtn.onclick = () => {
+      photoInput.click();
+    };
+
+    photoInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
 
       document.getElementById("nutrition-step-1").classList.add("hidden");
       document.getElementById("nutrition-step-2").classList.remove("hidden");
@@ -2133,9 +2134,8 @@ function initNutritionHandlers() {
           const data = await response.json();
 
           const nutritionStr = Object.entries(data.nutritionData)
-            .filter(([, v]) => v !== null)
             .map(([k, v]) => `${k}: ${v}`)
-            .join(", ");
+            .join("\n");
 
           document.getElementById("nutrition-result").value = nutritionStr;
           document.getElementById("nutrition-step-2").classList.add("hidden");
