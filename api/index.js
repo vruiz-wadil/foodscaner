@@ -31,9 +31,9 @@ let groqProcessing = false;
 let lastGroqCallTime = 0;
 const GROQ_DELAY_MS = 2500; // ponytail: 2.5s between Groq calls to respect rate limits
 
-async function queueGroqCall(prompt, model, maxTokens) {
+async function queueGroqCall(prompt, model, maxTokens, urgentDelay = GROQ_DELAY_MS) {
   return new Promise((resolve, reject) => {
-    groqQueue.push({ prompt, model, maxTokens, resolve, reject, createdAt: Date.now() });
+    groqQueue.push({ prompt, model, maxTokens, resolve, reject, createdAt: Date.now(), delayMs: urgentDelay });
     processGroqQueue();
   });
 }
@@ -45,7 +45,8 @@ async function processGroqQueue() {
   while (groqQueue.length > 0) {
     const now = Date.now();
     const timeSinceLastCall = now - lastGroqCallTime;
-    const waitTime = Math.max(0, GROQ_DELAY_MS - timeSinceLastCall);
+    const { delayMs } = groqQueue[0];
+    const waitTime = Math.max(0, delayMs - timeSinceLastCall);
 
     if (waitTime > 0) {
       await new Promise(r => setTimeout(r, waitTime));
@@ -967,59 +968,47 @@ app.post('/api/nutrition/process', async (req, res) => {
       return res.status(400).json({ error: 'Missing rawText' });
     }
 
-    const cleaningPrompt = `TAREA: Limpiar OCR de tabla nutricional y extraer valores "Por 100g".
+    const cleaningPrompt = `BUSCA SOLAMENTE la sección "Por 100g" (o "Per 100g", "Per 100 grams"). IGNORA "Por porción" o "Per serving".
 
-INSTRUCCIONES:
-1. El OCR puede estar sucio. Limpia primero el texto.
-2. Identifica la fila o sección "Por 100g" o "Per 100g"
-3. En esa sección, encuentra TODOS los nutrientes y sus valores
-4. Mantén decimales exactamente como aparecen (1,3 → 1.3)
-5. NO inventes valores - si no ves un número claro, NO lo incluyas
-6. Devuelve JSON limpio con SOLO los valores encontrados:
-
-{"Calorías (kcal)": valor, "Grasas (g)": valor, "Grasas saturadas (g)": valor, "Colesterol (mg)": valor, "Sodio (mg)": valor, "Carbohidratos (g)": valor, "Fibra (g)": valor, "Azúcares (g)": valor, "Proteínas (g)": valor}
-
-IMPORTANTE: Si la etiqueta dice "143" para calorías, NO escribas "2349"
-IMPORTANTE: Si la etiqueta dice "1,3g" para grasas saturadas, NO escribas "139"
-IMPORTANTE: Si NO ves claramente un valor, OMITE esa línea del JSON
+Extrae SOLO de esa sección. Devuelve un objeto JSON válido, sin comentarios, sin markdown, sin explicaciones.
+- Si un nutriente no aparece en "Por 100g", NO lo incluyas
+- Usa números decimales (1.3, no 1,3)
+- Nombres de keys en inglés simple: calories, fat, saturated_fat, sodium, carbs, fiber, sugars, protein
 
 Texto OCR:
 ${rawText}
 
-RESPUESTA (SOLO JSON, valores exactos del "Por 100g"):`;
+RESPUESTA (SOLO JSON válido):
+{}`;
 
     console.log('[Nutrition OCR] Starting AI extraction...');
 
-    const groqModels = [
-      'llama-3.1-8b-instant',
-      'gemma-7b-it',
-      'llama-3.3-70b-versatile'
-    ];
+    // ponytail: single fast model, minimal delay for Vercel function timeout (~10s on free tier)
+    try {
+      const result = await queueGroqCall(cleaningPrompt, 'llama-3.1-8b-instant', 2500, 500);
+      if (result?.content) {
+        let trimmed = result.content.trim();
+        // Extract JSON from markdown code blocks if wrapped
+        const jsonMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch) trimmed = jsonMatch[1].trim();
+        // Remove comments before JSON parsing
+        trimmed = trimmed.replace(/\/\/.*?$/gm, '').trim();
 
-    // Try models in sequence, fast-fail on first valid JSON
-    let cleanedText = null;
-    for (const model of groqModels) {
-      try {
-        const result = await queueGroqCall(cleaningPrompt, model, 5000);
-        if (result?.content) {
-          const trimmed = result.content.trim();
-          try {
-            JSON.parse(trimmed);
-            cleanedText = trimmed;
-            console.log('[Nutrition OCR] Valid JSON from model:', model);
-            break;
-          } catch (e) {
-            console.warn('[Nutrition OCR] Invalid JSON from', model, ':', trimmed.substring(0, 100));
-          }
+        console.log('[Nutrition OCR] Extracted:', trimmed.substring(0, 150));
+        try {
+          const parsed = JSON.parse(trimmed);
+          console.log('[Nutrition OCR] ✓ JSON valid, keys:', Object.keys(parsed).length);
+          return res.json({ status: 'ok', nutritionData: parsed });
+        } catch (e) {
+          console.error('[Nutrition OCR] ✗ Parse error:', e.message);
+          throw new Error("Failed to parse nutrition data as JSON");
         }
-      } catch (e) {
-        console.warn('[Nutrition OCR] Model', model, 'failed:', e.message);
       }
+      throw new Error("No response from LLM");
+    } catch (e) {
+      console.error('[Nutrition OCR] Extraction failed:', e.message);
+      throw e;
     }
-
-    if (!cleanedText) throw new Error("No valid nutrition data extracted from any model");
-
-    res.json({ status: 'ok', nutritionData: JSON.parse(cleanedText) });
   } catch (error) {
     console.error('[Nutrition OCR] Error:', error);
     res.status(500).json({ error: 'Error al procesar nutrientes: ' + (error?.message || error) });
