@@ -959,6 +959,63 @@ RESPUESTA (solo lista de ingredientes):`;
   }
 });
 
+// Process nutrition OCR text with AI
+app.post('/api/nutrition/process', async (req, res) => {
+  try {
+    const { rawText } = req.body;
+    if (!rawText) {
+      return res.status(400).json({ error: 'Missing rawText' });
+    }
+
+    const cleaningPrompt = `TAREA: Extraer información nutricional de etiqueta extraída por OCR.
+
+INSTRUCCIONES:
+1. Extrae SOLO valores numéricos para: kcal, grasas (g), azúcares (g), carbohidratos (g), proteínas (g), sodio (mg)
+2. Si un valor no está presente, devuelve null
+3. Formato JSON EXACTO (sin explicaciones):
+{"kcal": número, "fat": número, "sugars": número, "carbs": número, "proteins": número, "sodium": número}
+
+Texto OCR:
+${rawText}
+
+RESPUESTA (solo JSON):`;
+
+    console.log('[Nutrition OCR] Starting AI extraction...');
+
+    const groqModels = [
+      'llama-3.1-8b-instant',
+      'gemma-7b-it',
+      'llama-3.3-70b-versatile'
+    ];
+
+    const results = await Promise.allSettled(
+      groqModels.map(m => queueGroqCall(cleaningPrompt, m, 800))
+    );
+
+    let cleanedText = null;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === 'fulfilled' && r.value?.content) {
+        cleanedText = r.value.content.trim();
+        try {
+          JSON.parse(cleanedText);
+          console.log('[Nutrition OCR] Valid JSON extracted');
+          break;
+        } catch (e) {
+          console.warn('[Nutrition OCR] Invalid JSON from model', i);
+        }
+      }
+    }
+
+    if (!cleanedText) throw new Error("No valid nutrition data extracted");
+
+    res.json({ status: 'ok', nutritionData: JSON.parse(cleanedText) });
+  } catch (error) {
+    console.error('[Nutrition OCR] Error:', error);
+    res.status(500).json({ error: 'Error al procesar nutrientes: ' + (error?.message || error) });
+  }
+});
+
 // Debug: Check OCR data in Firebase
 app.get('/api/ocr/debug/:barcode', async (req, res) => {
   try {

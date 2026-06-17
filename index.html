@@ -544,6 +544,42 @@
     </div>
   </div>
 
+  <!-- Nutrition OCR Modal -->
+  <div id="nutrition-modal" class="modal hidden">
+    <div class="modal-overlay" id="nutrition-modal-overlay"></div>
+    <div class="modal-content">
+      <button id="nutrition-modal-close" class="modal-close">✕</button>
+
+      <div id="nutrition-step-1" class="ocr-step">
+        <h3>📊 Capturar Información Nutricional</h3>
+        <p>Por favor, toma una foto clara de la etiqueta nutricional</p>
+        <input type="file" id="nutrition-photo-input" accept="image/*" capture="environment">
+        <button id="nutrition-upload-btn" class="btn-primary">📷 Subir Foto</button>
+      </div>
+
+      <div id="nutrition-step-2" class="ocr-step hidden">
+        <p>Procesando información nutricional...</p>
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div id="nutrition-step-3" class="ocr-step hidden">
+        <p>Información nutricional detectada (por 100g):</p>
+        <textarea id="nutrition-result" class="ocr-textarea" readonly></textarea>
+        <div class="ocr-actions">
+          <button id="nutrition-edit-btn" class="btn-secondary">✎ Editar</button>
+          <button id="nutrition-save-btn" class="btn-primary">💾 Guardar</button>
+        </div>
+      </div>
+
+      <div id="nutrition-step-4" class="ocr-step hidden">
+        <p>✓ Información nutricional guardada correctamente</p>
+        <button id="nutrition-close-btn" class="btn-primary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Tesseract.js for OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js" defer></script>
 
