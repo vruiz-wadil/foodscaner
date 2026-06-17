@@ -965,6 +965,20 @@ app.get('/api/ocr/debug/:barcode', async (req, res) => {
   }
 });
 
+// Debug: Test Firebase access
+app.get('/api/debug/firebase', async (req, res) => {
+  try {
+    const hasKey = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    res.json({
+      hasFirebaseKey: hasKey,
+      keyLength: hasKey ? process.env.FIREBASE_SERVICE_ACCOUNT_KEY.length : 0,
+      keyPreview: hasKey ? process.env.FIREBASE_SERVICE_ACCOUNT_KEY.substring(0, 50) + '...' : 'N/A'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Save processed ingredients to Firebase
 app.post('/api/products/ocr', async (req, res) => {
   try {
