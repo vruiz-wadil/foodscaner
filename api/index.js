@@ -992,6 +992,10 @@ app.post('/api/products/ocr', async (req, res) => {
       return res.status(400).json({ error: 'Missing barcode or ingredients' });
     }
 
+    console.log('[OCR Save] Clearing cache for', barcode);
+    // Clear cache so next scan fetches fresh with OCR data
+    await removeCacheEntry(barcode);
+
     console.log('[OCR Save] Calling fireSetOcrData...');
     await fireSetOcrData(barcode, ingredients);
 
