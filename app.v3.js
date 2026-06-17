@@ -797,9 +797,11 @@ function parseApiProduct(product) {
     }
   });
   if (product.traces && product.traces !== "undefined") {
+    const irrelevantWords = ["nuevo", "desconocido", "undefined", "unknown"];
     product.traces.split(",").forEach(t => {
       const cleaned = t.replace(/^[a-z]{2}:/, "").trim();
-      if (cleaned && !allergensList.includes(cleaned) && !tracesList.includes(cleaned)) {
+      const cleanedLower = cleaned.toLowerCase();
+      if (cleaned && !irrelevantWords.includes(cleanedLower) && !allergensList.includes(cleaned) && !tracesList.includes(cleaned)) {
         tracesList.push(cleaned.charAt(0).toUpperCase() + cleaned.slice(1));
       }
     });
