@@ -2123,17 +2123,35 @@ function initNutritionHandlers() {
         reader.onload = async (e) => {
           try {
             console.log('[Nutrition OCR] Starting with optimized config...');
-            const result = await Tesseract.recognize(e.target.result, "spa", {
-              logger: m => {
-                console.log('[Tesseract]', m.status, Math.round(m.progress * 100) + '%');
-              }
-            });
-            const ocrText = result.data.text;
-            console.log('[Nutrition OCR] Raw text length:', ocrText.length);
 
-            if (!ocrText || ocrText.trim().length < 5) {
-              throw new Error("Foto muy pequeña o borrosa. Toma una foto más clara de la etiqueta nutricional (mínimo 200x200px)");
-            }
+            // Compress image for faster processing, focus on table region
+            const imgUrl = e.target.result;
+            const img = new Image();
+            img.onload = async () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+
+              // Scale down to max 1200px width while maintaining aspect
+              const maxWidth = 1200;
+              const scale = Math.min(1, maxWidth / img.width);
+              canvas.width = img.width * scale;
+              canvas.height = img.height * scale;
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+              const scaledImgUrl = canvas.toDataURL('image/jpeg', 0.85);
+              console.log('[Nutrition OCR] Scaled image:', canvas.width, 'x', canvas.height);
+
+              const result = await Tesseract.recognize(scaledImgUrl, "spa", {
+                logger: m => {
+                  console.log('[Tesseract]', m.status, Math.round(m.progress * 100) + '%');
+                }
+              });
+              const ocrText = result.data.text;
+              console.log('[Nutrition OCR] Raw text length:', ocrText.length);
+
+              if (!ocrText || ocrText.trim().length < 5) {
+                throw new Error("Foto muy pequeña o borrosa. Toma una foto SOLO de la tabla nutricional (sin bordes del empaque)");
+              }
 
             const response = await fetch("/api/nutrition/process", {
               method: "POST",
@@ -2157,6 +2175,12 @@ function initNutritionHandlers() {
             document.getElementById("nutrition-step-3").classList.remove("hidden");
           } catch (err) {
             console.error("Nutrition OCR processing error:", err);
+            throw err;
+          }
+            };
+            img.src = imgUrl;
+          } catch (err) {
+            console.error("Nutrition OCR error:", err);
             throw err;
           }
         };
