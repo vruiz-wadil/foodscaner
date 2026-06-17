@@ -950,6 +950,21 @@ Ingredientes limpios (solo la lista, separada por comas):`;
   }
 });
 
+// Debug: Check OCR data in Firebase
+app.get('/api/ocr/debug/:barcode', async (req, res) => {
+  try {
+    const { barcode } = req.params;
+    const ocrData = await fireGetOcrData(barcode);
+    if (ocrData) {
+      res.json({ status: 'found', barcode, data: ocrData });
+    } else {
+      res.json({ status: 'not_found', barcode, message: 'No OCR data in Firebase' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Save processed ingredients to Firebase
 app.post('/api/products/ocr', async (req, res) => {
   try {
