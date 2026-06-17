@@ -967,25 +967,26 @@ app.post('/api/nutrition/process', async (req, res) => {
       return res.status(400).json({ error: 'Missing rawText' });
     }
 
-    const cleaningPrompt = `TAREA: Extraer información nutricional "Por 100g" de etiqueta OCR.
+    const cleaningPrompt = `TAREA: Limpiar OCR de tabla nutricional y extraer valores "Por 100g".
 
-INSTRUCCIONES CRÍTICAS:
-1. SOLO extrae valores de la columna "Por 100g" o "Por 100 gramos"
-2. IGNORA completamente columnas "Por porción", "Por envase", etc.
-3. Mantén TODOS los decimales (1,5 → 1,5 o 1.5, no truncar a 1)
-4. Si hay coma decimal (1,5), conviértela a punto (1.5) en el JSON
-5. Si un valor no existe en "Por 100g", NO lo incluyas
-6. Extrae: Calorías, Grasas, Grasas saturadas, Colesterol, Sodio, Carbohidratos, Fibra, Azúcares, Proteínas
-7. Devuelve SOLO este JSON (sin explicaciones):
-{"Calorías (kcal)": número, "Grasas (g)": número, "Grasas saturadas (g)": número, "Colesterol (mg)": número, "Sodio (mg)": número, "Carbohidratos (g)": número, "Fibra (g)": número, "Azúcares (g)": número, "Proteínas (g)": número}
+INSTRUCCIONES:
+1. El OCR puede estar sucio. Limpia primero el texto.
+2. Identifica la fila o sección "Por 100g" o "Per 100g"
+3. En esa sección, encuentra TODOS los nutrientes y sus valores
+4. Mantén decimales exactamente como aparecen (1,3 → 1.3)
+5. NO inventes valores - si no ves un número claro, NO lo incluyas
+6. Devuelve JSON limpio con SOLO los valores encontrados:
 
-Ejemplo correcto:
-{"Calorías (kcal)": 100, "Grasas (g)": 1.5, "Sodio (mg)": 250}
+{"Calorías (kcal)": valor, "Grasas (g)": valor, "Grasas saturadas (g)": valor, "Colesterol (mg)": valor, "Sodio (mg)": valor, "Carbohidratos (g)": valor, "Fibra (g)": valor, "Azúcares (g)": valor, "Proteínas (g)": valor}
+
+IMPORTANTE: Si la etiqueta dice "143" para calorías, NO escribas "2349"
+IMPORTANTE: Si la etiqueta dice "1,3g" para grasas saturadas, NO escribas "139"
+IMPORTANTE: Si NO ves claramente un valor, OMITE esa línea del JSON
 
 Texto OCR:
 ${rawText}
 
-RESPUESTA (SOLO JSON, sin comillas extras, con decimales):`;
+RESPUESTA (SOLO JSON, valores exactos del "Por 100g"):`;
 
     console.log('[Nutrition OCR] Starting AI extraction...');
 
