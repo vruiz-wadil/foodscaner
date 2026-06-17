@@ -668,7 +668,9 @@ app.get('/api/product/:barcode', async (req, res) => {
     // Helper: Add OCR data if available
     async function addOcrDataIfAvailable(product) {
       const ocrData = await fireGetOcrData(barcode);
+      console.log('[OCR] Checking OCR data for', barcode, '- found:', !!ocrData);
       if (ocrData && ocrData.ingredients_ocr) {
+        console.log('[OCR] Adding ingredients from OCR');
         product.ingredients_text = ocrData.ingredients_ocr;
         product._from_ocr = true;
       }
