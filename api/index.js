@@ -906,14 +906,21 @@ app.post('/api/ocr/process', async (req, res) => {
       return res.status(400).json({ error: 'Missing rawText' });
     }
 
-    const cleaningPrompt = `El siguiente texto fue extraído de una imagen de una lista de ingredientes usando OCR.
-Por favor, corrige los errores de OCR y extrae SOLO la lista de ingredientes limpia, sin explicaciones adicionales.
-Retorna solo la lista de ingredientes separados por comas.
+    const cleaningPrompt = `TAREA: Limpiar lista de ingredientes extraída por OCR.
 
-Texto OCR:
+INSTRUCCIONES CRÍTICAS:
+1. Devuelve SOLO una lista de ingredientes separados por comas
+2. NO agrues explicaciones, contexto, saludos o cualquier texto adicional
+3. Una sola línea, nada más
+4. Elimina duplicados
+5. Si un ingrediente está ilegible, NO lo inventes - saltalo
+6. Corrige solo errores OCR obvios (ej: "l" por "1", "O" por "0")
+
+Texto OCR extraído:
 ${rawText}
 
-Ingredientes limpios (solo la lista, separada por comas):`;
+RESPUESTA (solo lista de ingredientes):`;
+
 
     console.log('[OCR Process] Starting AI cleaning with all Groq models...');
 
