@@ -540,11 +540,11 @@ function parseApiProduct(product) {
   // Gluten Dectector Logic
   // Open Food Facts tags allergens/ingredients containing gluten
   const ingredientsText = (product.ingredients_text || "").toLowerCase();
-  const tracesText = (product.traces || "").toLowerCase();
   const allergensTags = (product.allergens_tags || []).map(t => t.toLowerCase());
+  const tracesTags = (product.traces_tags || []).map(t => t.toLowerCase());
 
   const hasGlutenAllergenTag = allergensTags.some(tag => tag.includes("gluten") || tag.includes("wheat") || tag.includes("trigo"));
-  const hasGlutenInTraces = /gluten|wheat|trigo/.test(tracesText);
+  const hasGlutenInTraces = tracesTags.some(tag => tag.includes("gluten") || tag.includes("wheat") || tag.includes("trigo"));
   const hasGlutenInIngredients = /gluten|harina\s+de\s+trigo|trigo|wheat|cebada|centeno/.test(ingredientsText);
 
   // Check for positive labels indicating gluten-free
