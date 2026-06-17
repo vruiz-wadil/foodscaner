@@ -2130,14 +2130,18 @@ function initNutritionHandlers() {
             body: JSON.stringify({ rawText: ocrText })
           });
 
-          if (!response.ok) throw new Error("Nutrition processing failed");
           const data = await response.json();
 
-          const nutritionStr = Object.entries(data.nutritionData)
+          if (!response.ok) {
+            throw new Error(data.error || "Nutrition processing failed");
+          }
+
+          const nutritionData = data.nutritionData || {};
+          const nutritionStr = Object.entries(nutritionData)
             .map(([k, v]) => `${k}: ${v}`)
             .join("\n");
 
-          document.getElementById("nutrition-result").value = nutritionStr;
+          document.getElementById("nutrition-result").value = nutritionStr || "(Sin valores extraídos)";
           document.getElementById("nutrition-step-2").classList.add("hidden");
           document.getElementById("nutrition-step-3").classList.remove("hidden");
         };

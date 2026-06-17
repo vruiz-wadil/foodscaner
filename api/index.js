@@ -968,17 +968,23 @@ app.post('/api/nutrition/process', async (req, res) => {
       return res.status(400).json({ error: 'Missing rawText' });
     }
 
-    const cleaningPrompt = `BUSCA SOLAMENTE la sección "Por 100g" (o "Per 100g", "Per 100 grams"). IGNORA "Por porción" o "Per serving".
+    const cleaningPrompt = `TAREA: Lee el OCR y extrae SOLO "Por 100g" (o "Per 100g").
 
-Extrae SOLO de esa sección. Devuelve un objeto JSON válido, sin comentarios, sin markdown, sin explicaciones.
-- Si un nutriente no aparece en "Por 100g", NO lo incluyas
-- Usa números decimales (1.3, no 1,3)
-- Nombres de keys en inglés simple: calories, fat, saturated_fat, sodium, carbs, fiber, sugars, protein
+REGLAS:
+- IGNORA completamente "Por porción", "Por serving", "Per portion"
+- EXTRAE SOLO lo que APARECE en el texto
+- OMITE completamente cualquier nutriente que NO APAREZCA (no uses 0, no lo incluyas en el JSON)
+- Convierte comas a puntos (1,3 → 1.3)
+- Devuelve JSON VÁLIDO, sin comentarios, sin markdown, sin explicaciones
+
+Ejemplo: Si el texto dice "Por 100g: Energía 150 kcal, Grasas 2g"
+Devuelve: {"calories": 150, "fat": 2}
+NO devuelvas: {"calories": 150, "fat": 2, "saturated_fat": 0, "sodium": 0, ...}
 
 Texto OCR:
 ${rawText}
 
-RESPUESTA (SOLO JSON válido):
+RESPUESTA (SOLO JSON válido, nada más):
 {}`;
 
     console.log('[Nutrition OCR] Starting AI extraction...');
@@ -987,17 +993,31 @@ RESPUESTA (SOLO JSON válido):
     try {
       const result = await queueGroqCall(cleaningPrompt, 'llama-3.1-8b-instant', 2500, 500);
       if (result?.content) {
+        console.log('[Nutrition OCR] Raw response:', result.content.substring(0, 300));
         let trimmed = result.content.trim();
         // Extract JSON from markdown code blocks if wrapped
         const jsonMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (jsonMatch) trimmed = jsonMatch[1].trim();
+        if (jsonMatch) {
+          console.log('[Nutrition OCR] Extracted from code block');
+          trimmed = jsonMatch[1].trim();
+        }
         // Remove comments before JSON parsing
         trimmed = trimmed.replace(/\/\/.*?$/gm, '').trim();
 
-        console.log('[Nutrition OCR] Extracted:', trimmed.substring(0, 150));
+        console.log('[Nutrition OCR] Cleaned text:', trimmed.substring(0, 200));
         try {
           const parsed = JSON.parse(trimmed);
-          console.log('[Nutrition OCR] ✓ JSON valid, keys:', Object.keys(parsed).length);
+          const keyCount = Object.keys(parsed).length;
+          console.log('[Nutrition OCR] ✓ JSON valid, keys:', keyCount);
+
+          if (keyCount === 0) {
+            console.warn('[Nutrition OCR] ⚠️ Empty JSON - OCR text may be unreadable');
+            // Return error so frontend shows message instead of empty textarea
+            return res.status(400).json({
+              error: 'No se encontraron valores nutricionales. Intenta con una foto más clara de la etiqueta.'
+            });
+          }
+
           return res.json({ status: 'ok', nutritionData: parsed });
         } catch (e) {
           console.error('[Nutrition OCR] ✗ Parse error:', e.message);
