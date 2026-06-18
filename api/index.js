@@ -1137,7 +1137,7 @@ app.get('/api/ocr/list', async (req, res) => {
 });
 
 // Delete all OCR data from Firebase (ingredients + nutrition)
-app.delete('/api/ocr/all', async (req, res) => {
+app.delete('/api/ocr-clear-all', async (req, res) => {
   try {
     const [ingredients, nutrition] = await Promise.all([
       fireListCollection('products_ocr'),
