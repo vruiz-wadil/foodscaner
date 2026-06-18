@@ -1117,11 +1117,11 @@ function renderProductData(product, barcode) {
     }
   }
 
-  // Always show nutrition capture button (allows updating existing data too)
   const nutritionRequestBtn = document.getElementById("btn-nutrition-capture");
   const nutritionCaptureSection = document.getElementById("nutrition-capture-section");
   if (nutritionRequestBtn && nutritionCaptureSection) {
-    nutritionCaptureSection.classList.remove("hidden");
+    const hasNutrition = (product.calories?.value > 0) || (product.nutriments?.['energy-kcal_100g'] > 0);
+    nutritionCaptureSection.classList.toggle("hidden", hasNutrition);
     nutritionRequestBtn.onclick = () => showNutritionModal(currentBarcode);
   }
 
