@@ -10,7 +10,11 @@ async function getAccessToken() {
   const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (!key) return null;
   try {
-    const sa = JSON.parse(key);
+    // dotenvx leaves \" for quotes and \+LF for PEM line breaks
+    const raw = key.includes('\\"')
+      ? key.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22')
+      : key;
+    const sa = JSON.parse(raw);
     _projectId = sa.project_id;
     const jwtHeader = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
@@ -51,7 +55,7 @@ function getProjectId() {
   if (_projectId) return _projectId;
   try {
     const k = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (k) _projectId = JSON.parse(k).project_id;
+    if (k) { const raw = k.includes('\\"') ? k.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22') : k; _projectId = JSON.parse(raw).project_id; }
   } catch {}
   return _projectId || 'foodscaner-cache-v2';
 }
