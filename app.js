@@ -1932,6 +1932,7 @@ function renderError(title, message) {
 // === OCR INGREDIENT CAPTURE ===
 
 function showOcrModal(barcode) {
+  if (barcode) currentBarcode = barcode;
   const modal = document.getElementById("ocr-modal");
   if (modal) {
     modal.classList.remove("hidden");
@@ -1945,7 +1946,6 @@ function showOcrModal(barcode) {
 function hideOcrModal() {
   const modal = document.getElementById("ocr-modal");
   if (modal) modal.classList.add("hidden");
-  currentBarcode = null;
 }
 
 function initOcrHandlers() {
@@ -2063,6 +2063,7 @@ function initOcrHandlers() {
 
 // Nutrition OCR Modal Functions
 function showNutritionModal(barcode) {
+  if (barcode) currentBarcode = barcode;
   const modal = document.getElementById("nutrition-modal");
   if (modal) {
     modal.classList.remove("hidden");
