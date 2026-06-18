@@ -1167,11 +1167,11 @@ function renderProductData(product, barcode) {
   }
 
   // Render Sugars Card
-  if (product.sugars && product.sugars.value !== null) {
+  if (product.sugars && product.sugars.value != null) {
     cardSugars.classList.remove("hidden");
     sugarsVal.textContent = fmt(product.sugars.value) + " g / 100g";
-    sugarsProgress.style.width = product.sugars.percent + "%";
-    sugarsLevel.textContent = "Nivel de azúcar: " + product.sugars.level;
+    sugarsProgress.style.width = (product.sugars.percent ?? 0) + "%";
+    sugarsLevel.textContent = "Nivel de azúcar: " + (product.sugars.level ?? "Bajo");
     cardSugars.className = "analysis-card";
     styleCard(sugarsLevel, sugarsProgress, product.sugars.level,
       lvlCls("level-indicator sugars-", "high", "mod", "low"),
