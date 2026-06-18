@@ -315,9 +315,25 @@ async function fireSetOcrData(barcode, ingredients) {
   }
 }
 
+async function fireListCollection(col) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return [];
+    const url = `${BASE}/projects/${getProjectId()}/databases/(default)/documents/${encodeURIComponent(col)}?pageSize=100`;
+    const resp = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token }, signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.documents || []).map(doc => {
+      const id = doc.name.split('/').pop();
+      const raw = doc.fields?._data?.stringValue;
+      return { barcode: id, data: raw ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : null };
+    });
+  } catch (e) { return []; }
+}
+
 module.exports = {
   getAccessToken,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetVerifiedProduct, fireGetExtendedCache, fireSetExtendedCache, fireGetOcrData, fireSetOcrData,
-  fireGetNutritionOcr, fireSetNutritionOcr
+  fireGetNutritionOcr, fireSetNutritionOcr, fireListCollection
 };

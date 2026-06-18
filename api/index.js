@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetVerifiedProduct, fireGetExtendedCache, fireSetExtendedCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetVerifiedProduct, fireGetExtendedCache, fireSetExtendedCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListCollection } = require('./firestore');
 
 // Load verified products database
 let verifiedProducts = {};
@@ -1116,6 +1116,23 @@ app.get('/api/ocr/list', async (req, res) => {
     res.json({ count: ocrs.length, ocrs });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// List all barcodes with OCR data in Firebase
+app.get('/api/ocr/list', async (req, res) => {
+  try {
+    const [ingredients, nutrition] = await Promise.all([
+      fireListCollection('products_ocr'),
+      fireListCollection('products_nutrition')
+    ]);
+    const nutritionBarcodes = new Set(nutrition.map(n => n.barcode));
+    res.json({
+      ingredients: ingredients.map(e => ({ barcode: e.barcode, hasData: !!e.data?.ingredients_ocr, createdAt: e.data?.createdAt })),
+      nutrition: nutrition.map(e => ({ barcode: e.barcode, hasData: !!e.data?.nutritionData, createdAt: e.data?.createdAt })),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
