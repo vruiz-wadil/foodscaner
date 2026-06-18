@@ -311,6 +311,15 @@ app.get('/api/product/:barcode', async (req, res) => {
       const age = now - cached.cachedAt;
       const isOFF = cached.source && cached.source.includes("Open Food Facts");
 
+      // Inject OCR data on cache hits if not already present (handles multi-instance cache desync)
+      if (cached.response.product && !cached.response.product._from_ocr && !cached.response.product._from_nutrition_ocr) {
+        const enriched = await addOcrDataIfAvailable({ ...cached.response.product });
+        if (enriched._from_ocr || enriched._from_nutrition_ocr) {
+          cached.response.product = enriched;
+          memoryCache[cachedBarcode] = { ...memoryCache[cachedBarcode], response: cached.response };
+        }
+      }
+
       if (age < OFF_FRESH_TTL) {
         return res.json(cached.response);
       }
