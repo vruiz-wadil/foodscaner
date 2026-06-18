@@ -1016,6 +1016,7 @@ function parseApiProduct(product) {
     traces: [...new Map(filteredTraces.map(t => [t.toLowerCase().trim(), t])).values()],
     nutriscore: nutriscore,
     _enrichedFrom: product._enrichedFrom || null,
+    _from_nutrition_ocr: product._from_nutrition_ocr || false,
     ingredientsText: product.ingredients_text || null,
     nutriments: product.nutriments || null,
     labelsTags: product.labels_tags || null,
@@ -1120,8 +1121,7 @@ function renderProductData(product, barcode) {
   const nutritionRequestBtn = document.getElementById("btn-nutrition-capture");
   const nutritionCaptureSection = document.getElementById("nutrition-capture-section");
   if (nutritionRequestBtn && nutritionCaptureSection) {
-    const hasNutrition = (product.calories?.value > 0) || (product.nutriments?.['energy-kcal_100g'] > 0);
-    nutritionCaptureSection.classList.toggle("hidden", hasNutrition);
+    nutritionCaptureSection.classList.toggle("hidden", !!product._from_nutrition_ocr);
     nutritionRequestBtn.onclick = () => showNutritionModal(currentBarcode);
   }
 
