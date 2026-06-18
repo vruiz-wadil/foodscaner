@@ -312,8 +312,9 @@ app.get('/api/product/:barcode', async (req, res) => {
       const age = now - cached.cachedAt;
       const isOFF = cached.source && cached.source.includes("Open Food Facts");
 
-      // Inject OCR data on cache hits if not already present (handles multi-instance cache desync)
-      if (cached.response.product && !cached.response.product._from_ocr && !cached.response.product._from_nutrition_ocr) {
+      // Inject OCR data on cache hits when missing or incomplete (handles multi-instance cache desync
+      // and old cached responses that had _from_nutrition_ocr but missing card-shaped fields)
+      if (cached.response.product && !(cached.response.product._from_ocr && cached.response.product.calories?.value > 0)) {
         const enriched = await addOcrDataIfAvailable({ ...cached.response.product });
         if (enriched._from_ocr || enriched._from_nutrition_ocr) {
           cached.response.product = enriched;
