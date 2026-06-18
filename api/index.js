@@ -922,63 +922,25 @@ app.post('/api/cache/refresh/:barcode', async (req, res) => {
   }
 });
 
-// Process raw OCR text with AI to clean and extract ingredients
+// Process ingredients from image using vision LLM (no Tesseract)
 app.post('/api/ocr/process', async (req, res) => {
   try {
-    const { rawText } = req.body;
-    if (!rawText) {
-      return res.status(400).json({ error: 'Missing rawText' });
-    }
+    const { imageData } = req.body;
+    if (!imageData) return res.status(400).json({ error: 'Missing imageData' });
 
-    const cleaningPrompt = `TAREA: Limpiar lista de ingredientes extraída por OCR.
+    const prompt = `Extrae la lista de ingredientes de esta imagen de etiqueta alimentaria.
+Devuelve SOLO los ingredientes separados por comas, en una sola línea, sin explicaciones ni títulos.
+Corrige errores obvios de lectura pero no inventes ingredientes.
+Si no puedes leer los ingredientes, responde con texto vacío.`;
 
-INSTRUCCIONES CRÍTICAS:
-1. Devuelve SOLO una lista de ingredientes separados por comas
-2. NO agrues explicaciones, contexto, saludos o cualquier texto adicional
-3. Una sola línea, nada más
-4. Elimina duplicados
-5. Si un ingrediente está ilegible, NO lo inventes - saltalo
-6. Corrige solo errores OCR obvios (ej: "l" por "1", "O" por "0")
+    const result = await callGroqVision(imageData, prompt);
+    if (!result?.content) throw new Error("No response from vision LLM");
 
-Texto OCR extraído:
-${rawText}
-
-RESPUESTA (solo lista de ingredientes):`;
-
-
-    console.log('[OCR Process] Starting AI cleaning with all Groq models...');
-
-    // Probar todos los modelos de Groq en paralelo - gana el primero
-    const groqModels = [
-      'llama-3.1-8b-instant',    // Más rápido
-      'gemma-7b-it',              // Muy rápido
-      'llama-3.3-70b-versatile',
-      'llama-3.1-70b-versatile',
-      'mixtral-8x7b-32768'
-    ];
-
-    const results = await Promise.allSettled(
-      groqModels.map(m => queueGroqCall(cleaningPrompt, m, 1000))
-    );
-
-    let cleanedText = null;
-    let usedModel = null;
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r.status === 'fulfilled' && r.value && r.value.content && r.value.content.length > 0) {
-        cleanedText = r.value.content.trim();
-        usedModel = groqModels[i];
-        console.log('[OCR Process] Used model:', usedModel);
-        break;
-      }
-    }
-
-    if (!cleanedText) throw new Error("Todos los modelos fallaron");
-    console.log('[OCR Process] Cleaned text:', cleanedText.substring(0, 100));
-
+    const cleanedText = result.content.trim();
+    console.log('[OCR Vision] Extracted:', cleanedText.substring(0, 100));
     res.json({ status: 'ok', cleanedText });
   } catch (error) {
-    console.error('[OCR Process] Error:', error);
+    console.error('[OCR Vision] Error:', error);
     res.status(500).json({ error: 'Error al procesar OCR: ' + (error?.message || error) });
   }
 });

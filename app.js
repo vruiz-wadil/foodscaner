@@ -1930,13 +1930,8 @@ function renderError(title, message) {
 }
 
 // === OCR INGREDIENT CAPTURE ===
-let Tesseract = window.Tesseract;
 
 function showOcrModal(barcode) {
-  if (!Tesseract) {
-    alert("OCR no está disponible. Intenta recargar la página.");
-    return;
-  }
   const modal = document.getElementById("ocr-modal");
   if (modal) {
     modal.classList.remove("hidden");
@@ -1972,70 +1967,45 @@ function initOcrHandlers() {
       document.getElementById("ocr-step-2").classList.remove("hidden");
 
       try {
-        if (!Tesseract || !Tesseract.recognize) {
-          throw new Error("Tesseract.js no está cargado. Recarga la página.");
-        }
-
         const imgUrl = URL.createObjectURL(file);
-        const progress = document.getElementById("ocr-progress");
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(1, 1200 / img.width);
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(imgUrl);
 
-        // Update progress
-        if (progress) {
-          progress.style.width = "30%";
-          setTimeout(() => { if (progress) progress.style.width = "70%"; }, 300);
-        }
+            const imageData = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+            console.log('[OCR Vision] Sending image', canvas.width, 'x', canvas.height);
 
-        console.log('[OCR] Starting Tesseract recognition...');
-        const result = await Tesseract.recognize(imgUrl, 'spa', {
-          oem: 3,
-          tesseract_create_pdf: false,
-          tessedit_pageseg_mode: 4,
-          logger: m => {
-            if (progress && m.progress) {
-              progress.style.width = (30 + m.progress * 40) + "%";
-            }
+            const response = await fetch("/api/ocr/process", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ imageData })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "Error al procesar");
+
+            const textArea = document.getElementById("ocr-result");
+            if (textArea) textArea.value = data.cleanedText || "";
+
+            document.getElementById("ocr-step-2").classList.add("hidden");
+            document.getElementById("ocr-step-3").classList.remove("hidden");
+          } catch (err) {
+            console.error("[OCR Vision] Error:", err);
+            alert("Error al procesar imagen:\n" + (err?.message || err));
+            document.getElementById("ocr-step-2").classList.add("hidden");
+            document.getElementById("ocr-step-1").classList.remove("hidden");
           }
-        });
-
-        if (!result || !result.data || !result.data.text) {
-          throw new Error("Tesseract no extrajo texto. Intenta con una foto más clara.");
-        }
-
-        URL.revokeObjectURL(imgUrl);
-        const rawText = result.data.text.trim() || "(No text detected)";
-        console.log('[OCR] Raw text extracted:', rawText.substring(0, 100));
-
-        // Process with AI to clean text
-        if (progress) progress.style.width = "85%";
-        const aiResponse = await fetch("/api/ocr/process", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rawText }),
-          signal: AbortSignal.timeout(30000)
-        });
-
-        if (!aiResponse.ok) {
-          const errorData = await aiResponse.json();
-          throw new Error("AI processing failed: " + (errorData?.error || aiResponse.status));
-        }
-        const aiData = await aiResponse.json();
-        const cleanedText = aiData.cleanedText;
-
-        const textArea = document.getElementById("ocr-result");
-        if (textArea) {
-          textArea.value = cleanedText;
-        }
-
-        if (progress) progress.style.width = "100%";
-
-        setTimeout(() => {
-          document.getElementById("ocr-step-2").classList.add("hidden");
-          document.getElementById("ocr-step-3").classList.remove("hidden");
-        }, 500);
+        };
+        img.src = imgUrl;
       } catch (err) {
-        console.error("[OCR] Error:", err);
-        const errorMsg = err?.message || err?.toString?.() || "Error desconocido";
-        alert("Error al procesar imagen:\n" + errorMsg);
+        console.error("[OCR Vision] Error:", err);
+        alert("Error al procesar imagen:\n" + (err?.message || err));
         document.getElementById("ocr-step-2").classList.add("hidden");
         document.getElementById("ocr-step-1").classList.remove("hidden");
       }
