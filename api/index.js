@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireDeleteDoc, ADMIN_COLLECTIONS } = require('./firestore');
 
 
 const app = express();
@@ -1150,6 +1150,41 @@ app.post('/api/products/ocr', async (req, res) => {
     console.error('[OCR Save] Error:', error);
     res.status(500).json({ error: 'Error al guardar ingredientes: ' + error.message });
   }
+});
+
+// --- Admin Panel API ---
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+
+function requireAdmin(req, res, next) {
+  if (!ADMIN_TOKEN) return res.status(503).json({ error: 'Admin no configurado' });
+  if (req.get('x-admin-token') !== ADMIN_TOKEN) return res.status(401).json({ error: 'No autorizado' });
+  next();
+}
+
+function validCol(req, res, next) {
+  if (!ADMIN_COLLECTIONS.includes(req.params.collection)) return res.status(400).json({ error: 'Colección inválida' });
+  next();
+}
+
+app.get('/api/admin/login-check', requireAdmin, (req, res) => res.json({ ok: true }));
+
+app.get('/api/admin/:collection', requireAdmin, validCol, async (req, res) => {
+  const result = await fireListDocs(req.params.collection, req.query.pageToken || null);
+  if (!result) return res.status(500).json({ error: 'Error al listar documentos' });
+  res.json(result);
+});
+
+app.delete('/api/admin/:collection/:id', requireAdmin, validCol, async (req, res) => {
+  const { collection, id } = req.params;
+  if (collection === 'product_cache') {
+    await removeCacheEntry(id);
+  } else if (collection === 'ai_cache') {
+    delete memoryAiCache[id];
+    await fireDeleteDoc(collection, id);
+  } else {
+    await fireDeleteDoc(collection, id);
+  }
+  res.json({ status: 'deleted', collection, id });
 });
 
 module.exports = app;

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yomi Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .admin-wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+    .admin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .admin-header h1 { font-family: var(--font-display); font-size: 1.5rem; color: var(--ink); margin: 0; }
+    .admin-header .badge { font-family: var(--font-mono); font-size: 0.7rem; background: var(--green); color: #fff; padding: 2px 8px; border-radius: 4px; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .tab-btn { font-family: var(--font-mono); font-size: 0.8rem; padding: 6px 14px; border: 2px solid var(--border); background: var(--paper); color: var(--ink); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+    .tab-btn:hover { border-color: var(--ink); }
+    .tab-btn.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .toolbar { display: flex; gap: 10px; margin-bottom: 16px; }
+    .toolbar input { flex: 1; font-family: var(--font-mono); font-size: 0.85rem; padding: 8px 12px; border: 2px solid var(--border); background: var(--paper); color: var(--ink); border-radius: var(--radius-sm); outline: none; }
+    .toolbar input:focus { border-color: var(--ink); }
+    .doc-list { display: flex; flex-direction: column; gap: 8px; }
+    .doc-item { border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--paper); box-shadow: 2px 2px 0 var(--border); }
+    .doc-item:hover { border-color: var(--ink); }
+    .doc-id { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 500; color: var(--ink); cursor: pointer; }
+    .doc-id:hover { text-decoration: underline; }
+    .doc-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .doc-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn-view { font-size: 0.78rem; padding: 4px 10px; border: 2px solid var(--border); background: var(--surface); color: var(--ink); border-radius: 4px; cursor: pointer; }
+    .btn-view:hover { border-color: var(--ink); }
+    .btn-del { font-size: 0.78rem; padding: 4px 10px; border: 2px solid var(--chile); background: transparent; color: var(--chile); border-radius: 4px; cursor: pointer; }
+    .btn-del:hover { background: var(--chile); color: #fff; }
+    .load-more { margin-top: 16px; text-align: center; }
+    .empty-msg { text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 40px 0; font-family: var(--font-mono); }
+    /* Login overlay */
+    #login-overlay { position: fixed; inset: 0; background: var(--paper); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .login-box { width: 320px; border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 32px; box-shadow: 4px 4px 0 var(--border); }
+    .login-box h2 { font-family: var(--font-display); margin: 0 0 20px; font-size: 1.3rem; }
+    .login-box input { width: 100%; box-sizing: border-box; font-family: var(--font-mono); font-size: 0.9rem; padding: 10px 12px; border: 2px solid var(--border); background: var(--surface); color: var(--ink); border-radius: var(--radius-sm); outline: none; margin-bottom: 12px; }
+    .login-box input:focus { border-color: var(--ink); }
+    .login-error { color: var(--chile); font-size: 0.8rem; margin-bottom: 10px; min-height: 1.2em; }
+    /* Modal */
+    #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px; }
+    #modal-overlay.open { display: flex; }
+    .modal-box { background: var(--paper); border: 2px solid var(--border); border-radius: var(--radius-sm); box-shadow: 4px 4px 0 var(--border); max-width: 700px; width: 100%; max-height: 80vh; display: flex; flex-direction: column; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 2px solid var(--border); }
+    .modal-header span { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 500; }
+    .modal-close { cursor: pointer; font-size: 1.2rem; color: var(--text-muted); background: none; border: none; line-height: 1; }
+    .modal-body { overflow-y: auto; padding: 16px 18px; }
+    .modal-body pre { font-family: var(--font-mono); font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--ink); }
+    .stats-bar { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
+  </style>
+</head>
+<body style="background:var(--paper);min-height:100vh;">
+
+<div id="login-overlay">
+  <div class="login-box">
+    <h2>Yomi Admin</h2>
+    <input id="token-input" type="password" placeholder="Token de acceso" autocomplete="current-password">
+    <div class="login-error" id="login-error"></div>
+    <button class="btn btn-primary" id="login-btn" style="width:100%;">Entrar</button>
+  </div>
+</div>
+
+<div id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="modal-title"></span>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <pre id="modal-content"></pre>
+    </div>
+  </div>
+</div>
+
+<div class="admin-wrap">
+  <div class="admin-header">
+    <h1>Panel Admin <span class="badge">Firestore</span></h1>
+    <button class="btn" id="logout-btn" style="font-size:0.8rem;padding:6px 12px;">Cerrar sesión</button>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-col="products_ocr">products_ocr</button>
+    <button class="tab-btn" data-col="products_nutrition">products_nutrition</button>
+    <button class="tab-btn" data-col="product_cache">product_cache</button>
+    <button class="tab-btn" data-col="ai_cache">ai_cache</button>
+  </div>
+
+  <div class="toolbar">
+    <input id="filter-input" type="text" placeholder="Filtrar por ID / código de barras…">
+  </div>
+
+  <div class="stats-bar" id="stats-bar"></div>
+  <div class="doc-list" id="doc-list"></div>
+  <div class="load-more" id="load-more"></div>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>

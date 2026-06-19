@@ -246,9 +246,37 @@ async function fireSetOcrData(barcode, ingredients) {
   }
 }
 
+const ADMIN_COLLECTIONS = ['products_ocr', 'products_nutrition', 'product_cache', 'ai_cache'];
+
+async function fireListDocs(col, pageToken) {
+  const token = await getAccessToken();
+  if (!token) return null;
+  const url = new URL(`${BASE}/projects/${getProjectId()}/databases/(default)/documents/${col}`);
+  url.searchParams.set('pageSize', '50');
+  if (pageToken) url.searchParams.set('pageToken', pageToken);
+  const resp = await fetch(url.toString(), { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(8000) });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  const items = (data.documents || []).map(d => {
+    const id = decodeURIComponent(d.name.split('/').pop());
+    let parsed = null;
+    try { parsed = JSON.parse(d.fields?._data?.stringValue || 'null'); } catch {}
+    return { id, data: parsed };
+  });
+  return { items, nextPageToken: data.nextPageToken || null };
+}
+
+async function fireDeleteDoc(col, id) {
+  const token = await getAccessToken();
+  if (!token) return false;
+  const resp = await fetch(docPath(col, id), { method: 'DELETE', headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(5000) });
+  return resp.ok;
+}
+
 module.exports = {
   getAccessToken,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
-  fireGetNutritionOcr, fireSetNutritionOcr
+  fireGetNutritionOcr, fireSetNutritionOcr,
+  fireListDocs, fireDeleteDoc, ADMIN_COLLECTIONS
 };
