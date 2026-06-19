@@ -258,7 +258,8 @@ async function fireListDocs(col, pageToken) {
   if (!resp.ok) return null;
   const data = await resp.json();
   const items = (data.documents || []).map(d => {
-    const id = decodeURIComponent(d.name.split('/').pop());
+    const raw = d.name.split('/').pop();
+    let id; try { id = decodeURIComponent(raw); } catch { id = raw; }
     let parsed = null;
     try { parsed = JSON.parse(d.fields?._data?.stringValue || 'null'); } catch {}
     return { id, data: parsed };
