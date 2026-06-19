@@ -337,7 +337,7 @@ function isGlutenRelated(label) {
 
 function extractDietaryFromLabels(labelsTags) {
   const lt = (labelsTags || []).map(t => t.toLowerCase());
-  const d = { vegan: null, vegetarian: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null };
+  const d = { vegan: null, vegetarian: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null };
   if (lt.some(t => t === 'en:vegan')) { d.vegan = true; }
   if (lt.some(t => t === 'en:vegetarian')) { d.vegetarian = true; }
   if (lt.some(t => t.includes('kosher'))) { d.kosher = true; }
@@ -352,6 +352,8 @@ function extractDietaryFromLabels(labelsTags) {
   if (palmTag) { d.palmOilFree = true; }
   const fairTag = lt.find(t => ['en:fair-trade','en:fairtrade','en:comercio-justo','en:fair-trade-international','en:fair-trade-usa'].includes(t) || t.includes('fair-trade') || t.includes('fairtrade'));
   if (fairTag) { d.fairTrade = true; }
+  const caseinFreeTag = lt.find(t => ['en:no-milk','en:dairy-free','en:milk-free','en:sans-lait'].includes(t) || t.includes('dairy-free') || t.includes('no-milk') || t.includes('milk-free'));
+  if (caseinFreeTag) { d.caseinFree = true; }
   return d;
 }
 
@@ -359,7 +361,7 @@ function renderDietaryBadges(product) {
   const section = document.getElementById("dietary-section");
   // Asegurar que dietary exista extrayendo desde labels del OFF si es necesario
   if (!product.dietary) {
-    product.dietary = product.labelsTags ? extractDietaryFromLabels(product.labelsTags) : { vegan: null, vegetarian: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null };
+    product.dietary = product.labelsTags ? extractDietaryFromLabels(product.labelsTags) : { vegan: null, vegetarian: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null };
   } else if (product.labelsTags && !product.labelsTagsMerged) {
     // Fill null dietary fields from labels (e.g., nonGmo from en:non-gmo-project)
     const fromLabels = extractDietaryFromLabels(product.labelsTags);
@@ -395,6 +397,8 @@ function renderDietaryBadges(product) {
   const palmOilFreeDetail = document.getElementById("dietary-palm-oil-free-detail");
   const fairTradeStatus = document.getElementById("dietary-fair-trade-status");
   const fairTradeDetail = document.getElementById("dietary-fair-trade-detail");
+  const caseinStatus = document.getElementById("dietary-casein-status");
+  const caseinDetail = document.getElementById("dietary-casein-detail");
 
   function getRow(attrId) {
     const el = document.getElementById(attrId);
@@ -465,12 +469,12 @@ function renderDietaryBadges(product) {
     setupRow(glutenRow, glutenDetail, buildGlutenDetail(g));
   }
 
-  const defaultLabels = { vegan: "🌱 Vegano", vegetarian: "🥦 Vegetariano", kosher: "✡️ Kosher", halal: "🌙 Halal", organic: "🌿 Orgánico", nonGmo: "🧬 Sin OGM", noAdditives: "🧪 Sin Aditivos", palmOilFree: "🌴 Sin Aceite de Palma", fairTrade: "🤝 Comercio Justo" };
+  const defaultLabels = { vegan: "🌱 Vegano", vegetarian: "🥦 Vegetariano", kosher: "✡️ Kosher", halal: "🌙 Halal", organic: "🌿 Orgánico", nonGmo: "🧬 Sin OGM", noAdditives: "🧪 Sin Aditivos", palmOilFree: "🌴 Sin Aceite de Palma", fairTrade: "🤝 Comercio Justo", caseinFree: "🥛 Libre de Caseína" };
 
   function makeDietRow(dietVal, source, dietName, label, attrId) {
-    const statusEl = { vegan: veganStatus, vegetarian: vegStatus, kosher: kosherStatus, halal: halalStatus, organic: organicStatus, nonGmo: nonGmoStatus, noAdditives: noAdditivesStatus, palmOilFree: palmOilFreeStatus, fairTrade: fairTradeStatus }[label];
+    const statusEl = { vegan: veganStatus, vegetarian: vegStatus, kosher: kosherStatus, halal: halalStatus, organic: organicStatus, nonGmo: nonGmoStatus, noAdditives: noAdditivesStatus, palmOilFree: palmOilFreeStatus, fairTrade: fairTradeStatus, caseinFree: caseinStatus }[label];
     const rowEl = getRow(attrId);
-    const detailEl = { vegan: veganDetail, vegetarian: vegDetail, kosher: kosherDetail, halal: halalDetail, organic: organicDetail, nonGmo: nonGmoDetail, noAdditives: noAdditivesDetail, palmOilFree: palmOilFreeDetail, fairTrade: fairTradeDetail }[label];
+    const detailEl = { vegan: veganDetail, vegetarian: vegDetail, kosher: kosherDetail, halal: halalDetail, organic: organicDetail, nonGmo: nonGmoDetail, noAdditives: noAdditivesDetail, palmOilFree: palmOilFreeDetail, fairTrade: fairTradeDetail, caseinFree: caseinDetail }[label];
     const attrEl = document.getElementById(attrId);
     if (attrEl && defaultLabels[label]) attrEl.textContent = defaultLabels[label];
     if (dietVal === true) {
@@ -498,7 +502,8 @@ function renderDietaryBadges(product) {
     { val: d.nonGmo, src: d.nonGmoSource, label: "nonGmo", dietName: "libre de OGM", attrId: "dietary-non-gmo-attr" },
     { val: d.noAdditives, src: d.noAdditivesSource, label: "noAdditives", dietName: "libre de aditivos", attrId: "dietary-no-additives-attr" },
     { val: d.palmOilFree, src: d.palmOilFreeSource, label: "palmOilFree", dietName: "libre de aceite de palma", attrId: "dietary-palm-oil-free-attr" },
-    { val: d.fairTrade, src: d.fairTradeSource, label: "fairTrade", dietName: "de comercio justo", attrId: "dietary-fair-trade-attr" }
+    { val: d.fairTrade, src: d.fairTradeSource, label: "fairTrade", dietName: "de comercio justo", attrId: "dietary-fair-trade-attr" },
+    { val: d.caseinFree, src: d.caseinFreeSource, label: "caseinFree", dietName: "libre de caseína", attrId: "dietary-casein-attr" }
   ];
   dietMeta.forEach(m => makeDietRow(m.val, m.src, m.dietName, m.label, m.attrId));
   if (section) section.classList.remove("hidden");
@@ -874,6 +879,39 @@ function parseApiProduct(product) {
   if (palmTag) { dietary.palmOilFree = true; dietary.palmOilFreeSource = 'db'; dietary.palmOilFreeDetail = "Certificado como libre de aceite de palma según la etiqueta del producto."; }
   const fairTag = labelsTags.find(t => t === 'en:fair-trade' || t === 'en:fairtrade' || t === 'en:comercio-justo' || t === 'en:fair-trade-international' || t === 'en:fair-trade-usa' || t.includes('fair-trade') || t.includes('fairtrade'));
   if (fairTag) { dietary.fairTrade = true; dietary.fairTradeSource = 'db'; dietary.fairTradeDetail = "Certificado como de comercio justo según la etiqueta del producto."; }
+
+  // Casein-free detection (caseína = proteína láctea; SIN LACTOSA ≠ libre de caseína)
+  dietary.caseinFree = null;
+  if (product._casein_enriched) {
+    // From USDA enrichment (by name)
+    dietary.caseinFree = !product._casein_enriched.hasCasein ? true : false;
+    dietary.caseinFreeSource = 'db';
+    dietary.caseinFreeDetail = product._casein_enriched.hasCasein
+      ? `Contiene caseína/lácteos (detectado: ${product._casein_enriched.detected.join(", ")})`
+      : "No se detectaron ingredientes lácteos en la base USDA";
+  } else {
+    const hasMilkTag = allergensTags.some(t => t.includes('en:milk') || t.includes('en:dairy'));
+    const caseinKW = /caseína|caseina|caseinato|suero\s+de\s+leche|suero\s+lácteo|whey|leche|milk|lácteo|lacteo|dairy|queso|cheese|crema\s+de\s+leche|nata|yogur|yogurt|ghee|requesón|requeson|cuajada|sólidos\s+de\s+leche|leche\s+en\s+polvo|milk\s+powder/i;
+    const hasCaseinInIngredients = caseinKW.test(ingredientsText);
+    const hasCaseinInTraces = caseinKW.test(tracesText);
+    const isDairyFreeLabel = labelsTags.some(t => ['en:no-milk','en:dairy-free','en:milk-free','en:sans-lait'].includes(t) || t.includes('dairy-free') || t.includes('no-milk') || t.includes('milk-free'));
+    const isDairyFreeName = /dairy.free|sin.l[aá]cteos|libre.de.le[ac]|milk.free/i.test(productName) || /dairy.free|sin.l[aá]cteos/i.test(ingredientsText);
+
+    if (hasMilkTag || hasCaseinInIngredients || hasCaseinInTraces) {
+      dietary.caseinFree = false;
+      dietary.caseinFreeSource = 'db';
+      dietary.caseinFreeDetail = hasMilkTag ? "Contiene lácteos (declarado en etiqueta)" : "Contiene caseína/lácteos (detectado en ingredientes)";
+    } else if (isDairyFreeLabel || isDairyFreeName || dietary.vegan === true) {
+      dietary.caseinFree = true;
+      dietary.caseinFreeSource = 'db';
+      dietary.caseinFreeDetail = dietary.vegan === true ? "Producto vegano — libre de todos los derivados lácteos" : "Declarado libre de lácteos/caseína";
+    } else if (glutenDataAvailable) {
+      // Hay datos de ingredientes pero no se detectó ningún lácteo → "Probable libre"
+      dietary.caseinFree = true;
+      dietary.caseinFreeSource = 'ai';
+      dietary.caseinFreeDetail = "No se detectaron ingredientes lácteos. Verificar empaque para confirmación.";
+    }
+  }
 
   // Mexican warning seals (NOM-051 Fase 2)
   const sellos = [];
@@ -1461,7 +1499,7 @@ function runAICheck(product, barcode) {
 
     // Merge AI dietary data with OFF data
     if (data.dietary && product.dietary) {
-      const fields = ['vegan','vegetarian','halal','organic','nonGmo','noAdditives','palmOilFree','fairTrade'];
+      const fields = ['vegan','vegetarian','halal','organic','nonGmo','noAdditives','palmOilFree','fairTrade','caseinFree'];
       fields.forEach(f => {
         if (product.dietary[f] == null && data.dietary[f] !== undefined) {
           product.dietary[f] = data.dietary[f];

@@ -128,6 +128,17 @@ const FALLBACK_TTL = 604800;     // 7d: serve from cache for non-OFF sources
 
 const GLUTEN_KW = ["trigo","wheat","harina","flour","avena","oat","cebada","barley","centeno","rye","gluten","espelta","kamut"];
 
+// ponytail: mantequilla/manteca/butter excluidos — muchos falsos positivos (maní, cacao, cocoa butter)
+const CASEIN_KW = ["caseína","caseina","caseinato","lactoalbúmina","lactoalbumina","lactoglobulina",
+  "suero de leche","suero lácteo","suero lacteo","whey","leche","milk","lácteo","lacteo","dairy",
+  "queso","cheese","crema de leche","nata","yogur","yogurt","ghee","requesón","requeson","cuajada",
+  "lactosa","sólidos de leche","solidos de leche","leche en polvo","milk powder"];
+function detectCasein(...texts) {
+  const combined = texts.join(" ").toLowerCase();
+  const detected = CASEIN_KW.filter(kw => combined.includes(kw));
+  return { hasCasein: detected.length > 0, detected };
+}
+
 function computeEnergyLevel(kcal) {
   if (kcal > 400) return { level: "Alto", percent: Math.min(100, Math.round((kcal / 600) * 100)) };
   if (kcal >= 150) return { level: "Moderado", percent: Math.round((kcal / 400) * 100) };
@@ -424,6 +435,7 @@ app.get('/api/product/:barcode', async (req, res) => {
                 const gluten = detectGluten(ingredientsText, allergenText);
                 const hasGluten = gluten.hasGluten;
                 const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "No se detectaron ingredientes con gluten en la base USDA";
+                const casein = detectCasein(ingredientsText, allergenText);
 
                 let allergens = [];
                 if (item.allergenWarning) {
@@ -443,7 +455,8 @@ app.get('/api/product/:barcode', async (req, res) => {
                     gluten: { hasGluten, details: glutenDetails },
                     calories: { value: kcal, level: energyLevel, percent },
                     allergens: allergens,
-                    nutriscore: "-"
+                    nutriscore: "-",
+                    dietary: casein.hasCasein ? { caseinFree: false, caseinFreeSource: 'db', caseinFreeDetail: `Contiene caseína/lácteos (detectado: ${casein.detected.join(", ")})` } : {}
                   }
                 };
               }
@@ -520,6 +533,7 @@ app.get('/api/product/:barcode', async (req, res) => {
             const gluten = detectGluten(ingredientsText, allergenText);
             const hasGluten = gluten.hasGluten;
             const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "Sin ingredientes con gluten detectados en la información declarada";
+            const caseinEnrich = detectCasein(ingredientsText, allergenText);
             let allergens = [];
             if (item.allergenWarning) {
               const usdaToEn = { milk: "en:milk", eggs: "en:eggs", peanuts: "en:peanuts", soy: "en:soybeans", soybeans: "en:soybeans", wheat: "en:wheat", "tree nuts": "en:nuts", fish: "en:fish", shellfish: "en:crustaceans", sesame: "en:sesame-seeds", mustard: "en:mustard", sulfites: "en:sulphur-dioxide-and-sulphites" };
@@ -529,7 +543,7 @@ app.get('/api/product/:barcode', async (req, res) => {
                 if (t && !allergens.includes(mapped)) allergens.push(mapped);
               });
             }
-            return { calories: { value: kcal, level: energyLevel, percent }, gluten: { hasGluten, details: glutenDetails }, sugars: { sugars: sugarsVal, carbohydrates: carbsVal, fiber: fiberVal }, saturatedFat: satFatVal, sodium: sodiumVal, allergens, ingredientsText: item.ingredients || "" };
+            return { calories: { value: kcal, level: energyLevel, percent }, gluten: { hasGluten, details: glutenDetails }, casein: caseinEnrich, sugars: { sugars: sugarsVal, carbohydrates: carbsVal, fiber: fiberVal }, saturatedFat: satFatVal, sodium: sodiumVal, allergens, ingredientsText: item.ingredients || "" };
           }
         }
       } catch (e) { console.warn('[USDA] enrich error:', e.message); }
@@ -559,6 +573,7 @@ app.get('/api/product/:barcode', async (req, res) => {
           const gluten = detectGluten(titleLower, descLower);
           const hasGluten = gluten.hasGluten;
           const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "Información no disponible (Requiere verificar el empaque)";
+          const caseinUpc = detectCasein(titleLower, descLower);
 
           fallbackResult = { status: 1, source: 'local', sourceLabel: 'UpcItemDb', product: {
             name: item.title, brand: item.brand || "Desconocida",
@@ -567,7 +582,7 @@ app.get('/api/product/:barcode', async (req, res) => {
             gluten: { hasGluten, details: glutenDetails },
             calories: { value: 0, level: "No Especificado", percent: 10 },
             allergens: [], nutriscore: "-", isFromFallback: true,
-            dietary: {}
+            dietary: caseinUpc.hasCasein ? { caseinFree: false, caseinFreeSource: 'db', caseinFreeDetail: `Contiene caseína/lácteos (detectado: ${caseinUpc.detected.join(", ")})` } : {}
           }};
           sourceResults.push({ source: "UpcItemDb", found: true, productName: item.title, brandName: item.brand || "—", allergenInfo: "Sin datos", nutritionInfo: "Sin datos" });
         } else {
@@ -597,13 +612,14 @@ app.get('/api/product/:barcode', async (req, res) => {
             const nonFoodKw = ["shampoo","soap","jabón","detergent","limpieza","higiene","cosmetics","pet food","mascotas"];
             const isFoodGtin = !nonFoodKw.some(k => titleLower.includes(k) || descLower.includes(k) || catLower.includes(k));
             const hasGlutenGtin = detectGluten(titleLower, descLower).hasGluten;
+            const caseinGtin = detectCasein(titleLower, descLower);
             fallbackResult = { status: 1, source: 'local', sourceLabel: 'GTINHub', product: {
               name: nameGtin, brand: brandGtin, image: p.image || "", isFood: isFoodGtin,
               category: p.category || (isFoodGtin ? "Comida / Bebida (GTINHub)" : "No Alimenticio"),
               gluten: { hasGluten: hasGlutenGtin, details: hasGlutenGtin ? "Contiene gluten (detectado)" : "Información no disponible (Requiere verificar el empaque)" },
               calories: { value: 0, level: "No Especificado", percent: 10 },
               allergens: [], nutriscore: "-", isFromFallback: true,
-              dietary: {}
+              dietary: caseinGtin.hasCasein ? { caseinFree: false, caseinFreeSource: 'db', caseinFreeDetail: `Contiene caseína/lácteos (detectado: ${caseinGtin.detected.join(", ")})` } : {}
             }};
             sourceResults.push({ source: "GTINHub", found: true, productName: nameGtin, brandName: brandGtin, allergenInfo: "Sin datos", nutritionInfo: "Sin datos" });
           } else {
@@ -650,6 +666,7 @@ app.get('/api/product/:barcode', async (req, res) => {
           if (!p.ingredients_text && enrichment.ingredientsText) {
             p.ingredients_text = enrichment.ingredientsText;
             p._gluten_enriched = enrichment.gluten;
+            if (enrichment.casein) p._casein_enriched = enrichment.casein;
           }
           p._sugars_enriched = enrichment.sugars;
           if (enrichment.saturatedFat != null && (!p.nutriments || p.nutriments['saturated-fat_100g'] === undefined)) {
@@ -684,6 +701,16 @@ app.get('/api/product/:barcode', async (req, res) => {
         const gluten = detectGluten(ocrData.ingredients_ocr);
         if (gluten.hasGluten) {
           product.gluten = { hasGluten: true, details: "Contiene gluten (detectado en ingredientes)", dataAvailable: true };
+        }
+        // Casein detection from OCR ingredients
+        const caseinOcr = detectCasein(ocrData.ingredients_ocr);
+        if (caseinOcr.hasCasein) {
+          product.dietary = product.dietary || {};
+          if (product.dietary.caseinFree == null) {
+            product.dietary.caseinFree = false;
+            product.dietary.caseinFreeSource = 'db';
+            product.dietary.caseinFreeDetail = `Contiene caseína/lácteos (detectado: ${caseinOcr.detected.join(", ")})`;
+          }
         }
       }
 
@@ -847,8 +874,8 @@ Responde SOLO JSON sin markdown:
   "gluten": {"hasGluten":bool,"details":"breve"},
   "allergens":["ej: Leche"],
   "diabetes":{"risk":"bajo|medio|alto","glycemicImpact":"bajo|medio|alto","notes":"breve"},
-  "dietary":{"vegan":bool,"vegetarian":bool,"halal":bool,"organic":bool,"nonGmo":bool,"noAdditives":bool,"palmOilFree":bool,"fairTrade":bool},
-  "dietaryDetails":{"vegan":"explicación","vegetarian":"explicación","halal":"explicación","organic":"explicación","nonGmo":"explicación","noAdditives":"explicación","palmOilFree":"explicación","fairTrade":"explicación"},
+  "dietary":{"vegan":bool,"vegetarian":bool,"halal":bool,"organic":bool,"nonGmo":bool,"noAdditives":bool,"palmOilFree":bool,"fairTrade":bool,"caseinFree":bool},
+  "dietaryDetails":{"vegan":"explicación","vegetarian":"explicación","halal":"explicación","organic":"explicación","nonGmo":"explicación","noAdditives":"explicación","palmOilFree":"explicación","fairTrade":"explicación","caseinFree":"explicación"},
   "notRecommended":[{"grupo":"Niños","razon":"contiene cafeína"}],
   "confidence":"alta|media|baja",
   "notes":"breve"
@@ -859,7 +886,7 @@ REGLAS:
 - Sin ingredientes → basa en conocimiento general, confidence "baja"
 - Alérgenos: SOLO si ingredientes/nombre contiene el alérgeno explícito (Sardinas→Pescado). No inventes de marcas
 - Diabetes: usa OMS (bajo ≤5g azúcar sólidos / ≤2.5g bebidas, alto >22.5g / >11.25g). Fibra reduce impacto
-- Dietary: analiza contra ingredientes. vegan=sin origen animal, halal=sin cerdo/alcohol, nonGmo=sin OGM, noAdditives=sin aditivos, palmOilFree=sin aceite palma, fairTrade=solo si nombre/marca lo indica
+- Dietary: analiza contra ingredientes. vegan=sin origen animal, halal=sin cerdo/alcohol, nonGmo=sin OGM, noAdditives=sin aditivos, palmOilFree=sin aceite palma, fairTrade=solo si nombre/marca lo indica, caseinFree=sin leche ni derivados (caseína/caseinato/suero/whey/queso/crema/yogur/nata). "Sin lactosa"/deslactosado NO es libre de caseína
 - DietaryDetails: explica cada campo mencionando ingredientes concretos que justifiquen la decisión
 - notRecommended: incluir SOLO grupos no aptos (con ingrediente problemático). Si ninguno, array vacío. NUNCA incluir grupos que "no aplican"
 - DUDAS → confidence "baja" y explica en notes
@@ -1104,6 +1131,7 @@ app.post('/api/products/ocr', async (req, res) => {
 module.exports = app;
 module.exports.computeEnergyLevel = computeEnergyLevel;
 module.exports.detectGluten = detectGluten;
+module.exports.detectCasein = detectCasein;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
