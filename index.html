@@ -448,7 +448,7 @@
 
 
             <div class="analysis-card full-width card-collapsible hidden" id="ingredients-section">
-              <details class="ingredients-details">
+              <details class="ingredients-details" open>
                 <summary>📋 Lista de ingredientes</summary>
                 <p id="ingredients-text" class="ingredients-text"></p>
                 <button type="button" id="btn-fix-ingredients" class="fix-discrepancy-btn">📷 ¿No coincide con la etiqueta? Subir foto</button>
@@ -470,7 +470,7 @@
             </div>
 
             <div class="analysis-card full-width card-collapsible hidden" id="nutrition-section">
-              <details class="ingredients-details">
+              <details class="ingredients-details" open>
                 <summary>📊 Información nutricional</summary>
                 <table class="nutrition-table" id="nutrition-table">
                   <tbody id="nutrition-tbody"></tbody>
@@ -487,37 +487,34 @@
 
             <!-- TARJETA CONFIABILIDAD DEL ANÁLISIS (fuera del grid para que se muestre en fallbacks) -->
             <div class="analysis-card full-width hidden" id="card-confidence">
-              <div class="card-icon-wrapper">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-              </div>
-              <div class="card-details">
-                <h4>Confianza del Análisis</h4>
-                <div id="confidence-sources" class="confidence-section"></div>
-                <div id="confidence-ai" class="confidence-section hidden">
-                  <strong>🧠 Análisis IA:</strong> <span id="confidence-ai-level"></span>
-                </div>
-                <div id="confidence-model" class="confidence-section hidden">
-                  <strong>🤖 Modelo:</strong> <span id="confidence-model-text"></span>
-                </div>
-                <div id="confidence-notes" class="confidence-section hidden">
-                  <span id="confidence-notes-text" class="confidence-notes-text"></span>
-                </div>
-                <div id="confidence-ocr" class="confidence-section hidden">
-                  📷 Ingredientes y/o nutrición capturados por OCR del usuario — datos no verificados por el fabricante.
-                </div>
-                <div id="ai-provider-log" class="confidence-section provider-log hidden"></div>
-                <div id="cache-status" class="confidence-section hidden">
-                  <div class="freshness-indicators">
-                    <span id="freshness-badge" class="freshness-badge" title="Estado de los datos">📦 Estado</span>
-                    <button id="btn-refresh-product" class="cache-refresh-btn" title="Refrescar datos y análisis">🔄 Actualizar Caché</button>
+              <details class="ingredients-details">
+                <summary>🛡 Confianza del Análisis</summary>
+                <div class="card-details" style="padding:0 16px 14px;">
+                  <div id="confidence-sources" class="confidence-section"></div>
+                  <div id="confidence-ai" class="confidence-section hidden">
+                    <strong>🧠 Análisis IA:</strong> <span id="confidence-ai-level"></span>
                   </div>
-                  <div id="freshness-details" class="freshness-details hidden">
-                    <small id="freshness-text"></small>
+                  <div id="confidence-model" class="confidence-section hidden">
+                    <strong>🤖 Modelo:</strong> <span id="confidence-model-text"></span>
+                  </div>
+                  <div id="confidence-notes" class="confidence-section hidden">
+                    <span id="confidence-notes-text" class="confidence-notes-text"></span>
+                  </div>
+                  <div id="confidence-ocr" class="confidence-section hidden">
+                    📷 Ingredientes y/o nutrición capturados por OCR del usuario — datos no verificados por el fabricante.
+                  </div>
+                  <div id="ai-provider-log" class="confidence-section provider-log hidden"></div>
+                  <div id="cache-status" class="confidence-section hidden">
+                    <div class="freshness-indicators">
+                      <span id="freshness-badge" class="freshness-badge" title="Estado de los datos">📦 Estado</span>
+                      <button id="btn-refresh-product" class="cache-refresh-btn" title="Refrescar datos y análisis">🔄 Actualizar Caché</button>
+                    </div>
+                    <div id="freshness-details" class="freshness-details hidden">
+                      <small id="freshness-text"></small>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </details>
             </div>
 
           <div id="ai-loading" class="hidden" style="margin-top:8px;text-align:center;color:var(--text-secondary);font-size:0.85rem;">Consultando IA...</div>
@@ -657,6 +654,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=36" defer></script>
+  <script src="app.js?v=37" defer></script>
 </body>
 </html>
