@@ -18,6 +18,19 @@
   let currentCol = 'scan_logs';
   let nextPageToken = null;
   let allItems = [];
+  let ocrBarcodes = null, nutritionBarcodes = null, reportBarcodes = null;
+
+  async function loadBarcodeFlags() {
+    if (ocrBarcodes) return; // cached for session
+    const [ro, rn, rr] = await Promise.all([
+      apiFetch('/api/admin/products_ocr'),
+      apiFetch('/api/admin/products_nutrition'),
+      apiFetch('/api/admin/reports')
+    ]);
+    ocrBarcodes       = new Set(ro.ok ? (await ro.json()).items.map(i => i.id) : []);
+    nutritionBarcodes = new Set(rn.ok ? (await rn.json()).items.map(i => i.id) : []);
+    reportBarcodes    = new Set(rr.ok ? (await rr.json()).items.map(i => (i.data||{}).barcode).filter(Boolean) : []);
+  }
 
   function apiFetch(path, opts = {}) {
     return fetch(path, { ...opts, headers: { 'x-admin-token': token, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
@@ -76,6 +89,7 @@
 
   async function loadCollection(append = false) {
     if (!append) { allItems = []; nextPageToken = null; docList.innerHTML = '<div class="empty-msg">Cargando…</div>'; loadMoreEl.innerHTML = ''; }
+    if (currentCol === 'scan_logs' && !append) await loadBarcodeFlags();
     const url = '/api/admin/' + currentCol + (nextPageToken ? '?pageToken=' + encodeURIComponent(nextPageToken) : '');
     const r = await apiFetch(url);
     if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al cargar.</div>'; return; }
@@ -119,8 +133,15 @@
       const d = item.data || {};
       const fecha = d.ts ? new Date(d.ts).toLocaleString('es-MX') : '—';
       const loc = [d.city, d.region, d.country].filter(Boolean).join(', ') || '—';
-      const barcodeCell = d.barcode
-        ? `<a href="https://www.yomi.mx/?barcode=${encodeURIComponent(d.barcode)}" target="_blank" rel="noopener" class="barcode-link">${escHtml(d.barcode)}</a>${d.notFound ? ' <span class="log-not-found">No encontrado</span>' : ''}`
+      const bc = d.barcode || '';
+      const badges = [
+        d.notFound                          ? '<span class="log-badge log-badge-red">No encontrado</span>'  : '',
+        ocrBarcodes?.has(bc)               ? '<span class="log-badge log-badge-blue">📷 Ingredientes</span>' : '',
+        nutritionBarcodes?.has(bc)         ? '<span class="log-badge log-badge-blue">📊 Nutrición</span>'   : '',
+        reportBarcodes?.has(bc)            ? '<span class="log-badge log-badge-orange">🚩 Reporte</span>'   : ''
+      ].filter(Boolean).join(' ');
+      const barcodeCell = bc
+        ? `<a href="https://www.yomi.mx/?barcode=${encodeURIComponent(bc)}" target="_blank" rel="noopener" class="barcode-link">${escHtml(bc)}</a> ${badges}`
         : '—';
       return `<tr>
         <td class="mono">${escHtml(fecha)}</td>
