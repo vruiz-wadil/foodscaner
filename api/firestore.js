@@ -246,7 +246,7 @@ async function fireSetOcrData(barcode, ingredients) {
   }
 }
 
-const ADMIN_COLLECTIONS = ['products_ocr', 'products_nutrition', 'product_cache', 'ai_cache'];
+const ADMIN_COLLECTIONS = ['scan_logs', 'products_ocr', 'products_nutrition', 'product_cache', 'ai_cache'];
 
 async function fireListDocs(col, pageToken) {
   const token = await getAccessToken();
@@ -267,6 +267,19 @@ async function fireListDocs(col, pageToken) {
   return { items, nextPageToken: data.nextPageToken || null };
 }
 
+// ponytail: id inverso = orden por nombre da "más reciente primero" sin orderBy/runQuery.
+// ponytail: scan_logs crece sin límite; añadir limpieza/TTL si llega a molestar.
+async function fireLogScan(entry) {
+  const token = await getAccessToken(); if (!token) return;
+  const id = String(1e16 - Date.now()).padStart(16, '0') + '_' + Math.random().toString(36).slice(2, 8);
+  fetch(docPath('scan_logs', id), {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { _data: { stringValue: JSON.stringify(entry) } } }),
+    signal: AbortSignal.timeout(5000)
+  }).catch(() => {});
+}
+
 async function fireDeleteDoc(col, id) {
   const token = await getAccessToken();
   if (!token) return false;
@@ -279,5 +292,5 @@ module.exports = {
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
-  fireListDocs, fireDeleteDoc, ADMIN_COLLECTIONS
+  fireListDocs, fireDeleteDoc, fireLogScan, ADMIN_COLLECTIONS
 };

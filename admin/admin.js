@@ -15,7 +15,7 @@
   const modalClose = document.getElementById('modal-close');
 
   let token = sessionStorage.getItem('admin_token') || '';
-  let currentCol = 'products_ocr';
+  let currentCol = 'scan_logs';
   let nextPageToken = null;
   let allItems = [];
 
@@ -89,6 +89,27 @@
     if (nextPageToken) document.getElementById('btn-load-more').addEventListener('click', () => loadCollection(true));
   }
 
+  function renderLogs(items) {
+    if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin logs todavía.</div>'; return; }
+    const rows = items.map(item => {
+      const d = item.data || {};
+      const fecha = d.ts ? new Date(d.ts).toLocaleString('es-MX') : '—';
+      const loc = [d.city, d.region, d.country].filter(Boolean).join(', ') || '—';
+      return `<tr>
+        <td class="mono">${escHtml(fecha)}</td>
+        <td class="mono">${escHtml(d.barcode || '—')}</td>
+        <td class="mono">${escHtml(d.ip || '—')}</td>
+        <td>${escHtml(loc)}</td>
+        <td>${escHtml(d.os || '—')}</td>
+        <td><button class="del-log btn-del" data-action="del" data-id="${escHtml(item.id)}">✕</button></td>
+      </tr>`;
+    }).join('');
+    docList.innerHTML = `<table class="log-table">
+      <thead><tr><th>Fecha/Hora</th><th>Código</th><th>IP</th><th>Ubicación</th><th>Sistema</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
   function summaryOf(item) {
     const d = item.data;
     if (!d) return '—';
@@ -101,8 +122,15 @@
 
   function renderList() {
     const q = filterInput.value.trim().toLowerCase();
-    const items = q ? allItems.filter(i => i.id.toLowerCase().includes(q)) : allItems;
-    statsBar.textContent = items.length + ' documento' + (items.length !== 1 ? 's' : '') + (q ? ' (filtrado)' : '');
+    const items = q ? allItems.filter(i => {
+      if (currentCol === 'scan_logs') {
+        const d = i.data || {};
+        return i.id.includes(q) || (d.barcode||'').includes(q) || (d.ip||'').toLowerCase().includes(q) || (d.os||'').toLowerCase().includes(q);
+      }
+      return i.id.toLowerCase().includes(q);
+    }) : allItems;
+    statsBar.textContent = items.length + (currentCol === 'scan_logs' ? ' escaneo' : ' documento') + (items.length !== 1 ? 's' : '') + (q ? ' (filtrado)' : '');
+    if (currentCol === 'scan_logs') { renderLogs(items); return; }
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin resultados.</div>'; return; }
     docList.innerHTML = items.map(item => `
       <div class="doc-item" data-id="${escHtml(item.id)}">

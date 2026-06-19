@@ -49,6 +49,14 @@
     .modal-body { overflow-y: auto; padding: 16px 18px; }
     .modal-body pre { font-family: var(--font-mono); font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--ink); }
     .stats-bar { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
+    /* Logs table */
+    .log-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .log-table th { font-family: var(--font-mono); font-weight: 600; text-align: left; padding: 8px 10px; background: var(--surface); border-bottom: 2px solid var(--border); color: var(--ink); white-space: nowrap; }
+    .log-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--ink); vertical-align: top; }
+    .log-table tr:hover td { background: var(--surface); }
+    .log-table .mono { font-family: var(--font-mono); }
+    .log-table .del-log { font-size: 0.72rem; padding: 2px 7px; border: 1px solid var(--border); background: none; color: var(--text-muted); border-radius: 3px; cursor: pointer; }
+    .log-table .del-log:hover { border-color: var(--chile); color: var(--chile); }
   </style>
 </head>
 <body style="background:var(--paper);min-height:100vh;">
@@ -81,7 +89,8 @@
   </div>
 
   <div class="tabs" id="tabs">
-    <button class="tab-btn active" data-col="products_ocr">products_ocr</button>
+    <button class="tab-btn active" data-col="scan_logs">Logs</button>
+    <button class="tab-btn" data-col="products_ocr">products_ocr</button>
     <button class="tab-btn" data-col="products_nutrition">products_nutrition</button>
     <button class="tab-btn" data-col="product_cache">product_cache</button>
     <button class="tab-btn" data-col="ai_cache">ai_cache</button>

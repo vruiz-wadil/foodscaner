@@ -3,7 +3,17 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireDeleteDoc, ADMIN_COLLECTIONS } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireDeleteDoc, fireLogScan, ADMIN_COLLECTIONS } = require('./firestore');
+
+function detectOS(ua = '') {
+  ua = ua.toLowerCase();
+  if (/android/.test(ua)) return 'Android';
+  if (/iphone|ipad|ipod/.test(ua)) return 'iOS';
+  if (/windows/.test(ua)) return 'Windows';
+  if (/mac os x|macintosh/.test(ua)) return 'macOS';
+  if (/linux/.test(ua)) return 'Linux';
+  return 'Otro';
+}
 
 
 const app = express();
@@ -276,6 +286,19 @@ app.get('/api/product/:barcode', async (req, res) => {
 
     const barcodeVariations = generateBarcodeVariations(barcode);
     const now = Math.floor(Date.now() / 1000);
+
+    // Fire-and-forget scan log (no await — never delays the response)
+    const _decCity = c => { try { return decodeURIComponent(c || ''); } catch { return c || ''; } };
+    fireLogScan({
+      ts: Date.now(),
+      barcode,
+      ip: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '',
+      country: req.headers['x-vercel-ip-country'] || '',
+      region:  req.headers['x-vercel-ip-country-region'] || '',
+      city:    _decCity(req.headers['x-vercel-ip-city']),
+      os:      detectOS(req.headers['user-agent']),
+      ua:      req.headers['user-agent'] || ''
+    });
 
     // ----- CACHE LOOKUP (try all variations) -----
     let cached = null;
