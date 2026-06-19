@@ -94,7 +94,14 @@ document.addEventListener("DOMContentLoaded", setupEventListeners);
 function setupEventListeners() {
   // Toggle camera scanner
   btnToggleCamera.addEventListener("click", toggleCamera);
-  
+
+  // New scan button (single-column layout)
+  document.getElementById("btn-new-scan").addEventListener("click", () => {
+    showState(resultEmpty);
+    barcodeInput.value = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
   // Camera selection change
   cameraSelect.addEventListener("change", restartCameraWithSelectedDevice);
   
@@ -263,8 +270,12 @@ function showState(stateElement) {
     el.classList.remove("active");
   });
   stateElement.classList.add("active");
-  
-  if (stateElement !== resultEmpty) {
+
+  const controlPanel = document.querySelector(".control-panel");
+  if (stateElement === resultEmpty) {
+    controlPanel.classList.remove("hidden");
+  } else {
+    controlPanel.classList.add("hidden");
     const target = stateElement.closest(".results-panel") || stateElement;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   }

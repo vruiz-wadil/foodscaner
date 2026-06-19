@@ -131,16 +131,14 @@ body {
   letter-spacing: 0.01em;
 }
 
-/* ── Main Grid ───────────────────────────────────── */
+/* ── Main Grid — single column ───────────────────── */
 .app-main-grid {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: 1fr;
   gap: 20px;
-  flex-grow: 1;
-}
-
-@media (max-width: 900px) {
-  .app-main-grid { grid-template-columns: 1fr; }
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* ── Cards (glass-card → flat card) ─────────────── */
