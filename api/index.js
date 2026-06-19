@@ -316,14 +316,11 @@ app.get('/api/product/:barcode', async (req, res) => {
       const age = now - cached.cachedAt;
       const isOFF = cached.source && cached.source.includes("Open Food Facts");
 
-      // Inject OCR data on cache hits when missing or incomplete (handles multi-instance cache desync
-      // and old cached responses that had _from_nutrition_ocr but missing card-shaped fields)
-      if (cached.response.product && !(cached.response.product._from_ocr && cached.response.product.calories?.value > 0)) {
+      // Enrich cache hits: inject OCR data and build missing nutrition cards from OFF nutriments
+      if (cached.response.product && !cached.response.product.calories) {
         const enriched = await addOcrDataIfAvailable({ ...cached.response.product });
-        if (enriched._from_ocr || enriched._from_nutrition_ocr) {
-          cached.response.product = enriched;
-          memoryCache[cachedBarcode] = { ...memoryCache[cachedBarcode], response: cached.response };
-        }
+        cached.response.product = enriched;
+        memoryCache[cachedBarcode] = { ...memoryCache[cachedBarcode], response: cached.response };
       }
 
       if (age < OFF_FRESH_TTL) {
@@ -770,6 +767,14 @@ app.get('/api/product/:barcode', async (req, res) => {
           if (c != null) product.carbohydrates = { value: c, fiber: f };
         }
         product._from_nutrition_ocr = true;
+      }
+
+      // Build cards from OFF nutriments when not already set by OCR
+      if (product.nutriments) {
+        if (!product.calories) { const kcal = product.nutriments['energy-kcal_100g']; if (kcal != null) product.calories = { value: kcal, ...computeEnergyLevel(kcal) }; }
+        if (!product.proteins) { const prot = product.nutriments['proteins_100g']; if (prot != null) product.proteins = { value: prot, level: prot > 10 ? "Alto" : prot > 3 ? "Moderado" : "Bajo", percent: Math.min(100, Math.round(prot / 20 * 100)) }; }
+        if (!product.sugars) { const sug = product.nutriments['sugars_100g']; if (sug != null) product.sugars = { value: sug, level: sug > 22.5 ? "Alto" : sug > 5 ? "Medio" : "Bajo", percent: sug > 22.5 ? Math.min(100, Math.round(sug / 33.75 * 100)) : sug > 5 ? Math.round(sug / 22.5 * 100) : Math.max(3, Math.round(sug / 5 * 50)) }; }
+        if (!product.carbohydrates) { const c = product.nutriments['carbohydrates_100g'], f = product.nutriments['fiber_100g']; if (c != null) product.carbohydrates = { value: c, fiber: f ?? null }; }
       }
 
       return product;
