@@ -1402,6 +1402,11 @@ let _lastAiProductKey = "";
 
 function runAICheck(product, barcode) {
   showDBDisclaimer(product);
+  const hasOcr = product._from_ocr || product._from_nutrition_ocr;
+  const confOcrEl = document.getElementById("confidence-ocr");
+  if (confOcrEl) confOcrEl.classList.toggle("hidden", !hasOcr);
+  const discOcrEl = document.getElementById("disclaimer-ocr");
+  if (discOcrEl) discOcrEl.classList.toggle("hidden", !hasOcr);
 
   const key = product.name + "|" + product.brand;
   if (key === _lastAiProductKey) return;
