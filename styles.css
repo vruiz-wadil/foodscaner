@@ -1199,6 +1199,25 @@ body {
 
 .carbs-net-text { font-size: 0.72rem; color: var(--ink-3); margin: 1px 0 0; }
 
+.report-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  color: var(--ink-3);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.report-btn:hover { color: var(--accent-error, #e53e3e); }
+
+.report-radio-group { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.report-radio { display: flex; align-items: flex-start; gap: 8px; font-size: 0.85rem; color: var(--ink-2); cursor: pointer; line-height: 1.4; }
+.report-radio input[type="radio"] { margin-top: 2px; flex-shrink: 0; accent-color: var(--accent); }
+.report-photo-row { display: flex; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 6px; }
+
 .fix-discrepancy-btn {
   display: block;
   width: calc(100% - 32px);

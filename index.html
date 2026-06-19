@@ -480,6 +480,11 @@
             </div>
           </div>
 
+            <!-- TARJETA REPORTAR ERROR -->
+            <div class="analysis-card full-width hidden" id="card-report">
+              <button type="button" id="btn-report" class="report-btn">🚩 Reportar un error en la información o análisis</button>
+            </div>
+
             <!-- TARJETA CONFIABILIDAD DEL ANÁLISIS (fuera del grid para que se muestre en fallbacks) -->
             <div class="analysis-card full-width hidden" id="card-confidence">
               <div class="card-icon-wrapper">
@@ -535,6 +540,43 @@
     <footer class="app-footer">
       <p>&copy; 2026 Yomi. Desarrollado con tecnolog&iacute;a de Wadil AI Studio.</p>
     </footer>
+  </div>
+
+  <!-- Report Error Modal -->
+  <div id="report-modal" class="modal hidden">
+    <div class="modal-overlay" id="report-modal-overlay"></div>
+    <div class="modal-content">
+      <button id="report-modal-close" class="modal-close">✕</button>
+
+      <div id="report-step-1" class="ocr-step">
+        <h3>🚩 Reportar un error</h3>
+        <p>¿Qué tipo de error encontraste?</p>
+        <div class="report-radio-group">
+          <label class="report-radio"><input type="radio" name="report-cat" value="Información incorrecta"> Información incorrecta (nombre, ingredientes, nutrición)</label>
+          <label class="report-radio"><input type="radio" name="report-cat" value="Análisis o sellos incorrectos"> Análisis o sellos incorrectos (NOM-051, saludabilidad)</label>
+          <label class="report-radio"><input type="radio" name="report-cat" value="Otro"> Otro</label>
+        </div>
+        <textarea id="report-comment" class="ocr-textarea" placeholder="Describe el error con detalle (opcional si elegiste una categoría)…" style="height:90px;margin-top:10px;"></textarea>
+        <div class="report-photo-row">
+          <input type="file" id="report-photo-input" accept="image/*" capture="environment" style="display:none;">
+          <button type="button" id="report-photo-btn" class="btn-secondary" style="font-size:0.82rem;">📷 Agregar foto (opcional)</button>
+          <span id="report-photo-name" style="font-size:0.78rem;color:var(--ink-3);margin-left:8px;"></span>
+        </div>
+        <img id="report-photo-preview" style="display:none;max-width:100%;border-radius:6px;margin-top:8px;" alt="Vista previa">
+        <button id="report-send-btn" class="btn-primary" style="width:100%;margin-top:14px;">Enviar reporte</button>
+        <p id="report-error" style="color:var(--accent-error);font-size:0.8rem;margin-top:6px;min-height:1.2em;"></p>
+      </div>
+
+      <div id="report-step-2" class="ocr-step hidden">
+        <p>Enviando reporte…</p>
+        <div class="progress-bar"><div class="progress-fill" style="width:60%;"></div></div>
+      </div>
+
+      <div id="report-step-3" class="ocr-step hidden">
+        <p>✓ Reporte enviado. ¡Gracias por ayudar a mejorar Yomi!</p>
+        <button id="report-close-btn" class="btn-primary" style="margin-top:12px;">Cerrar</button>
+      </div>
+    </div>
   </div>
 
   <!-- OCR Modal for ingredient capture -->
@@ -615,6 +657,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=35" defer></script>
+  <script src="app.js?v=36" defer></script>
 </body>
 </html>

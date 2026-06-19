@@ -89,6 +89,30 @@
     if (nextPageToken) document.getElementById('btn-load-more').addEventListener('click', () => loadCollection(true));
   }
 
+  function renderReports(items) {
+    if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin reportes todavía.</div>'; return; }
+    const rows = items.map(item => {
+      const d = item.data || {};
+      const fecha = d.ts ? new Date(d.ts).toLocaleString('es-MX') : '—';
+      const commentShort = (d.comment || '').substring(0, 50) + ((d.comment || '').length > 50 ? '…' : '');
+      return `<tr>
+        <td class="mono">${escHtml(fecha)}</td>
+        <td class="mono">${escHtml(d.barcode || '—')}</td>
+        <td>${escHtml(d.category || '—')}</td>
+        <td>${escHtml(commentShort || '—')}</td>
+        <td>${escHtml(d.os || '—')}</td>
+        <td>
+          <button class="btn-view" data-action="view" data-id="${escHtml(item.id)}">Ver</button>
+          <button class="del-log btn-del" data-action="del" data-id="${escHtml(item.id)}">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+    docList.innerHTML = `<table class="log-table">
+      <thead><tr><th>Fecha/Hora</th><th>Código</th><th>Categoría</th><th>Comentario</th><th>Sistema</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
   function renderLogs(items) {
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin logs todavía.</div>'; return; }
     const rows = items.map(item => {
@@ -127,10 +151,16 @@
         const d = i.data || {};
         return i.id.includes(q) || (d.barcode||'').includes(q) || (d.ip||'').toLowerCase().includes(q) || (d.os||'').toLowerCase().includes(q);
       }
+      if (currentCol === 'reports') {
+        const d = i.data || {};
+        return (d.barcode||'').includes(q) || (d.category||'').toLowerCase().includes(q) || (d.comment||'').toLowerCase().includes(q);
+      }
       return i.id.toLowerCase().includes(q);
     }) : allItems;
-    statsBar.textContent = items.length + (currentCol === 'scan_logs' ? ' escaneo' : ' documento') + (items.length !== 1 ? 's' : '') + (q ? ' (filtrado)' : '');
+    const noun = currentCol === 'scan_logs' ? 'escaneo' : currentCol === 'reports' ? 'reporte' : 'documento';
+    statsBar.textContent = items.length + ' ' + noun + (items.length !== 1 ? 's' : '') + (q ? ' (filtrado)' : '');
     if (currentCol === 'scan_logs') { renderLogs(items); return; }
+    if (currentCol === 'reports') { renderReports(items); return; }
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin resultados.</div>'; return; }
     docList.innerHTML = items.map(item => `
       <div class="doc-item" data-id="${escHtml(item.id)}">
@@ -153,7 +183,20 @@
       const item = allItems.find(i => i.id === id);
       if (!item) return;
       modalTitle.textContent = id;
-      modalContent.textContent = JSON.stringify(item.data, null, 2);
+      const d = item.data || {};
+      const imgB64 = d.image;
+      const dataWithoutImg = imgB64 ? { ...d, image: '[base64 image]' } : d;
+      modalContent.textContent = JSON.stringify(dataWithoutImg, null, 2);
+      // Show photo below JSON if present
+      let existingImg = modalOverlay.querySelector('.report-preview-img');
+      if (existingImg) existingImg.remove();
+      if (imgB64) {
+        const img = document.createElement('img');
+        img.className = 'report-preview-img';
+        img.src = 'data:image/jpeg;base64,' + imgB64;
+        img.style.cssText = 'max-width:100%;border-radius:6px;margin-top:12px;display:block;';
+        modalOverlay.querySelector('.modal-body').appendChild(img);
+      }
       modalOverlay.classList.add('open');
     } else if (btn.dataset.action === 'del') {
       if (!confirm('¿Eliminar "' + id + '" de ' + currentCol + '?')) return;

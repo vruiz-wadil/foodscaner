@@ -246,7 +246,7 @@ async function fireSetOcrData(barcode, ingredients) {
   }
 }
 
-const ADMIN_COLLECTIONS = ['scan_logs', 'products_ocr', 'products_nutrition', 'product_cache', 'ai_cache'];
+const ADMIN_COLLECTIONS = ['scan_logs', 'reports', 'products_ocr', 'products_nutrition', 'product_cache', 'ai_cache'];
 
 async function fireListDocs(col, pageToken) {
   const token = await getAccessToken();
@@ -280,6 +280,19 @@ async function fireLogScan(entry) {
   }).catch(() => {});
 }
 
+// ponytail: inline base64 image; migrar a Storage si los docs crecen > 800 KB promedio.
+async function fireLogReport(entry) {
+  const token = await getAccessToken(); if (!token) return false;
+  const id = String(1e16 - Date.now()).padStart(16, '0') + '_' + Math.random().toString(36).slice(2, 8);
+  const resp = await fetch(docPath('reports', id), {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { _data: { stringValue: JSON.stringify(entry) } } }),
+    signal: AbortSignal.timeout(8000)
+  }).catch(() => null);
+  return resp?.ok || false;
+}
+
 async function fireDeleteDoc(col, id) {
   const token = await getAccessToken();
   if (!token) return false;
@@ -292,5 +305,5 @@ module.exports = {
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
-  fireListDocs, fireDeleteDoc, fireLogScan, ADMIN_COLLECTIONS
+  fireListDocs, fireDeleteDoc, fireLogScan, fireLogReport, ADMIN_COLLECTIONS
 };

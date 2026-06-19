@@ -1932,6 +1932,14 @@ function renderConfidenceWidget() {
     sourcesEl.appendChild(tag);
   }
   card.classList.remove("hidden");
+
+  // Show report card alongside confidence card
+  const reportCard = document.getElementById("card-report");
+  if (reportCard) {
+    reportCard.classList.remove("hidden");
+    const reportBtn = document.getElementById("btn-report");
+    if (reportBtn) reportBtn.onclick = showReportModal;
+  }
 }
 
 function renderCacheStatus(product, barcode) {
@@ -2302,14 +2310,124 @@ function initNutritionHandlers() {
   if (overlay) overlay.onclick = hideNutritionModal;
 }
 
+// === REPORT MODAL ===
+
+function showReportModal() {
+  const modal = document.getElementById("report-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  document.getElementById("report-step-1").classList.remove("hidden");
+  document.getElementById("report-step-2").classList.add("hidden");
+  document.getElementById("report-step-3").classList.add("hidden");
+  // Reset form
+  document.querySelectorAll('input[name="report-cat"]').forEach(r => r.checked = false);
+  const comment = document.getElementById("report-comment");
+  if (comment) comment.value = "";
+  const err = document.getElementById("report-error");
+  if (err) err.textContent = "";
+  const preview = document.getElementById("report-photo-preview");
+  if (preview) { preview.src = ""; preview.style.display = "none"; }
+  const nameEl = document.getElementById("report-photo-name");
+  if (nameEl) nameEl.textContent = "";
+  const photoInput = document.getElementById("report-photo-input");
+  if (photoInput) photoInput.value = "";
+}
+
+function hideReportModal() {
+  const modal = document.getElementById("report-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function initReportHandlers() {
+  const modal = document.getElementById("report-modal");
+  if (!modal) return;
+
+  let capturedImage = null;
+
+  const closeBtn = document.getElementById("report-modal-close");
+  const overlay = document.getElementById("report-modal-overlay");
+  const photoBtn = document.getElementById("report-photo-btn");
+  const photoInput = document.getElementById("report-photo-input");
+  const preview = document.getElementById("report-photo-preview");
+  const photoName = document.getElementById("report-photo-name");
+  const sendBtn = document.getElementById("report-send-btn");
+  const errEl = document.getElementById("report-error");
+  const closeFinalBtn = document.getElementById("report-close-btn");
+
+  if (closeBtn) closeBtn.onclick = hideReportModal;
+  if (overlay) overlay.onclick = hideReportModal;
+  if (closeFinalBtn) closeFinalBtn.onclick = hideReportModal;
+
+  if (photoBtn && photoInput) photoBtn.onclick = () => photoInput.click();
+
+  if (photoInput) {
+    photoInput.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const imgUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 900 / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(imgUrl);
+        capturedImage = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+        if (preview) { preview.src = 'data:image/jpeg;base64,' + capturedImage; preview.style.display = 'block'; }
+        if (photoName) photoName.textContent = file.name;
+      };
+      img.src = imgUrl;
+    };
+  }
+
+  if (sendBtn) {
+    sendBtn.onclick = async () => {
+      const category = document.querySelector('input[name="report-cat"]:checked')?.value || '';
+      const comment = document.getElementById("report-comment")?.value.trim() || '';
+      if (!category && !comment) {
+        if (errEl) errEl.textContent = 'Elige una categoría o escribe un comentario.';
+        return;
+      }
+      if (errEl) errEl.textContent = '';
+      document.getElementById("report-step-1").classList.add("hidden");
+      document.getElementById("report-step-2").classList.remove("hidden");
+
+      try {
+        const resp = await fetch('/api/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            barcode: currentBarcode || '',
+            productName: document.getElementById("product-name")?.textContent || '',
+            category, comment,
+            ...(capturedImage ? { image: capturedImage } : {})
+          }),
+          signal: AbortSignal.timeout(12000)
+        });
+        if (!resp.ok) throw new Error((await resp.json()).error || 'Error');
+        document.getElementById("report-step-2").classList.add("hidden");
+        document.getElementById("report-step-3").classList.remove("hidden");
+        capturedImage = null;
+      } catch (err) {
+        document.getElementById("report-step-2").classList.add("hidden");
+        document.getElementById("report-step-1").classList.remove("hidden");
+        if (errEl) errEl.textContent = 'Error al enviar: ' + err.message;
+      }
+    };
+  }
+}
+
 // Call init when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     initOcrHandlers();
     initNutritionHandlers();
+    initReportHandlers();
   });
 } else {
   initOcrHandlers();
   initNutritionHandlers();
+  initReportHandlers();
 }
 

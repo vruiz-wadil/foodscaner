@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireDeleteDoc, fireLogScan, ADMIN_COLLECTIONS } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireDeleteDoc, fireLogScan, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
 
 function detectOS(ua = '') {
   ua = ua.toLowerCase();
@@ -1178,6 +1178,27 @@ app.post('/api/products/ocr', async (req, res) => {
     console.error('[OCR Save] Error:', error);
     res.status(500).json({ error: 'Error al guardar ingredientes: ' + error.message });
   }
+});
+
+// --- Report Endpoint ---
+app.post('/api/report', async (req, res) => {
+  const { barcode, productName, category, comment, image } = req.body || {};
+  if (!category && !comment) return res.status(400).json({ error: 'Se requiere categoría o comentario' });
+  if (image && image.length > 700000) return res.status(413).json({ error: 'Imagen demasiado grande (máx ~700 KB)' });
+  const ua = req.headers['user-agent'] || '';
+  const decCity = c => { try { return decodeURIComponent(c || ''); } catch { return c || ''; } };
+  const ok = await fireLogReport({
+    ts: Date.now(), barcode: barcode || '', productName: productName || '',
+    category: category || '', comment: comment || '',
+    ...(image ? { image } : {}),
+    os: detectOS(ua), ua,
+    ip: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '',
+    country: req.headers['x-vercel-ip-country'] || '',
+    region: req.headers['x-vercel-ip-country-region'] || '',
+    city: decCity(req.headers['x-vercel-ip-city'])
+  });
+  if (!ok) return res.status(500).json({ error: 'No se pudo guardar el reporte' });
+  res.json({ ok: true });
 });
 
 // --- Admin Panel API ---
