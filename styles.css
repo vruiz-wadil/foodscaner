@@ -1199,6 +1199,22 @@ body {
 
 .carbs-net-text { font-size: 0.72rem; color: var(--ink-3); margin: 1px 0 0; }
 
+.fix-discrepancy-btn {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 6px 16px 14px;
+  padding: 8px 12px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.fix-discrepancy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ── Confidence & Source Info ────────────────────── */
 .confidence-section {
   margin-top: 6px;

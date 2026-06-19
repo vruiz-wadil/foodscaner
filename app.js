@@ -1186,6 +1186,8 @@ function renderProductData(product, barcode) {
       if (ocrRequestSection) ocrRequestSection.classList.add("hidden");
       // Show grid for ingredients
       if (analysisGrid) analysisGrid.classList.remove("hidden");
+      const fixIng = document.getElementById("btn-fix-ingredients");
+      if (fixIng) fixIng.onclick = () => showOcrModal(currentBarcode);
     } else {
       ingredientsSection.classList.add("hidden");
       if (ocrRequestSection) {
@@ -1472,6 +1474,8 @@ function renderProductData(product, barcode) {
       if (rows.length > 0) {
         nutritionTbody.innerHTML = rows.join('');
         nutritionSection.classList.remove("hidden");
+        const fixNut = document.getElementById("btn-fix-nutrition");
+        if (fixNut) fixNut.onclick = () => showNutritionModal(currentBarcode);
       } else {
         nutritionSection.classList.add("hidden");
       }
@@ -2174,7 +2178,12 @@ function showNutritionModal(barcode) {
 
 function hideNutritionModal() {
   const modal = document.getElementById("nutrition-modal");
-  if (modal) modal.classList.add("hidden");
+  if (modal) {
+    const step4 = document.getElementById("nutrition-step-4");
+    const savedSuccessfully = step4 && !step4.classList.contains("hidden");
+    modal.classList.add("hidden");
+    if (savedSuccessfully && currentBarcode) analyzeBarcode(currentBarcode);
+  }
 }
 
 function initNutritionHandlers() {
