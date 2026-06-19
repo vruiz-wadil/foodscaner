@@ -3,19 +3,8 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireSetExtendedCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr } = require('./firestore');
 
-// Load verified products database
-let verifiedProducts = {};
-try {
-  const dbPath = path.join(__dirname, '..', 'products-verified.json');
-  if (fs.existsSync(dbPath)) {
-    verifiedProducts = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-    console.log(`[DB] Loaded ${Object.keys(verifiedProducts).length} verified products`);
-  }
-} catch (e) {
-  console.warn('[DB] Error loading verified products:', e.message);
-}
 
 const app = express();
 
@@ -107,7 +96,7 @@ async function getAiCacheEntry(key) {
     return fire;
   }
   const age = Math.floor(Date.now() / 1000) - entry.cachedAt;
-  if (age > 86400) return null;
+  if (age > 86400) { delete memoryAiCache[key]; return null; }
   return entry.response;
 }
 
@@ -214,16 +203,16 @@ async function callGemini(prompt) {
   return { content: data.candidates?.[0]?.content?.parts?.[0]?.text || "", model: "Gemini 2.5 Flash" };
 }
 
+
 async function callAI(prompt, max_tokens = 3000) {
   if (!process.env.GROQ_API_KEY) return callOpenRouter(prompt);
 
-  // Todos los modelos de Groq en paralelo + OpenRouter
   const groqModels = [
     'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant',    // Más rápido
+    'llama-3.1-8b-instant',
     'llama-3.1-70b-versatile',
     'mixtral-8x7b-32768',
-    'gemma-7b-it'              // Muy rápido
+    'gemma-7b-it'
   ];
 
   const results = await Promise.allSettled([
@@ -234,7 +223,6 @@ async function callAI(prompt, max_tokens = 3000) {
   for (const r of results) {
     if (r.status === 'fulfilled' && r.value && typeof r.value.content === 'string' && r.value.content.length > 0) return r.value;
   }
-  // Si ambos fallaron, lanzar el error del segundo (OpenRouter)
   throw results[1].reason || results[0].reason || new Error("Ambos proveedores fallaron");
 }
 
@@ -277,24 +265,6 @@ app.get('/api/product/:barcode', async (req, res) => {
 
     const barcodeVariations = generateBarcodeVariations(barcode);
     const now = Math.floor(Date.now() / 1000);
-
-    // ----- L0: VERIFIED PRODUCTS (Permanent) -----
-    if (verifiedProducts[barcode]) {
-      let verified = { ...verifiedProducts[barcode] };
-      console.log(`[VERIFIED] Found: ${barcode}`);
-      verified = await addOcrDataIfAvailable(verified);
-      return res.json({
-        status: 1,
-        source: 'local',
-        sourceLabel: 'Base Verificada México',
-        product: verified,
-        _verified: true,
-        _freshness: 'verified',
-        sourceResults: [
-          { source: 'Base Verificada México', found: true, productName: verified.name, brandName: verified.brand, allergenInfo: 'Verificado', nutritionInfo: `${verified.calories} kcal` }
-        ]
-      });
-    }
 
     // ----- CACHE LOOKUP (try all variations) -----
     let cached = null;
@@ -953,22 +923,6 @@ app.post('/api/cache/refresh/:barcode', async (req, res) => {
   const { barcode } = req.params;
 
   try {
-    // If verified product, refresh AI analysis only
-    if (verifiedProducts[barcode]) {
-      const verified = verifiedProducts[barcode];
-      const aiAnalysis = await callAI(
-        `Analiza: ${verified.name} (${verified.brand}). Ingredientes: ${verified.ingredients}`
-      );
-      await fireSetExtendedCache(barcode, verified, 'Base Verificada México', aiAnalysis, 30);
-      return res.json({
-        status: 'ok',
-        message: 'Producto verificado actualizado',
-        type: 'verified',
-        barcode
-      });
-    }
-
-    // For dynamic products, clear and refetch
     await removeCacheEntry(barcode);
 
     res.json({
