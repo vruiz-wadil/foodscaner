@@ -1199,6 +1199,30 @@ body {
 
 .carbs-net-text { font-size: 0.72rem; color: var(--ink-3); margin: 1px 0 0; }
 
+/* ── Disclaimer Modal ──────────────────────────────── */
+.disclaimer-modal-content { max-height: 90vh; overflow-y: auto; }
+
+.disclaimer-body {
+  padding: 4px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.disclaimer-body p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.disclaimer-body strong { color: var(--ink); }
+.disclaimer-note {
+  font-size: 0.78rem !important;
+  color: var(--ink-3) !important;
+  font-style: italic;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
 .report-btn {
   display: flex;
   align-items: center;

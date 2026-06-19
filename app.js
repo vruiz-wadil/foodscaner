@@ -122,6 +122,17 @@ function renderHistory() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Disclaimer gate — show on first visit, persist acceptance in localStorage
+  const DISCLAIMER_KEY = 'yomi_disclaimer_accepted';
+  const dm = document.getElementById('disclaimer-modal');
+  if (dm && !localStorage.getItem(DISCLAIMER_KEY)) {
+    dm.classList.remove('hidden');
+    document.getElementById('disclaimer-accept').onclick = () => {
+      localStorage.setItem(DISCLAIMER_KEY, '1');
+      dm.classList.add('hidden');
+    };
+  }
+
   setupEventListeners();
   const bc = new URLSearchParams(location.search).get('barcode');
   if (bc) analyzeBarcode(bc.trim());

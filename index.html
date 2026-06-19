@@ -15,11 +15,29 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
   <!-- html5-qrcode CDN -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 </head>
 <body>
+
+  <!-- Disclaimer Modal (gate on first visit) -->
+  <div id="disclaimer-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content disclaimer-modal-content">
+      <div class="modal-header">
+        <h2>👋 Antes de empezar</h2>
+      </div>
+      <div class="disclaimer-body">
+        <p>Yomi reúne información de <strong>fuentes públicas</strong> (como Open Food Facts y bases de datos abiertas) que pueden estar incompletas o no ser 100&nbsp;% exactas.</p>
+        <p>El análisis nutricional y de salud se genera con <strong>inteligencia artificial</strong>, por lo que puede contener errores o imprecisiones.</p>
+        <p>Esta información tiene carácter <strong>meramente orientativo</strong> y no sustituye la declaración oficial del fabricante ni el consejo de un profesional de salud. <strong>Revisa siempre el etiquetado físico del producto</strong>, especialmente si tienes alergias, intolerancias o alguna condición de salud.</p>
+        <p class="disclaimer-note">Si detectas información incorrecta puedes reportarlo directamente desde la pantalla de resultados.</p>
+      </div>
+      <button id="disclaimer-accept" class="btn-primary" style="width:100%;margin-top:4px;">✓ Entiendo y acepto</button>
+    </div>
+  </div>
+
   <!-- Animated Background Matrix -->
   <div class="bg-blur-circles">
     <div class="circle circle-1"></div>
@@ -654,6 +672,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=38" defer></script>
+  <script src="app.js?v=39" defer></script>
 </body>
 </html>
