@@ -726,23 +726,23 @@ app.get('/api/product/:barcode', async (req, res) => {
         if (!product.nutriments) product.nutriments = {};
         for (const [k, v] of Object.entries(nd)) {
           const key = NUT_MAP[k];
-          if (key && !(product.nutriments[key] > 0)) { const n = nutVal(v); if (n != null) product.nutriments[key] = n; }
-          if (k === 'sodio' && !(product.nutriments['sodium_100g'] > 0)) { const n = nutVal(v); if (n != null) product.nutriments['sodium_100g'] = n / 1000; }
+          if (key) { const n = nutVal(v); if (n != null) product.nutriments[key] = n; }
+          if (k === 'sodio') { const n = nutVal(v); if (n != null) product.nutriments['sodium_100g'] = n / 1000; }
         }
-        // Build card-shaped fields for UI widgets (calories, proteins, sugars, carbohydrates)
+        // OCR always wins: overwrite card-shaped fields regardless of existing OFF data
         const kcal = product.nutriments['energy-kcal_100g'];
-        if (kcal != null && !(product.calories?.value > 0)) {
+        if (kcal != null) {
           product.calories = { value: kcal, ...computeEnergyLevel(kcal) };
         }
         const prot = product.nutriments['proteins_100g'];
-        if (prot != null && product.proteins == null) {
+        if (prot != null) {
           product.proteins = { value: prot, level: prot > 10 ? "Alto" : prot > 3 ? "Moderado" : "Bajo", percent: Math.min(100, Math.round(prot / 20 * 100)) };
         }
         const sug = product.nutriments['sugars_100g'];
-        if (sug != null && product.sugars == null) {
+        if (sug != null) {
           product.sugars = { value: sug, level: sug > 22.5 ? "Alto" : sug > 5 ? "Medio" : "Bajo", percent: sug > 22.5 ? Math.min(100, Math.round(sug / 33.75 * 100)) : sug > 5 ? Math.round(sug / 22.5 * 100) : Math.max(3, Math.round(sug / 5 * 50)) };
         }
-        if (product.carbohydrates == null && nd.carbohidratos != null) {
+        if (nd.carbohidratos != null) {
           const c = nutVal(nd.carbohidratos), f = nutVal(nd.fibra);
           if (c != null) product.carbohydrates = { value: c, fiber: f };
         }
