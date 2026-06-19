@@ -1114,7 +1114,8 @@ function renderProductData(product, barcode) {
   const nutritionRequestBtn = document.getElementById("btn-nutrition-capture");
   const nutritionCaptureSection = document.getElementById("nutrition-capture-section");
   if (nutritionRequestBtn && nutritionCaptureSection) {
-    nutritionCaptureSection.classList.toggle("hidden", !!product._from_nutrition_ocr);
+    const hasNutritionData = !!product._from_nutrition_ocr || (product.calories?.value > 0);
+    nutritionCaptureSection.classList.toggle("hidden", hasNutritionData);
     nutritionRequestBtn.onclick = () => showNutritionModal(currentBarcode);
   }
 
