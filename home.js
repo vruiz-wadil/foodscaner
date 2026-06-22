@@ -59,7 +59,7 @@ function escHtml(s) {
 }
 
 // Navigate to scanner
-function goScan() { window.location.href = 'index.html'; }
+function goScan() { window.location.href = 'scan.html?scan=1'; }
 
 document.addEventListener('DOMContentLoaded', () => {
   renderGrid();
@@ -72,6 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const card = e.target.closest('.product-card');
     if (!card) return;
     if (e.target.closest('.product-card-bookmark')) return; // ignore bookmark tap
-    window.location.href = 'index.html?barcode=' + encodeURIComponent(card.dataset.barcode);
+    window.location.href = 'scan.html?barcode=' + encodeURIComponent(card.dataset.barcode);
   });
 });

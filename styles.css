@@ -1786,6 +1786,12 @@ body {
   color: var(--ink);
 }
 
+.nav-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
+}
+
 /* Scan tab — bigger scanner icon */
 .nav-scan-ring {
   width: 48px;

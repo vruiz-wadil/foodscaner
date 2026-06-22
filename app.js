@@ -135,20 +135,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   setupEventListeners();
-  const bc = new URLSearchParams(location.search).get('barcode');
+  const params = new URLSearchParams(location.search);
+  const bc = params.get('barcode');
   if (bc) analyzeBarcode(bc.trim());
+  else if (params.get('scan')) toggleCamera();
 });
+
+function resetToScan() {
+  if (isScanning) stopScanning();
+  showState(resultEmpty);
+  barcodeInput.value = "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 function setupEventListeners() {
   // Toggle camera scanner
   btnToggleCamera.addEventListener("click", toggleCamera);
 
   // New scan button (single-column layout)
-  document.getElementById("btn-new-scan").addEventListener("click", () => {
-    showState(resultEmpty);
-    barcodeInput.value = "";
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
+  document.getElementById("btn-new-scan").addEventListener("click", resetToScan);
+
+  // Nav "Escanear" button — reset to scan view if results are showing
+  const navScanReset = document.getElementById("nav-scan-reset");
+  if (navScanReset) navScanReset.addEventListener("click", resetToScan);
 
   // History item click (event delegation)
   document.getElementById("scan-history-list").addEventListener("click", e => {

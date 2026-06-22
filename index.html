@@ -2,670 +2,110 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yomi - Identificador Nutricional de Alimentos</title>
-  <!-- SEO Meta Tags -->
-  <meta name="description" content="Escanea o ingresa el código de barras de un producto para saber si es un alimento, su contenido de gluten, calorías y alérgenos al instante.">
-  <meta name="keywords" content="escáner de alimentos, código de barras, gluten, alérgenos, calorías, nutrición, salud">
-  <!-- Google Fonts -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Yomi — ¿Puedo comerlo?</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Stylesheet -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=12">
-  <!-- html5-qrcode CDN -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+  <link rel="stylesheet" href="home.css?v=1">
 </head>
 <body>
+  <div class="app-shell">
 
-  <!-- Disclaimer Modal (gate on first visit) -->
-  <div id="disclaimer-modal" class="modal hidden">
-    <div class="modal-overlay"></div>
-    <div class="modal-content disclaimer-modal-content">
-      <div class="modal-header">
-        <h2>👋 Antes de empezar</h2>
-      </div>
-      <div class="disclaimer-body">
-        <p>Yomi reúne información de <strong>fuentes públicas</strong> (como Open Food Facts y bases de datos abiertas) que pueden estar incompletas o no ser 100&nbsp;% exactas.</p>
-        <p>El análisis nutricional y de salud se genera con <strong>inteligencia artificial</strong>, por lo que puede contener errores o imprecisiones.</p>
-        <p>Esta información tiene carácter <strong>meramente orientativo</strong> y no sustituye la declaración oficial del fabricante ni el consejo de un profesional de salud. <strong>Revisa siempre el etiquetado físico del producto</strong>, especialmente si tienes alergias, intolerancias o alguna condición de salud.</p>
-        <p class="disclaimer-note">Si detectas información incorrecta puedes reportarlo directamente desde la pantalla de resultados.</p>
-      </div>
-      <button id="disclaimer-accept" class="btn-primary" style="width:100%;margin-top:4px;">✓ Entiendo y acepto</button>
-    </div>
-  </div>
-
-  <!-- Animated Background Matrix -->
-  <div class="bg-blur-circles">
-    <div class="circle circle-1"></div>
-    <div class="circle circle-2"></div>
-    <div class="circle circle-3"></div>
-  </div>
-
-  <div class="app-container">
+    <!-- Header -->
     <header class="app-header">
-      <div class="logo-area">
-        <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
-      </div>
+      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
     </header>
 
-    <main class="app-main-grid">
-      <!-- PANEL DE CONTROL (IZQUIERDA) -->
-      <section class="control-panel">
-        <div class="panel-section">
-          <div class="scanner-wrapper">
-            <div id="interactive-scanner" class="scanner-view">
-              <div class="scanner-placeholder">
-                <div class="scan-frame"><span></span><span></span></div>
-                <p class="scan-title">La cámara no está activa</p>
-                <p class="scan-help">Apunta al código de barras del producto</p>
-              </div>
-            </div>
-            
-            <div class="scanner-controls">
-              <button id="btn-toggle-camera" class="btn btn-camera">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>
-                Activar cámara
-              </button>
-              <div class="camera-select-container hidden" id="camera-select-wrapper">
-                <label for="camera-select">Cámara:</label>
-                <select id="camera-select" class="styled-select"></select>
-              </div>
-            </div>
-          </div>
-        </div>
+    <!-- Scrollable main -->
+    <main class="app-main">
 
-        <div class="panel-section">
-          <p class="input-label">O captura el código</p>
-          <form id="barcode-form" class="manual-input-form">
-            <div class="input-group">
-              <input type="text" id="barcode-input" placeholder="Ingresa el código de barras (ej. 8400000000)" autocomplete="off" required>
-              <button type="submit" class="btn btn-secondary" aria-label="Buscar producto">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div class="panel-section">
-          <h2 class="section-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Historial
-          </h2>
-          <div id="scan-history-list"></div>
-        </div>
-
+      <!-- Heading -->
+      <section class="section-heading">
+        <h1 class="heading-title">¿Puedo comerlo?</h1>
+        <p class="heading-sub">Escanea y lo sabrás en segundos.</p>
       </section>
 
-      <!-- PANEL DE RESULTADOS (DERECHA) -->
-      <section class="results-panel glass-card hidden">
-        <!-- ESTADO INICIAL / VACÍO -->
-        <div id="result-empty" class="result-state active"></div>
-
-        <!-- ESTADO CARGANDO -->
-        <div id="result-loading" class="result-state">
-          <div class="skeleton-loader">
-            <div class="skeleton-title animated-bg"></div>
-            <div class="skeleton-media animated-bg"></div>
-            <div class="skeleton-text animated-bg"></div>
-            <div class="skeleton-text short animated-bg"></div>
-            <div class="skeleton-grid">
-              <div class="skeleton-block animated-bg"></div>
-              <div class="skeleton-block animated-bg"></div>
-            </div>
+      <!-- Scan CTA -->
+      <section class="section-scan">
+        <button class="scan-cta" id="btn-scan">
+          <div class="scan-cta-icon-wrap">
+            <img src="assets/redesign/icon-camera.svg" alt="" class="scan-cta-icon">
           </div>
-          <p class="loading-text">Identificando producto y analizando componentes...</p>
+          <div class="scan-cta-text">
+            <span class="scan-cta-title">Escanear código de barras</span>
+            <span class="scan-cta-sub">Apunta a cualquier producto</span>
+          </div>
+        </button>
+      </section>
+
+      <!-- Recent products -->
+      <section class="section-recent">
+        <div class="section-recent-header">
+          <h2 class="recent-title">Productos recientes</h2>
+          <a href="scan.html" class="btn-ver-todos">Ver todos</a>
         </div>
-
-        <!-- ESTADO ERROR / RECHAZADO (NO ES ALIMENTO) -->
-        <div id="result-rejected" class="result-state">
-          <div class="alert-icon error-bg">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="15" y1="9" x2="9" y2="15"/>
-              <line x1="9" y1="9" x2="15" y2="15"/>
-            </svg>
-          </div>
-          <h3 id="rejected-title">Producto Rechazado</h3>
-          <p id="rejected-message">Este producto no es un alimento. Yomi solo analiza alimentos para consumo humano.</p>
-          <div class="rejected-details">
-            <div class="detail-label">Nombre del producto:</div>
-            <div class="detail-val" id="rejected-product-name">-</div>
-            <div class="detail-label">Categoría detectada:</div>
-            <div class="detail-val" id="rejected-product-category">-</div>
-          </div>
+        <div class="products-grid" id="products-grid">
+          <!-- filled by home.js -->
         </div>
-
-        <!-- ESTADO ÉXITO (ALIMENTO DETECTADO) -->
-        <div id="result-success" class="result-state">
-          <div class="product-header">
-            <div class="product-meta">
-              <h3 id="product-name">Nombre del Producto</h3>
-              <p id="product-brand" class="brand-text">Marca del Producto</p>
-              <p class="barcode-text">Cód: <span id="product-barcode">0000000000</span></p>
-            </div>
-            <div class="product-hero">
-              <img id="product-img" src="" alt="Imagen del producto" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23888%22 stroke-width=%221.5%22><rect x=%223%22 y=%223%22 width=%2218%22 height=%2218%22 rx=%222%22/><circle cx=%228.5%22 cy=%228.5%22 r=%221.5%22/><path d=%22M21 15l-5-5L5 21%22/></svg>'">
-            </div>
-          </div>
-          <!-- SELLOS MEXICANOS NOM-051 -->
-          <div class="analysis-card full-width hidden" id="card-sellos">
-            <div class="card-details" style="padding:8px 0;width:100%;">
-              <h4 style="padding:0 16px;margin-bottom:10px;">Sellos de advertencia de Secretaría de Salud</h4>
-              <div id="sellos-container" class="sellos-container"></div>
-              <p id="sellos-disclaimer" class="sellos-disclaimer" style="margin:6px 16px 4px;font-size:0.7rem;color:var(--text-muted);text-align:center;">Cálculo en tiempo real basado en la NOM-051 y los ingredientes/nutrientes declarados. Puede no coincidir con el etiquetado físico actual.</p>
-            </div>
-          </div>
-
-          <div id="dietary-section" class="dietary-section hidden">
-            <h4 class="dietary-title">Tipo de Dieta</h4>
-            <div id="dietary-badges" class="dietary-table">
-              <div class="dietary-row">
-                <span id="dietary-gluten-attr" class="dietary-attr">🌾 Libre de Gluten</span>
-                <span id="dietary-gluten-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-gluten-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-casein-attr" class="dietary-attr">🥛 Libre de Caseína</span>
-                <span id="dietary-casein-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-casein-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-organic-attr" class="dietary-attr">🌿 Orgánico</span>
-                <span id="dietary-organic-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-organic-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-vegetarian-attr" class="dietary-attr">🥦 Vegetariano</span>
-                <span id="dietary-vegetarian-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-vegetarian-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-vegan-attr" class="dietary-attr">🌱 Vegano</span>
-                <span id="dietary-vegan-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-vegan-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-kosher-attr" class="dietary-attr">✡️ Kosher</span>
-                <span id="dietary-kosher-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-kosher-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-halal-attr" class="dietary-attr">🌙 Halal</span>
-                <span id="dietary-halal-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-halal-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-non-gmo-attr" class="dietary-attr">🧬 Sin OGM</span>
-                <span id="dietary-non-gmo-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-non-gmo-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-no-additives-attr" class="dietary-attr">🧪 Sin Aditivos</span>
-                <span id="dietary-no-additives-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-no-additives-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-palm-oil-free-attr" class="dietary-attr">🌴 Sin Aceite de Palma</span>
-                <span id="dietary-palm-oil-free-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-palm-oil-free-detail" class="dietary-detail hidden"></div>
-              </div>
-              <div class="dietary-row">
-                <span id="dietary-fair-trade-attr" class="dietary-attr">🤝 Comercio Justo</span>
-                <span id="dietary-fair-trade-status" class="dietary-status unknown">Sin Info</span>
-                <span class="dietary-chevron">▼</span>
-                <div id="dietary-fair-trade-detail" class="dietary-detail hidden"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TARJETA ALÉRGENOS -->
-          <div class="analysis-card full-width" id="card-allergens">
-            <div class="card-icon-wrapper">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-            </div>
-            <div class="card-details">
-              <h4>Alérgenos Detectados</h4>
-              <div id="allergen-icon-grid" class="allergen-icon-grid">
-                <!-- Icon grid generated by JS -->
-              </div>
-              <div id="allergens-list" class="allergens-tags-container hidden"></div>
-              <p id="allergens-safe-msg" class="safe-msg hidden">✓ Libre de alérgenos comunes declarados.</p>
-              <div id="traces-section" class="traces-section hidden">
-                <h4 class="traces-title">Puede contener trazas de:</h4>
-                <div id="traces-list" class="allergens-tags-container"></div>
-              </div>
-              <div class="allergen-legend">
-                <span class="legend-item"><span class="dot dot-gray"></span> No detectado</span>
-                <span class="legend-item"><span class="dot dot-red"></span> Declarado</span>
-                <span class="legend-item"><span class="dot dot-yellow"></span> Puede contener</span>
-              </div>
-            </div>
-          </div>
-
-            <!-- TARJETA RIESGOS PARA LA SALUD (fuera del grid para que se muestre en fallbacks) -->
-            <div class="analysis-card full-width hidden" id="card-health-risks">
-              <div class="card-details" style="padding:0;width:100%;">
-                <details class="health-risks-details" open>
-                  <summary>🩺 Riesgos para la Salud</summary>
-                  <div class="health-risks-grid">
-                    <!-- DIABETES -->
-                    <div class="analysis-card health-card hidden" id="card-diabetes">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Riesgo para Diabéticos</h4>
-                        <p id="diabetes-risk" class="status-value">--</p>
-                        <p id="diabetes-impact" class="diabetes-impact-text hidden"></p>
-                        <p id="diabetes-notes" class="diabetes-notes-text hidden"></p>
-                      </div>
-                    </div>
-                    <!-- HIPERTENSIÓN -->
-                    <div class="analysis-card health-card hidden" id="card-hypertension">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Riesgo para Hipertensos</h4>
-                        <p id="hypertension-risk" class="status-value">--</p>
-                        <div class="progress-bar-container">
-                          <div id="hypertension-progress" class="progress-bar" style="width:0%"></div>
-                        </div>
-                        <span id="hypertension-level" class="level-indicator">--</span>
-                        <p id="hypertension-sodium" class="hypertension-sodium-text hidden"></p>
-                        <p id="hypertension-notes" class="hypertension-notes-text hidden"></p>
-                      </div>
-                    </div>
-                    <!-- COLESTEROL -->
-                    <div class="analysis-card health-card hidden" id="card-cholesterol">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Riesgo por Grasas Saturadas</h4>
-                        <p id="cholesterol-risk" class="status-value">--</p>
-                        <div class="progress-bar-container">
-                          <div id="cholesterol-progress" class="progress-bar" style="width:0%"></div>
-                        </div>
-                        <span id="cholesterol-level" class="level-indicator">--</span>
-                        <p id="cholesterol-satfat" class="cholesterol-satfat-text hidden"></p>
-                        <p id="cholesterol-notes" class="cholesterol-notes-text hidden"></p>
-                      </div>
-                    </div>
-                    <!-- CONTROL DE PESO -->
-                    <div class="analysis-card health-card hidden" id="card-weight">
-                      <div class="card-icon-wrapper">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                          <path d="M12 20V10M18 20V4M6 20v-4"/>
-                        </svg>
-                      </div>
-                      <div class="card-details">
-                        <h4>Densidad Calórica</h4>
-                        <p id="weight-density" class="status-value">--</p>
-                        <div class="progress-bar-container">
-                          <div id="weight-progress" class="progress-bar" style="width:0%"></div>
-                        </div>
-                        <span id="weight-level" class="level-indicator">--</span>
-                        <p id="weight-detail" class="weight-detail-text hidden"></p>
-                        <p id="weight-notes" class="weight-notes-text hidden"></p>
-                      </div>
-                    </div>
-                  </div>
-                </details>
-              </div>
-            </div>
-
-          <!-- NO RECOMENDADO PARA -->
-          <div class="analysis-card full-width hidden" id="card-not-recommended">
-            <div class="card-details" style="padding:8px 0;width:100%;">
-              <h4 style="padding:0 16px;margin-bottom:8px;">⚠️ No Recomendado Para</h4>
-              <div id="not-recommended-container" class="not-rec-container"></div>
-            </div>
-          </div>
-
-          <div id="no-nutrition-alert" class="fallback-nutrition-alert hidden">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 28px; height: 28px; flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <div>
-              <strong>Información nutrimental no disponible</strong>
-              <p style="margin: 4px 0 0; font-size: 0.85rem; opacity: 0.8;">Este producto fue encontrado en una base de datos externa que no proporciona detalles nutricionales. Los campos de gluten, tipo de dieta, alérgenos, valor nutrimental y calorías no están disponibles directamente. La IA analizará el producto para estimar esta información.</p>
-            </div>
-          </div>
-
-          <div class="analysis-grid" id="analysis-grid">
-            <!-- TARJETA AZÚCARES -->
-            <div class="analysis-card hidden" id="card-sugars">
-              <div class="card-icon-wrapper">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <path d="M16 10a4 4 0 0 1-8 0"/>
-                </svg>
-              </div>
-              <div class="card-details">
-                <h4>Azúcares</h4>
-                <p id="sugars-val" class="status-value">--</p>
-                <div class="progress-bar-container">
-                  <div id="sugars-progress" class="progress-bar" style="width: 0%"></div>
-                </div>
-                <span id="sugars-level" class="level-indicator">--</span>
-              </div>
-            </div>
-
-            <!-- TARJETA CARBOHIDRATOS -->
-            <div class="analysis-card hidden" id="card-carbs">
-              <div class="card-icon-wrapper">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                </svg>
-              </div>
-              <div class="card-details">
-                <h4>Carbohidratos</h4>
-                <p id="carbs-val" class="status-value">--</p>
-                <p id="carbs-net" class="carbs-net-text hidden"></p>
-                <div class="progress-bar-container">
-                  <div id="carbs-progress" class="progress-bar" style="width: 0%"></div>
-                </div>
-                <span id="carbs-level" class="level-indicator">--</span>
-              </div>
-            </div>
-
-            <!-- TARJETA CALORÍAS -->
-            <div class="analysis-card" id="card-calories">
-              <div class="card-icon-wrapper">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                  <path d="M12 2c1.66 0 3 1.34 3 3v2h2.2c1.37 0 2.22 1.48 1.54 2.67l-2.61 4.56c.86 1.47 1.87 3.32 1.87 5.77 0 3.31-2.69 6-6 6s-6-2.69-6-6c0-2.45 1.01-4.3 1.87-5.77l-2.61-4.56C4.8 8.48 5.65 7 7.02 7H9.22V5c0-1.66 1.34-3 3-3z"/>
-                </svg>
-              </div>
-              <div class="card-details">
-                <h4>Calorías</h4>
-                <p id="calories-val" class="status-value"><span class="number">-</span> <span class="unit">kcal / 100g</span></p>
-                <div class="progress-bar-container">
-                  <div id="calories-progress" class="progress-bar" style="width: 0%"></div>
-                </div>
-                <span id="calories-level" class="level-indicator">Normal</span>
-              </div>
-            </div>
-
-            <!-- TARJETA PROTEÍNAS -->
-            <div class="analysis-card hidden" id="card-proteins">
-              <div class="card-icon-wrapper">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="card-icon">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                  <line x1="8" y1="7" x2="16" y2="7"/>
-                  <line x1="8" y1="11" x2="14" y2="11"/>
-                </svg>
-              </div>
-              <div class="card-details">
-                <h4>Proteínas</h4>
-                <p id="proteins-val" class="status-value">--</p>
-                <div class="progress-bar-container">
-                  <div id="proteins-progress" class="progress-bar" style="width: 0%"></div>
-                </div>
-                <span id="proteins-level" class="level-indicator">--</span>
-              </div>
-            </div>
-
-
-
-            <div class="analysis-card full-width card-collapsible hidden" id="ingredients-section">
-              <details class="ingredients-details" open>
-                <summary>📋 Lista de ingredientes</summary>
-                <p id="ingredients-text" class="ingredients-text"></p>
-                <button type="button" id="btn-fix-ingredients" class="fix-discrepancy-btn">📷 ¿No coincide con la etiqueta? Subir foto</button>
-              </details>
-            </div>
-
-            <div class="analysis-card full-width card-collapsible hidden" id="ocr-request-section">
-              <div style="padding: 16px;">
-                <p style="color: var(--text-muted); margin: 0 0 12px 0;">No tenemos la lista de ingredientes de este producto. ¿Puedes ayudarnos?</p>
-                <button id="btn-ocr-ingredients" class="btn-primary" style="width: 100%;">📸 Subir foto de ingredientes</button>
-              </div>
-            </div>
-
-            <div class="analysis-card full-width card-collapsible hidden" id="nutrition-capture-section">
-              <div style="padding: 16px;">
-                <p style="color: var(--text-muted); margin: 0 0 12px 0;">No tenemos información nutricional de este producto. ¿Puedes capturar la etiqueta?</p>
-                <button id="btn-nutrition-capture" class="btn-primary" style="width: 100%;">📊 Capturar Información Nutricional</button>
-              </div>
-            </div>
-
-            <div class="analysis-card full-width card-collapsible hidden" id="nutrition-section">
-              <details class="ingredients-details" open>
-                <summary>📊 Información nutricional</summary>
-                <table class="nutrition-table" id="nutrition-table">
-                  <tbody id="nutrition-tbody"></tbody>
-                </table>
-                <button type="button" id="btn-fix-nutrition" class="fix-discrepancy-btn">📷 ¿No coincide con la etiqueta? Subir foto</button>
-              </details>
-            </div>
-          </div>
-
-            <!-- TARJETA REPORTAR ERROR -->
-            <div class="analysis-card full-width hidden" id="card-report">
-              <button type="button" id="btn-report" class="report-btn">🚩 Reportar un error en la información o análisis</button>
-            </div>
-
-            <!-- TARJETA CONFIABILIDAD DEL ANÁLISIS (fuera del grid para que se muestre en fallbacks) -->
-            <div class="analysis-card full-width hidden" id="card-confidence">
-              <details class="ingredients-details">
-                <summary>🛡 Confianza del Análisis</summary>
-                <div class="card-details" style="padding:0 16px 14px;">
-                  <div id="confidence-sources" class="confidence-section"></div>
-                  <div id="confidence-ai" class="confidence-section hidden">
-                    <strong>🧠 Análisis IA:</strong> <span id="confidence-ai-level"></span>
-                  </div>
-                  <div id="confidence-model" class="confidence-section hidden">
-                    <strong>🤖 Modelo:</strong> <span id="confidence-model-text"></span>
-                  </div>
-                  <div id="confidence-notes" class="confidence-section hidden">
-                    <span id="confidence-notes-text" class="confidence-notes-text"></span>
-                  </div>
-                  <div id="confidence-ocr" class="confidence-section hidden">
-                    📷 Ingredientes y/o nutrición capturados por OCR del usuario — datos no verificados por el fabricante.
-                  </div>
-                  <div id="ai-provider-log" class="confidence-section provider-log hidden"></div>
-                  <div id="cache-status" class="confidence-section hidden">
-                    <div class="freshness-indicators">
-                      <span id="freshness-badge" class="freshness-badge" title="Estado de los datos">📦 Estado</span>
-                      <button id="btn-refresh-product" class="cache-refresh-btn" title="Refrescar datos y análisis">🔄 Actualizar Caché</button>
-                    </div>
-                    <div id="freshness-details" class="freshness-details hidden">
-                      <small id="freshness-text"></small>
-                    </div>
-                  </div>
-                </div>
-              </details>
-            </div>
-
-          <div id="ai-loading" class="hidden" style="margin-top:8px;text-align:center;color:var(--text-secondary);font-size:0.85rem;">Consultando IA...</div>
-          <div id="ai-error" class="hidden" style="margin-top:8px;text-align:center;color:var(--accent-error);font-size:0.85rem;"></div>
-
-          <div id="db-disclaimer" class="db-disclaimer hidden">
-            <p>Información obtenida de <span id="db-disclaimer-source"></span>.</p>
-            <p id="disclaimer-ocr" class="hidden">📷 Ingredientes y/o información nutricional capturados mediante OCR por el usuario — pueden contener errores de lectura.</p>
-            <p>Esta información se genera con asistencia de inteligencia artificial y tiene carácter meramente orientativo. No sustituye la declaración oficial del fabricante. Verifica siempre con la etiqueta del producto.</p>
-          </div>
-
-          <div class="yomi-plus-card">
-            <p class="yomi-plus-title">✦ Yomi+ — Análisis personalizado</p>
-            <p class="yomi-plus-sub">Activa tu cuenta gratuita para análisis según tu perfil de salud y agente IA.</p>
-          </div>
-
-          <button id="btn-new-scan" class="btn btn-primary" style="margin-top:20px;">
-            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            Nuevo Escaneo
-          </button>
+        <div class="products-empty hidden" id="products-empty">
+          <p>Aún no has escaneado ningún producto.</p>
         </div>
       </section>
+
+      <!-- Yomi+ promo -->
+      <section class="section-promo">
+        <div class="promo-card">
+          <div class="promo-card-text">
+            <p class="promo-title">Activa Yomi+</p>
+            <p class="promo-sub">Perfil IA · OCR · Historial · Agente personalizado</p>
+          </div>
+          <div class="promo-btn-wrap">
+            <button class="promo-btn">Regístrate por $29 al mes</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stats -->
+      <section class="section-stats">
+        <div class="stat-card">
+          <p class="stat-value">3M+</p>
+          <p class="stat-label">Productos</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-value">OFF + USDA</p>
+          <p class="stat-label">Bases de datos</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-value">OCR + IA</p>
+          <p class="stat-label">Análisis</p>
+        </div>
+      </section>
+
     </main>
 
+    <!-- Bottom nav -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" aria-label="Inicio">
+        <img src="assets/redesign/icon-home.svg" alt="" class="nav-icon">
+        <span class="nav-label">Inicio</span>
+      </button>
+      <button class="nav-item" id="nav-scan" aria-label="Escanear">
+        <div class="nav-scan-ring">
+          <img src="assets/redesign/icon-scan.svg" alt="" class="nav-scan-icon">
+        </div>
+        <span class="nav-label nav-label-muted">Escanear</span>
+      </button>
+      <button class="nav-item nav-disabled" aria-label="Análisis" aria-disabled="true">
+        <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Análisis</span>
+      </button>
+      <button class="nav-item nav-disabled" aria-label="Perfil" aria-disabled="true">
+        <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Perfil</span>
+      </button>
+    </nav>
+
   </div>
-
-  <!-- Bottom Navigation Bar (Figma design) -->
-  <nav class="bottom-nav">
-    <a href="home.html" class="nav-item" aria-label="Inicio">
-      <img src="assets/redesign/icon-home.svg" alt="" class="nav-icon">
-      <span class="nav-label">Inicio</span>
-    </a>
-    <button class="nav-item active" aria-label="Escanear">
-      <div class="nav-scan-ring">
-        <img src="assets/redesign/icon-scan.svg" alt="" class="nav-scan-icon">
-      </div>
-      <span class="nav-label">Escanear</span>
-    </button>
-    <button class="nav-item" aria-label="Análisis">
-      <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
-      <span class="nav-label">Análisis</span>
-    </button>
-    <button class="nav-item" aria-label="Perfil">
-      <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
-      <span class="nav-label">Perfil</span>
-    </button>
-  </nav>
-
-  <!-- Report Error Modal -->
-  <div id="report-modal" class="modal hidden">
-    <div class="modal-overlay" id="report-modal-overlay"></div>
-    <div class="modal-content">
-      <button id="report-modal-close" class="modal-close">✕</button>
-
-      <div id="report-step-1" class="ocr-step">
-        <h3>🚩 Reportar un error</h3>
-        <p>¿Qué tipo de error encontraste?</p>
-        <div class="report-radio-group">
-          <label class="report-radio"><input type="radio" name="report-cat" value="Información incorrecta"> Información incorrecta (nombre, ingredientes, nutrición)</label>
-          <label class="report-radio"><input type="radio" name="report-cat" value="Análisis o sellos incorrectos"> Análisis o sellos incorrectos (NOM-051, saludabilidad)</label>
-          <label class="report-radio"><input type="radio" name="report-cat" value="Otro"> Otro</label>
-        </div>
-        <textarea id="report-comment" class="ocr-textarea" placeholder="Describe el error con detalle (opcional si elegiste una categoría)…" style="height:90px;margin-top:10px;"></textarea>
-        <div class="report-photo-row">
-          <input type="file" id="report-photo-input" accept="image/*" capture="environment" style="display:none;">
-          <button type="button" id="report-photo-btn" class="btn-secondary" style="font-size:0.82rem;">📷 Agregar foto (opcional)</button>
-          <span id="report-photo-name" style="font-size:0.78rem;color:var(--ink-3);margin-left:8px;"></span>
-        </div>
-        <img id="report-photo-preview" style="display:none;max-width:100%;border-radius:6px;margin-top:8px;" alt="Vista previa">
-        <button id="report-send-btn" class="btn-primary" style="width:100%;margin-top:14px;">Enviar reporte</button>
-        <p id="report-error" style="color:var(--accent-error);font-size:0.8rem;margin-top:6px;min-height:1.2em;"></p>
-      </div>
-
-      <div id="report-step-2" class="ocr-step hidden">
-        <p>Enviando reporte…</p>
-        <div class="progress-bar"><div class="progress-fill" style="width:60%;"></div></div>
-      </div>
-
-      <div id="report-step-3" class="ocr-step hidden">
-        <p>✓ Reporte enviado. ¡Gracias por ayudar a mejorar Yomi!</p>
-        <button id="report-close-btn" class="btn-primary" style="margin-top:12px;">Cerrar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- OCR Modal for ingredient capture -->
-  <div id="ocr-modal" class="modal hidden">
-    <div class="modal-overlay"></div>
-    <div class="modal-content glass-card">
-      <div class="modal-header">
-        <h2>📸 Capturar Ingredientes</h2>
-        <button id="ocr-modal-close" class="modal-close">✕</button>
-      </div>
-
-      <div id="ocr-step-1" class="ocr-step">
-        <p>Toma una foto clara de la lista de ingredientes</p>
-        <div class="camera-container">
-          <input type="file" id="ocr-photo-input" accept="image/*" capture="environment">
-          <button id="ocr-upload-btn" class="btn-primary">📸 Seleccionar Foto</button>
-        </div>
-      </div>
-
-      <div id="ocr-step-2" class="ocr-step hidden">
-        <p>Analizando foto con OCR...</p>
-        <div class="progress-bar">
-          <div id="ocr-progress" class="progress-fill"></div>
-        </div>
-      </div>
-
-      <div id="ocr-step-3" class="ocr-step hidden">
-        <p>Ingredientes detectados:</p>
-        <textarea id="ocr-result" class="ocr-textarea" readonly></textarea>
-        <div class="ocr-actions">
-          <button id="ocr-edit-btn" class="btn-secondary">✎ Editar</button>
-          <button id="ocr-save-btn" class="btn-primary">💾 Guardar a Base de Datos</button>
-        </div>
-      </div>
-
-      <div id="ocr-step-4" class="ocr-step hidden">
-        <p>✓ Ingredientes guardados correctamente</p>
-        <p class="ocr-subtitle">Los datos serán verificados por nuestro equipo</p>
-        <button id="ocr-close-btn" class="btn-primary">Cerrar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Nutrition OCR Modal -->
-  <div id="nutrition-modal" class="modal hidden">
-    <div class="modal-overlay" id="nutrition-modal-overlay"></div>
-    <div class="modal-content">
-      <button id="nutrition-modal-close" class="modal-close">✕</button>
-
-      <div id="nutrition-step-1" class="ocr-step">
-        <h3>📊 Capturar Información Nutricional</h3>
-        <p>Por favor, toma una foto clara de la etiqueta nutricional</p>
-        <input type="file" id="nutrition-photo-input" accept="image/*" capture="environment" style="display: none;">
-        <button id="nutrition-upload-btn" class="btn-primary" style="width: 100%;">📷 Abrir Cámara</button>
-      </div>
-
-      <div id="nutrition-step-2" class="ocr-step hidden">
-        <p>Procesando información nutricional...</p>
-        <div class="progress-bar">
-          <div class="progress-fill"></div>
-        </div>
-      </div>
-
-      <div id="nutrition-step-3" class="ocr-step hidden">
-        <p>Información nutricional detectada (por 100g):</p>
-        <textarea id="nutrition-result" class="ocr-textarea" readonly></textarea>
-        <div class="ocr-actions">
-          <button id="nutrition-edit-btn" class="btn-secondary">✎ Editar</button>
-          <button id="nutrition-save-btn" class="btn-primary">💾 Guardar</button>
-        </div>
-      </div>
-
-      <div id="nutrition-step-4" class="ocr-step hidden">
-        <p>✓ Información nutricional guardada correctamente</p>
-        <button id="nutrition-close-btn" class="btn-primary">Cerrar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- App Main Javascript -->
-  <script src="app.js?v=43" defer></script>
+  <script src="home.js"></script>
 </body>
 </html>
