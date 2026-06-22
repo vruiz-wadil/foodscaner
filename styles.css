@@ -111,7 +111,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 48px 20px 12px;
+  padding: 28px 20px 16px;
   background: var(--paper);
   border-bottom: none;
 }
@@ -191,6 +191,13 @@ body {
   color: var(--green);
 }
 
+/* ── Control panel (sin card: apoya sobre menta) ──── */
+.control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 /* ── Scanner ─────────────────────────────────────── */
 .scanner-wrapper {
   display: flex;
@@ -199,11 +206,11 @@ body {
 }
 
 .scanner-view {
-  aspect-ratio: 4/3;
+  aspect-ratio: 3/4;
   width: 100%;
-  border-radius: var(--radius);
-  background: var(--ink);
-  border: 2px solid var(--ink);
+  border-radius: var(--radius-lg);
+  background: radial-gradient(circle at 50% 42%, #1d6f5e 0%, var(--ink) 68%);
+  border: none;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -213,7 +220,7 @@ body {
 }
 
 .scanner-view.active {
-  border-color: var(--green);
+  border: 2px solid var(--green);
   box-shadow: 0 0 0 3px var(--green-light);
 }
 
@@ -221,16 +228,65 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: rgba(255,255,255,0.35);
+  gap: 16px;
   text-align: center;
   padding: 24px;
-  font-size: 0.85rem;
 }
 
-.scanner-placeholder svg {
-  width: 56px;
-  height: 56px;
+/* corner bracket frame */
+.scan-frame {
+  position: relative;
+  width: 62%;
+  aspect-ratio: 3/2;
+}
+.scan-frame::before,
+.scan-frame::after,
+.scan-frame span {
+  content: '';
+  display: block;
+  position: absolute;
+  width: 22px;
+  height: 22px;
+}
+.scan-frame::before {
+  top: 0; left: 0;
+  border-top: 2px solid rgba(255,255,255,0.55);
+  border-left: 2px solid rgba(255,255,255,0.55);
+  border-radius: 3px 0 0 0;
+}
+.scan-frame::after {
+  top: 0; right: 0;
+  border-top: 2px solid rgba(255,255,255,0.55);
+  border-right: 2px solid rgba(255,255,255,0.55);
+  border-radius: 0 3px 0 0;
+}
+.scan-frame span:first-child {
+  bottom: 0; left: 0;
+  border-bottom: 2px solid rgba(255,255,255,0.55);
+  border-left: 2px solid rgba(255,255,255,0.55);
+  border-radius: 0 0 0 3px;
+}
+.scan-frame span:last-child {
+  bottom: 0; right: 0;
+  border-bottom: 2px solid rgba(255,255,255,0.55);
+  border-right: 2px solid rgba(255,255,255,0.55);
+  border-radius: 0 0 3px 0;
+}
+
+.scan-title {
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.scan-help {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.85rem;
+  margin: 0;
+  line-height: 1.4;
 }
 
 .scanning-line {
@@ -330,7 +386,34 @@ body {
   border-color: rgba(45,188,158,0.4);
 }
 
+.btn-camera {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(245,166,35,0.3);
+}
+
+.btn-camera:hover {
+  background: #e09515;
+  border-color: #e09515;
+  box-shadow: 0 6px 20px rgba(245,166,35,0.4);
+}
+
+.btn-camera:active {
+  opacity: 0.9;
+  box-shadow: none;
+}
+
 .btn-icon { width: 16px; height: 16px; }
+
+/* ── Input label ("O captura el código") ─────────── */
+.input-label {
+  color: var(--ink-3);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
 
 /* ── Divider ─────────────────────────────────────── */
 .divider {
@@ -357,10 +440,11 @@ body {
 
 .input-group {
   display: flex;
-  background: var(--paper);
+  background: var(--card);
   border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
   transition: var(--transition);
 }
 
@@ -388,8 +472,8 @@ body {
 
 .input-group button {
   padding: 10px 16px;
-  background: var(--ink);
-  color: var(--paper);
+  background: transparent;
+  color: var(--green);
   border: none;
   cursor: pointer;
   transition: var(--transition);
@@ -397,7 +481,7 @@ body {
   width: auto;
 }
 
-.input-group button:hover { background: var(--ink-2); }
+.input-group button:hover { color: var(--ink); }
 .input-group button svg { width: 18px; height: 18px; display: block; }
 
 /* ── Result States ───────────────────────────────── */

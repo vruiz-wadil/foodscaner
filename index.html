@@ -15,7 +15,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
   <!-- html5-qrcode CDN -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 </head>
@@ -50,34 +50,25 @@
       <div class="logo-area">
         <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
       </div>
-      <p class="tagline">¿Puedo comerlo? Escanea y lo sabes en segundos.</p>
-      <p class="app-instruction">Usa la cámara o ingresa el código de barras manualmente para analizar cualquier producto.</p>
     </header>
 
     <main class="app-main-grid">
       <!-- PANEL DE CONTROL (IZQUIERDA) -->
-      <section class="control-panel glass-card">
+      <section class="control-panel">
         <div class="panel-section">
-          <h2 class="section-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            Escanear Código de Barras
-          </h2>
-          
           <div class="scanner-wrapper">
             <div id="interactive-scanner" class="scanner-view">
               <div class="scanner-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M12 4v16M17 4v16M7 4v16M21 4v16M3 4v16" stroke-linecap="round"/>
-                  <path d="M2 12h20" stroke="red" stroke-width="2" class="scanning-line"/>
-                </svg>
-                <p>La cámara no está activa</p>
+                <div class="scan-frame"><span></span><span></span></div>
+                <p class="scan-title">La cámara no está activa</p>
+                <p class="scan-help">Apunta al código de barras del producto</p>
               </div>
             </div>
             
             <div class="scanner-controls">
-              <button id="btn-toggle-camera" class="btn btn-primary">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                Activar Cámara
+              <button id="btn-toggle-camera" class="btn btn-camera">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>
+                Activar cámara
               </button>
               <div class="camera-select-container hidden" id="camera-select-wrapper">
                 <label for="camera-select">Cámara:</label>
@@ -87,24 +78,17 @@
           </div>
         </div>
 
-        <div class="divider"><span>o también</span></div>
-
         <div class="panel-section">
-          <h2 class="section-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="15" x2="7.01" y2="15"/><line x1="11" y1="15" x2="13" y2="15"/></svg>
-            Ingreso Manual
-          </h2>
+          <p class="input-label">O captura el código</p>
           <form id="barcode-form" class="manual-input-form">
             <div class="input-group">
-              <input type="text" id="barcode-input" placeholder="Escribe el código de barras (ej. 8410000000000)" autocomplete="off" required>
+              <input type="text" id="barcode-input" placeholder="Ingresa el código de barras (ej. 8400000000)" autocomplete="off" required>
               <button type="submit" class="btn btn-secondary" aria-label="Buscar producto">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               </button>
             </div>
           </form>
         </div>
-
-        <div class="divider"><span>recientes</span></div>
 
         <div class="panel-section">
           <h2 class="section-title">
