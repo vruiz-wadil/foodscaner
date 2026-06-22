@@ -1,0 +1,440 @@
+/* ── Yomi Home Screen — Figma Redesign ─────────────────────────
+   Tokens extracted from node-id=9:175
+   ──────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #eaf9f6;
+  --ink:           #0d3d35;
+  --ink-muted:     #7a9080;
+  --accent:        #f5a623;
+  --teal-soft:     #4bc5ab;
+  --white:         #ffffff;
+  --shadow-card:   0 1px 3px rgba(45,188,158,0.07);
+  --shadow-stat:   0 1px 1px rgba(45,188,158,0.05);
+  --shadow-scan:   0 4px 12px rgba(45,188,158,0.2);
+  --radius:        4px;
+}
+
+html, body { height: 100%; background: var(--bg); }
+
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── App shell ───────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 448px;
+  height: 100dvh;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.app-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 48px 20px 12px;
+  background: var(--bg);
+}
+
+.app-logo {
+  height: 38px;
+  width: auto;
+  display: block;
+}
+
+/* ── Scrollable main ─────────────────────────────────────────── */
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--bg);
+  padding-bottom: 16px;
+}
+
+/* ── Heading ─────────────────────────────────────────────────── */
+.section-heading {
+  padding: 8px 20px 16px;
+}
+
+.heading-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.5;
+  letter-spacing: -0.56px;
+  margin-bottom: 2px;
+}
+
+.heading-sub {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+/* ── Scan CTA ─────────────────────────────────────────────────── */
+.section-scan {
+  padding: 0 20px 20px;
+}
+
+.scan-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  background: var(--ink);
+  border: none;
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  box-shadow: var(--shadow-scan);
+  transition: opacity 0.15s;
+}
+
+.scan-cta:active { opacity: 0.85; }
+
+.scan-cta-icon-wrap {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  background: rgba(126,189,172,0.2);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-cta-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.scan-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.scan-cta-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.scan-cta-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(126,189,172,0.8);
+  line-height: 1.5;
+}
+
+/* ── Recent products ─────────────────────────────────────────── */
+.section-recent {
+  padding: 0 0 0;
+}
+
+.section-recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 12px;
+}
+
+.recent-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.btn-ver-todos {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 0 20px 20px;
+}
+
+.products-empty {
+  padding: 24px 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.products-empty.hidden { display: none; }
+
+/* ── Product card ────────────────────────────────────────────── */
+.product-card {
+  position: relative;
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:active {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+.product-card-img {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+  background: #d8f5ef;
+}
+
+.product-card-img-placeholder {
+  width: 100%;
+  height: 96px;
+  background: #d8f5ef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.product-card-img-placeholder svg { opacity: 0.4; }
+
+.product-card-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.product-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-card-brand {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-card-badge-row {
+  margin-top: 8px;
+  min-height: 28px;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Health badges */
+.badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.54px;
+  padding: 7px 8px 6px;
+  border-radius: var(--radius);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.badge-sano   { background: rgba(22,163,74,0.12);  color: #16a34a; }
+.badge-evitar { background: rgba(220,38,38,0.12);  color: #dc2626; }
+.badge-regular{ background: rgba(234,179,8,0.15);  color: #eab308; }
+
+/* Orange + bookmark button */
+.product-card-bookmark {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--white);
+  line-height: 1;
+  padding: 0;
+}
+
+/* ── Yomi+ promo card ────────────────────────────────────────── */
+.section-promo {
+  padding: 0 20px 24px;
+}
+
+.promo-card {
+  background: var(--ink);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.promo-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1.5;
+}
+
+.promo-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--teal-soft);
+  line-height: 1.5;
+}
+
+.promo-btn-wrap {
+  margin-top: 12px;
+}
+
+.promo-btn {
+  background: var(--accent);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: opacity 0.15s;
+}
+
+.promo-btn:active { opacity: 0.85; }
+
+/* ── Stats ───────────────────────────────────────────────────── */
+.section-stats {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.stat-card {
+  flex: 1;
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-stat);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ── Bottom nav ──────────────────────────────────────────────── */
+.bottom-nav {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: var(--white);
+  border-top: 1px solid rgba(45,188,158,0.2);
+  padding: 9px 8px max(24px, env(safe-area-inset-bottom));
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.nav-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.1px;
+  line-height: 1.5;
+}
+
+.nav-label-muted {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* Scan tab — bigger icon with frame */
+.nav-scan-ring {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: -8px;
+}
+
+.nav-scan-icon {
+  width: 48px;
+  height: 48px;
+  display: block;
+}

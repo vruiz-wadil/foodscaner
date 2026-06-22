@@ -1,0 +1,30 @@
+<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="22" height="22" fill="#F5F5F5"/>
+<g id="Yomi webapp design">
+<rect width="460" height="1161" transform="translate(-264.125 -1078)" fill="#EAF9F6"/>
+<g id="Container" clip-path="url(#clip0_8_2)">
+<rect width="447" height="1161" transform="translate(-257.625 -1078)" fill="#EAF9F6"/>
+<g id="Container_2">
+<mask id="path-1-inside-1_8_2" fill="white">
+<path d="M-257.625 -27H175.375V83H-257.625V-27Z"/>
+</mask>
+<path d="M-257.625 -27H175.375V83H-257.625V-27Z" fill="white"/>
+<path d="M-257.625 -27V-26H175.375V-27V-28H-257.625V-27Z" fill="#2DBC9E" fill-opacity="0.2" mask="url(#path-1-inside-1_8_2)"/>
+<g id="Button">
+<g id="Container_3">
+<g id="Icon">
+<path id="Vector" d="M16.5 18.3333V9.16663" stroke="#0D3D35" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_2" d="M11 18.3333V3.66663" stroke="#0D3D35" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_3" d="M5.5 18.3334V12.8334" stroke="#0D3D35" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_8_2">
+<rect width="447" height="1161" fill="white" transform="translate(-257.625 -1078)"/>
+</clipPath>
+</defs>
+</svg>

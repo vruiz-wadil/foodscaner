@@ -1,0 +1,49 @@
+<svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="26" height="26" fill="#F5F5F5"/>
+<g id="Yomi webapp design">
+<rect width="460" height="1161" transform="translate(-61.5 -238.5)" fill="#EAF9F6"/>
+<g id="Container" clip-path="url(#clip0_8_2)">
+<rect width="447" height="1161" transform="translate(-55 -238.5)" fill="#EAF9F6"/>
+<g id="Container_2" clip-path="url(#clip1_8_2)">
+<g id="Container_3" clip-path="url(#clip2_8_2)">
+<rect width="433" height="953" transform="translate(-55 -140.5)" fill="#EAF9F6"/>
+<g id="Container (margin)">
+<g id="Container_4">
+<g id="Button" filter="url(#filter0_d_8_2)">
+<path d="M-35 -45.5C-35 -47.7091 -33.2091 -49.5 -31 -49.5H354C356.209 -49.5 358 -47.7091 358 -45.5V71.5C358 73.7091 356.209 75.5 354 75.5H-31C-33.2091 75.5 -35 73.7091 -35 71.5V-45.5Z" fill="#0D3D35"/>
+<g id="Container_5">
+<path d="M-15 -11C-15 -13.2091 -13.2091 -15 -11 -15H37C39.2091 -15 41 -13.2091 41 -11V37C41 39.2091 39.2091 41 37 41H-11C-13.2091 41 -15 39.2091 -15 37V-11Z" fill="#7EBDAC" fill-opacity="0.2"/>
+<g id="Icon">
+<path id="Vector" d="M15.7083 4.33333H10.2916L7.58329 7.58333H4.33329C3.75866 7.58333 3.20756 7.8116 2.80123 8.21793C2.3949 8.62426 2.16663 9.17536 2.16663 9.75V19.5C2.16663 20.0746 2.3949 20.6257 2.80123 21.0321C3.20756 21.4384 3.75866 21.6667 4.33329 21.6667H21.6666C22.2413 21.6667 22.7924 21.4384 23.1987 21.0321C23.605 20.6257 23.8333 20.0746 23.8333 19.5V9.75C23.8333 9.17536 23.605 8.62426 23.1987 8.21793C22.7924 7.8116 22.2413 7.58333 21.6666 7.58333H18.4166L15.7083 4.33333Z" stroke="#4BC5AB" stroke-width="2.16667" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_2" d="M13 17.3333C14.7949 17.3333 16.25 15.8783 16.25 14.0833C16.25 12.2884 14.7949 10.8333 13 10.8333C11.2051 10.8333 9.75 12.2884 9.75 14.0833C9.75 15.8783 11.2051 17.3333 13 17.3333Z" stroke="#4BC5AB" stroke-width="2.16667" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<filter id="filter0_d_8_2" x="-47" y="-57.5" width="417" height="149" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="6"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.176471 0 0 0 0 0.737255 0 0 0 0 0.619608 0 0 0 0.2 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_8_2"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_8_2" result="shape"/>
+</filter>
+<clipPath id="clip0_8_2">
+<rect width="447" height="1161" fill="white" transform="translate(-55 -238.5)"/>
+</clipPath>
+<clipPath id="clip1_8_2">
+<rect width="433" height="953" fill="white" transform="translate(-55 -140.5)"/>
+</clipPath>
+<clipPath id="clip2_8_2">
+<rect width="433" height="953" fill="white" transform="translate(-55 -140.5)"/>
+</clipPath>
+</defs>
+</svg>

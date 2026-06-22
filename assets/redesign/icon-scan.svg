@@ -1,0 +1,29 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="48" height="48" fill="#F5F5F5"/>
+<g id="Yomi webapp design">
+<rect width="460" height="1161" transform="translate(-146.875 -1064)" fill="#EAF9F6"/>
+<g id="Container" clip-path="url(#clip0_8_2)">
+<rect width="447" height="1161" transform="translate(-140.375 -1064)" fill="#EAF9F6"/>
+<g id="Container_2">
+<mask id="path-1-inside-1_8_2" fill="white">
+<path d="M-140.375 -13H292.625V97H-140.375V-13Z"/>
+</mask>
+<path d="M-140.375 -13H292.625V97H-140.375V-13Z" fill="white"/>
+<path d="M-140.375 -13V-12H292.625V-13V-14H-140.375V-13Z" fill="#2DBC9E" fill-opacity="0.2" mask="url(#path-1-inside-1_8_2)"/>
+<g id="Button">
+<g id="Container (margin)">
+<g id="Container_3">
+<path d="M0 4C0 1.79086 1.79086 0 4 0H44C46.2091 0 48 1.79086 48 4V44C48 46.2091 46.2091 48 44 48H4C1.79086 48 0 46.2091 0 44V4Z" fill="#EAF9F6"/>
+<path id="Icon" d="M20 15H19.8C18.1198 15 17.2798 15 16.638 15.327C16.0735 15.6146 15.6146 16.0735 15.327 16.638C15 17.2798 15 18.1198 15 19.8V20M20 33H19.8C18.1198 33 17.2798 33 16.638 32.673C16.0735 32.3854 15.6146 31.9265 15.327 31.362C15 30.7202 15 29.8802 15 28.2V28M33 20V19.8C33 18.1198 33 17.2798 32.673 16.638C32.3854 16.0735 31.9265 15.6146 31.362 15.327C30.7202 15 29.8802 15 28.2 15H28M33 28V28.2C33 29.8802 33 30.7202 32.673 31.362C32.3854 31.9265 31.9265 32.3854 31.362 32.673C30.7202 33 29.8802 33 28.2 33H28" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_8_2">
+<rect width="447" height="1161" fill="white" transform="translate(-140.375 -1064)"/>
+</clipPath>
+</defs>
+</svg>
