@@ -64,7 +64,7 @@ describe('extractDietaryFromLabels', () => {
     const result = extractDietaryFromLabels([])
     expect(result).toEqual({
       vegan: null, vegetarian: null, kosher: null, halal: null,
-      organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null
+      organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null
     })
   })
 

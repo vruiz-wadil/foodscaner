@@ -635,8 +635,9 @@ body {
 
 .product-header {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
   width: 100%;
 }
 
@@ -644,13 +645,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 4px;
+  padding: 0;
+  min-width: 0;
+  flex: 1;
 }
 
+.product-meta #product-name { font-size: 1.1rem; }
+
 .product-hero {
-  width: 100%;
-  height: 180px;
-  border-radius: var(--radius-lg);
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
   overflow: hidden;
   background: var(--surface);
 }
@@ -740,79 +746,87 @@ body {
   margin-bottom: 6px;
 }
 
-.dietary-table { width: 100%; }
-
-.dietary-row {
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--surface-2);
-  transition: background 0.15s;
-  cursor: pointer;
-  user-select: none;
+/* ── Dietary icon grid (estilo Alérgenos) ────────── */
+.dietary-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 10px 0;
 }
 
-.dietary-row:hover { background: var(--surface); }
-
-.dietary-row-header {
+.dietary-grid-item {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 9px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  border: 1.5px solid var(--border);
+  transition: var(--transition);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.dietary-grid-item .emoji { font-size: 1.5rem; line-height: 1; }
+.dietary-grid-item .label { font-size: 0.65rem; font-weight: 600; text-align: center; line-height: 1.1; }
+
+/* unknown — gris atenuado (igual que .allergen-grid-item.safe) */
+.dietary-grid-item.unknown { color: var(--ink-3); border-color: var(--surface-2); background: var(--surface); }
+.dietary-grid-item.unknown .emoji { filter: grayscale(1); opacity: 0.4; }
+.dietary-grid-item.unknown .label { color: var(--ink-3); }
+
+/* db-yes — verde sólido (confirmado) */
+.dietary-grid-item.db-yes { color: var(--green); border-color: var(--green-border); background: var(--green-light); }
+.dietary-grid-item.db-yes .label { color: var(--green); }
+
+/* db-no — rojo sólido (no cumple) */
+.dietary-grid-item.db-no { color: var(--chile); border-color: var(--chile-border); background: var(--chile-light); }
+.dietary-grid-item.db-no .label { color: var(--chile); }
+
+/* ai-yes / ai-no — ámbar punteado (estimado IA) */
+.dietary-grid-item.ai-yes,
+.dietary-grid-item.ai-no {
+  color: var(--amber);
+  border: 1.5px dashed var(--amber-border);
+  background: var(--amber-light);
+  position: relative;
+}
+.dietary-grid-item.ai-yes .label,
+.dietary-grid-item.ai-no .label { color: var(--amber); }
+
+/* ítem seleccionado (tap activo) */
+.dietary-grid-item.selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* panel de detalle bajo el grid */
+.dietary-detail-panel {
   width: 100%;
-}
-
-.dietary-attr {
-  font-weight: 500;
-  white-space: nowrap;
-  font-size: 0.78rem;
-  color: var(--ink-2);
-}
-
-.dietary-status {
-  font-weight: 700;
-  font-size: 0.74rem;
-  font-family: var(--font-data);
-  cursor: help;
-  letter-spacing: 0.01em;
-}
-
-.dietary-chevron {
-  font-size: 0.5rem;
-  color: var(--ink-3);
-  transition: transform 0.2s;
-  margin-left: 8px;
-  flex-shrink: 0;
-}
-
-.dietary-row.open .dietary-chevron { transform: rotate(180deg); }
-
-.dietary-detail {
-  width: 100%;
-  padding: 7px 0 3px;
+  padding: 10px 12px;
   font-size: 0.74rem;
   color: var(--ink-3);
   line-height: 1.5;
-  border-top: 1px solid var(--surface-2);
-  margin-top: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-top: 2px;
 }
 
-.dietary-detail strong { color: var(--ink); font-weight: 600; }
+.dietary-detail-panel strong { color: var(--ink); font-weight: 600; }
 
-/* Dietary status colors — light mode versions */
-.dietary-status.db-yes  { color: var(--green); }
-.dietary-status.ai-yes  { color: var(--amber); }
-.dietary-status.ai-no   { color: var(--amber); }
-.dietary-status.db-no   { color: var(--chile); }
-.dietary-status.unknown { color: var(--ink-3); }
+/* Dots de leyenda adicionales */
+.dot-green  { background: var(--green); }
+.dot-amber  { background: var(--amber); }
 
 /* ── Analysis Grid ───────────────────────────────── */
 .analysis-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 14px;
   width: 100%;
-}
-
-@media (max-width: 550px) {
-  .analysis-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Analysis Cards ──────────────────────────────── */
@@ -829,8 +843,7 @@ body {
   box-shadow: 0 2px 8px rgba(13,61,53,0.07);
 }
 
-.analysis-card.full-width { grid-column: span 2; }
-@media (max-width: 550px) { .analysis-card.full-width { grid-column: span 1; } }
+.analysis-card.full-width { grid-column: span 1; }
 
 .card-icon-wrapper {
   background: var(--surface);
@@ -1215,8 +1228,7 @@ body {
 .health-risks-details[open] summary::before { transform: rotate(90deg); }
 .health-risks-details summary:hover { background: var(--surface); }
 
-.health-risks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px 14px; }
-@media (max-width: 550px) { .health-risks-grid { grid-template-columns: 1fr; } }
+.health-risks-grid { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 0 14px 14px; }
 .health-card { padding: 12px !important; gap: 10px !important; }
 .health-card h4 { font-size: 0.72rem !important; }
 .health-card .status-value { font-size: 1.3rem !important; font-weight: 700 !important; line-height: 1; }
@@ -1654,9 +1666,8 @@ body {
     border-radius: var(--radius-sm);
   }
 
-  .allergen-icon-grid { grid-template-columns: repeat(3, 1fr); }
-
-  .analysis-grid { grid-template-columns: 1fr; }
+  .allergen-icon-grid,
+  .dietary-icon-grid { grid-template-columns: repeat(3, 1fr); }
 
   #product-name { font-size: 1.25rem; }
 
