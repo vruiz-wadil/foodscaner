@@ -772,10 +772,10 @@ body {
 .dietary-grid-item .emoji { font-size: 1.5rem; line-height: 1; }
 .dietary-grid-item .label { font-size: 0.65rem; font-weight: 600; text-align: center; line-height: 1.1; }
 
-/* unknown — gris atenuado (igual que .allergen-grid-item.safe) */
-.dietary-grid-item.unknown { color: var(--ink-3); border-color: var(--surface-2); background: var(--surface); }
-.dietary-grid-item.unknown .emoji { filter: grayscale(1); opacity: 0.4; }
-.dietary-grid-item.unknown .label { color: var(--ink-3); }
+/* unknown — gris neutral (sin información) */
+.dietary-grid-item.unknown { color: #aaa; border-color: #e0e0e0; background: #f5f5f5; }
+.dietary-grid-item.unknown .emoji { filter: grayscale(1); opacity: 0.35; }
+.dietary-grid-item.unknown .label { color: #aaa; }
 
 /* db-yes — verde sólido (declarado sí) */
 .dietary-grid-item.db-yes { color: #fff; border-color: var(--green); background: var(--green); }
@@ -785,12 +785,26 @@ body {
 .dietary-grid-item.db-no { color: #fff; border-color: var(--chile); background: var(--chile); }
 .dietary-grid-item.db-no .label { color: #fff; }
 
-/* ai-yes — verde claro + 🤖 (IA: posible sí) */
-.dietary-grid-item.ai-yes { color: var(--green); border-color: var(--green-border); background: var(--green-light); position: relative; }
+/* ai-yes — verde claro + tramado amarillo + 🤖 (IA: posible sí) */
+.dietary-grid-item.ai-yes {
+  color: var(--green);
+  border-color: var(--green-border);
+  background:
+    repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(234,179,8,0.18) 5px, rgba(234,179,8,0.18) 7px),
+    var(--green-light);
+  position: relative;
+}
 .dietary-grid-item.ai-yes .label { color: var(--green); }
 
-/* ai-no — rojo claro + 🤖 (IA: posible no) */
-.dietary-grid-item.ai-no { color: var(--chile); border-color: var(--chile-border); background: var(--chile-light); position: relative; }
+/* ai-no — rojo claro + tramado amarillo + 🤖 (IA: posible no) */
+.dietary-grid-item.ai-no {
+  color: var(--chile);
+  border-color: var(--chile-border);
+  background:
+    repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(234,179,8,0.18) 5px, rgba(234,179,8,0.18) 7px),
+    var(--chile-light);
+  position: relative;
+}
 .dietary-grid-item.ai-no .label { color: var(--chile); }
 
 /* ítem seleccionado (tap activo) */
