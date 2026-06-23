@@ -99,7 +99,7 @@ body {
 .app-container {
   width: 100%;
   max-width: 448px;
-  padding: 0 0 80px; /* bottom padding for the nav bar */
+  padding: 0 0 max(80px, calc(62px + env(safe-area-inset-bottom)));
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -208,6 +208,7 @@ body {
 .scanner-view {
   aspect-ratio: 3/4;
   width: 100%;
+  max-height: calc(100svh - 360px);
   border-radius: var(--radius-lg);
   background: radial-gradient(circle at 50% 42%, #1d6f5e 0%, var(--ink) 68%);
   border: none;
