@@ -403,7 +403,6 @@ async function analyzeBarcode(barcode) {
     product._verified = data._verified || false;
 
     renderProductData(product, barcode);
-    renderCacheStatus(product, barcode);
     showReportCardIfNeeded();
   } catch (error) {
     renderNotFound();
@@ -1492,21 +1491,12 @@ function runAICheck(product, barcode) {
 
   const loadingEl = document.getElementById("ai-loading");
   const errorEl = document.getElementById("ai-error");
-  const providerLogEl = document.getElementById("ai-provider-log");
-  if (!loadingEl || !errorEl || !providerLogEl) return;
+  if (!loadingEl || !errorEl) return;
 
-  providerLogEl.innerHTML = '';
-  providerLogEl.classList.remove("hidden");
   loadingEl.classList.remove("hidden");
   errorEl.classList.add("hidden");
 
-  function addProviderLog(provider, status, msg, raw) {
-    const entry = document.createElement("div");
-    entry.className = "provider-entry";
-    entry.innerHTML = `<span class="status-dot ${status}"></span><span class="provider-name">${provider}</span> ${msg}`;
-    if (raw) entry.title = raw;
-    providerLogEl.appendChild(entry);
-  }
+  function addProviderLog() {}
 
   function callProvider(provider, timeout) {
     const controller = new AbortController();
@@ -1879,70 +1869,6 @@ function showReportCardIfNeeded() {
   }
 }
 
-function renderCacheStatus(product, barcode) {
-  const el = document.getElementById("cache-status");
-  const badge = document.getElementById("freshness-badge");
-  const details = document.getElementById("freshness-details");
-  const detailsText = document.getElementById("freshness-text");
-  const btn = document.getElementById("btn-refresh-product");
-
-  if (!el || !badge || !btn) return;
-
-  // Hide if not from cache and not verified
-  if (!product?._fromCache && !product?._verified) {
-    el.classList.add("hidden");
-    return;
-  }
-
-  el.classList.remove("hidden");
-
-  // Show freshness indicator
-  if (product?._verified) {
-    badge.textContent = "✓ Verificado";
-    badge.className = "freshness-badge verified";
-    if (detailsText) detailsText.textContent = "Base de datos verificada — Datos confiables";
-    if (details) details.classList.remove("hidden");
-  } else if (product?._fromCache) {
-    badge.textContent = `⏱ En caché`;
-    badge.className = "freshness-badge cached";
-    if (detailsText) detailsText.textContent = "Datos en caché — Toca Actualizar para datos frescos";
-    if (details) details.classList.remove("hidden");
-  }
-
-  // Refresh button
-  btn.onclick = async () => {
-    btn.disabled = true;
-    btn.textContent = "⏳ Actualizando...";
-
-    try {
-      const response = await fetch("/api/cache/refresh/" + barcode, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(15000)
-      });
-
-      if (!response.ok) throw new Error(`Error ${response.status}`);
-      const result = await response.json();
-
-      btn.textContent = `✓ ${result.message}`;
-      if (result.type === "verified") {
-        badge.textContent = "✓ Verificado (Actualizado)";
-        badge.className = "freshness-badge verified";
-      } else {
-        btn.textContent = "🔄 Actualizar Caché";
-        // Re-scan for fresh data
-        setTimeout(() => analyzeBarcode(barcode), 500);
-      }
-    } catch (e) {
-      console.warn("Error al refrescar:", e);
-      btn.textContent = "❌ Error";
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = "🔄 Actualizar Caché";
-      }, 2000);
-    }
-  };
-}
 
 // Render rejected state screen
 function renderRejected(product) {

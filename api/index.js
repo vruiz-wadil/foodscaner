@@ -882,6 +882,7 @@ app.post('/api/ai-query', async (req, res) => {
   const cached = await getAiCacheEntry(cacheKey);
   if (cached) {
     cached._model = modelLabel;
+    if (scanLogId && cached.confidence) fireMarkScanConfidence(scanLogId, cached.confidence);
     return res.json(cached);
   }
 
