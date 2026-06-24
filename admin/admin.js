@@ -135,7 +135,7 @@
         reportBarcodes?.has(bc) ? '<span class="log-badge log-badge-orange">🚩 Reporte</span>' : ''
       ].filter(Boolean).join(' ');
       const barcodeCell = bc
-        ? `<a href="https://www.yomi.mx/?barcode=${encodeURIComponent(bc)}" target="_blank" rel="noopener" class="barcode-link">${escHtml(bc)}</a> ${badges}`
+        ? `<a href="https://www.yomi.mx/scan.html?barcode=${encodeURIComponent(bc)}" target="_blank" rel="noopener" class="barcode-link">${escHtml(bc)}</a> ${badges}`
         : '—';
       return `<tr>
         <td class="mono">${escHtml(fecha)}</td>
