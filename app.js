@@ -1503,6 +1503,9 @@ function renderProductData(product, barcode) {
   renderHypertensionCard(product);
   renderCholesterolCard(product);
   renderWeightCard(product);
+  if (isDesktopSplit()) {
+    document.querySelectorAll('#result-success details').forEach(d => { d.open = true; });
+  }
   runAICheck(product, barcode);
 }
 
