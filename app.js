@@ -137,6 +137,9 @@ function validateBarcode(raw) {
 // Application Scanner State
 let html5QrCode = null;
 let isScanning = false;
+const USE_NATIVE_SCANNER = 'BarcodeDetector' in window;
+let nativeScanRafId = null;
+let nativeScanStream = null;
 
 // Initialize Application
 // ── Scan History (localStorage, max 5) ───────────────
@@ -291,9 +294,10 @@ async function toggleCamera() {
       // Pre-select rear camera in dropdown
       cameraSelect.value = defaultCam.id;
 
-      // Initialize scanner object
-      html5QrCode = new Html5Qrcode("interactive-scanner");
       isScanning = true;
+      if (!USE_NATIVE_SCANNER) {
+        html5QrCode = new Html5Qrcode("interactive-scanner");
+      }
 
       // Start scanning using rear camera by default
       startScanning(defaultCam.id);
@@ -309,71 +313,40 @@ async function toggleCamera() {
 }
 
 function startScanning(cameraId) {
-  if (!html5QrCode) return;
-
-  html5QrCode.start(
-    cameraId,
-    {
-      fps: 15,
-      qrbox: (width, height) => {
-        // Return responsive scanning box size
-        const minDim = Math.min(width, height);
-        return { width: Math.floor(minDim * 0.7), height: Math.floor(minDim * 0.4) };
-      }
-    },
-    (decodedText) => {
-      // SUCCESS CALLBACK
-      console.log(`Código detectado: ${decodedText}`);
-      // Auto fill input
-      barcodeInput.value = decodedText;
-      // Vibrate if supported
-      if (navigator.vibrate) {
-        navigator.vibrate(100);
-      }
-      // Beep sound
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = 880;
-        gain.gain.value = 0.3;
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.15);
-      } catch (e) { /* audio no disponible */ }
-      stopScanning();
-      analyzeBarcode(decodedText);
-    },
-    () => {}
-  ).catch(err => {
-    console.error("Error al iniciar scanner:", err);
-  });
+  if (USE_NATIVE_SCANNER) {
+    startScanningNative(cameraId);
+  } else {
+    startScanningFallback(cameraId);
+  }
 }
 
 function stopScanning() {
-  if (!html5QrCode) return;
-
-  html5QrCode.stop().then(() => {
-    html5QrCode = null;
+  if (USE_NATIVE_SCANNER) {
+    stopScanningNative();
     resetCameraButton();
-  }).catch(err => {
-    console.error("Error al detener scanner:", err);
-    resetCameraButton();
-  });
+  } else {
+    if (!html5QrCode) return;
+    html5QrCode.stop().then(() => {
+      html5QrCode = null;
+      resetCameraButton();
+    }).catch(err => {
+      console.error('Error al detener scanner:', err);
+      resetCameraButton();
+    });
+  }
 }
 
 function restartCameraWithSelectedDevice() {
-  if (!isScanning || !html5QrCode) return;
-
+  if (!isScanning) return;
   const selectedCameraId = cameraSelect.value;
-  html5QrCode.stop().then(() => {
-    startScanning(selectedCameraId);
-  }).catch(err => {
-    console.error("Error al cambiar de cámara:", err);
-  });
+  if (USE_NATIVE_SCANNER) {
+    stopScanningNative();
+    startScanningNative(selectedCameraId);
+  } else {
+    if (!html5QrCode) return;
+    html5QrCode.stop().then(() => startScanningFallback(selectedCameraId))
+      .catch(err => console.error('Error al cambiar cámara:', err));
+  }
 }
 
 function resetCameraButton() {
@@ -386,6 +359,82 @@ function resetCameraButton() {
   `;
   btnToggleCamera.style.background = "var(--accent)";
   btnToggleCamera.style.boxShadow = "0 4px 15px rgba(245,166,35,0.35)";
+}
+
+function onBarcodeDetected(rawCode) {
+  const result = validateBarcode(rawCode);
+  if (!result.valid) return;
+  barcodeInput.value = result.code;
+  if (navigator.vibrate) navigator.vibrate(100);
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.value = 0.3;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  } catch (e) { /* audio not available */ }
+  stopScanning();
+  analyzeBarcode(result.code);
+}
+
+async function startScanningNative(cameraId) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: cameraId }, facingMode: 'environment' }
+    });
+    nativeScanStream = stream;
+    const placeholder = scannerView.querySelector('.scanner-placeholder');
+    if (placeholder) placeholder.style.display = 'none';
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.setAttribute('playsinline', '');
+    video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+    scannerView.appendChild(video);
+    await video.play();
+    const detector = new BarcodeDetector({ formats: ['ean_13', 'upc_a', 'upc_e', 'ean_8'] });
+    const tick = () => {
+      if (!isScanning) return;
+      detector.detect(video).then(barcodes => {
+        if (barcodes.length > 0) onBarcodeDetected(barcodes[0].rawValue);
+        else nativeScanRafId = requestAnimationFrame(tick);
+      }).catch(() => { nativeScanRafId = requestAnimationFrame(tick); });
+    };
+    nativeScanRafId = requestAnimationFrame(tick);
+  } catch (err) {
+    console.error('Error al iniciar BarcodeDetector:', err);
+    resetCameraButton();
+  }
+}
+
+function stopScanningNative() {
+  if (nativeScanRafId) { cancelAnimationFrame(nativeScanRafId); nativeScanRafId = null; }
+  if (nativeScanStream) { nativeScanStream.getTracks().forEach(t => t.stop()); nativeScanStream = null; }
+  const video = scannerView.querySelector('video');
+  if (video) video.remove();
+  const placeholder = scannerView.querySelector('.scanner-placeholder');
+  if (placeholder) placeholder.style.display = '';
+}
+
+function startScanningFallback(cameraId) {
+  if (!html5QrCode) return;
+  html5QrCode.start(
+    cameraId,
+    {
+      fps: 20,
+      qrbox: (width, height) => {
+        const minDim = Math.min(width, height);
+        return { width: Math.floor(minDim * 0.85), height: Math.floor(minDim * 0.30) };
+      }
+    },
+    (decodedText) => onBarcodeDetected(decodedText),
+    () => {}
+  ).catch(err => console.error('Error al iniciar scanner:', err));
 }
 
 // Display Result State Panels
