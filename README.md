@@ -36,7 +36,7 @@
 | **IA — texto** | Groq (LLaMA 3.3 70B, LLaMA 3.1 8B, Mixtral, Gemma) + OpenRouter + Gemini 2.5 Flash |
 | **IA — visión** | Groq Vision (Llama 4 Scout) |
 | **Deploy** | Vercel (Fluid Compute) |
-| **Escáner** | html5-qrcode (cámara del dispositivo) |
+| **Escáner** | `BarcodeDetector` API nativa (iOS 17+, Chrome, Edge) + `html5-qrcode` v2.3.8 (fallback) |
 | **Fuentes de productos** | Open Food Facts (MX / World / USA), USDA FoodData Central, UPCItemDb, GTINHub |
 
 ---
@@ -371,6 +371,32 @@ Estructura estática. Los estados de resultado (`#result-empty`, `#result-loadin
 - **`renderDietaryBadges(product)`** — renderiza todas las filas de dietas vía `makeDietRow()` + array `dietMeta`.
 - **`processAIResult(data, product)`** — fusiona la respuesta IA, respetando veredictos deterministas.
 - **`saveToHistory(barcode, name, brand)`** — guarda en `localStorage['yomi_history']` (máx. 5 entradas).
+
+#### Escáner de código de barras
+
+El escáner usa **progressive enhancement** según el soporte del dispositivo:
+
+```
+USE_NATIVE_SCANNER = 'BarcodeDetector' in window
+        │
+        ├── true  → startScanningNative()
+        │           getUserMedia + requestAnimationFrame loop
+        │           BarcodeDetector({ formats: ['ean_13','upc_a','upc_e','ean_8'] })
+        │           Usa el framework Vision nativo de Apple/Chromium — mucho más rápido
+        │
+        └── false → startScanningFallback()
+                    html5-qrcode con fps:20 y qrbox 85%×30%
+                    (ancho optimizado para códigos 1D lineales)
+
+Ambos caminos convergen en:
+onBarcodeDetected(rawCode) → validateBarcode(rawCode) → analyzeBarcode(code)
+```
+
+**Validación de código (`validateBarcode`):**
+1. Normaliza — elimina espacios y guiones, verifica solo dígitos.
+2. Filtra por longitud — acepta solo 8, 12 o 13 dígitos. Cualquier otro largo es lectura parcial.
+3. Checksum EAN (GS1) — descarta lecturas con dígito de control incorrecto (~90% de los truncados).
+4. Expansión UPC-E — si falla el checksum EAN-8 y el primer dígito es `0`, intenta expandir de 8→12 dígitos (formato de productos importados de EE.UU.).
 
 ### `styles.css`
 Sistema de diseño "Etiqueta" — identidad visual inspirada en etiquetas oficiales de alimentos:
