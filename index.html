@@ -6,7 +6,7 @@
   <title>Yomi — ¿Puedo comerlo?</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="home.css?v=4">
+  <link rel="stylesheet" href="home.css?v=7">
 </head>
 <body>
   <div class="app-shell">
@@ -19,66 +19,71 @@
     <!-- Scrollable main -->
     <main class="app-main">
 
-      <!-- Heading -->
-      <section class="section-heading">
-        <h1 class="heading-title">¿Puedo comerlo?</h1>
-        <p class="heading-sub">Escanea y lo sabrás en segundos.</p>
-      </section>
+      <div class="home-left">
+        <div class="home-scan-frame"><span></span><span></span></div>
+        <!-- Heading -->
+        <section class="section-heading">
+          <h1 class="heading-title">¿Puedo comerlo?</h1>
+          <p class="heading-sub">Escanea y lo sabrás en segundos.</p>
+        </section>
 
-      <!-- Scan CTA -->
-      <section class="section-scan">
-        <button class="scan-cta" id="btn-scan">
-          <div class="scan-cta-icon-wrap">
-            <img src="assets/redesign/icon-camera.svg" alt="" class="scan-cta-icon">
-          </div>
-          <div class="scan-cta-text">
-            <span class="scan-cta-title">Escanear código de barras</span>
-            <span class="scan-cta-sub">Apunta a cualquier producto</span>
-          </div>
-        </button>
-      </section>
+        <!-- Scan CTA -->
+        <section class="section-scan">
+          <button class="scan-cta" id="btn-scan">
+            <div class="scan-cta-icon-wrap">
+              <img src="assets/redesign/icon-camera.svg" alt="" class="scan-cta-icon">
+            </div>
+            <div class="scan-cta-text">
+              <span class="scan-cta-title">Escanear código de barras</span>
+              <span class="scan-cta-sub">Apunta a cualquier producto</span>
+            </div>
+          </button>
+        </section>
+      </div>
 
-      <!-- Recent products -->
-      <section class="section-recent">
-        <div class="section-recent-header">
-          <h2 class="recent-title">Productos recientes</h2>
-        </div>
-        <div class="products-grid" id="products-grid">
-          <!-- filled by home.js -->
-        </div>
-        <div class="products-empty hidden" id="products-empty">
-          <p>Aún no has escaneado ningún producto.</p>
-        </div>
-      </section>
-
-      <!-- Yomi+ promo -->
-      <section class="section-promo">
-        <div class="promo-card">
-          <div class="promo-card-text">
-            <p class="promo-title">Activa Yomi+</p>
-            <p class="promo-sub">Perfil IA · OCR · Historial · Agente personalizado</p>
+      <div class="home-right">
+        <!-- Recent products -->
+        <section class="section-recent">
+          <div class="section-recent-header">
+            <h2 class="recent-title">Productos recientes</h2>
           </div>
-          <div class="promo-btn-wrap">
-            <button class="promo-btn" disabled>Próximamente · $29 al mes</button>
+          <div class="products-grid" id="products-grid">
+            <!-- filled by home.js -->
           </div>
-        </div>
-      </section>
+          <div class="products-empty hidden" id="products-empty">
+            <p>Aún no has escaneado ningún producto.</p>
+          </div>
+        </section>
 
-      <!-- Stats -->
-      <section class="section-stats">
-        <div class="stat-card">
-          <p class="stat-value">3M+</p>
-          <p class="stat-label">Productos</p>
-        </div>
-        <div class="stat-card">
-          <p class="stat-value">OFF + USDA</p>
-          <p class="stat-label">Bases de datos</p>
-        </div>
-        <div class="stat-card">
-          <p class="stat-value">OCR + IA</p>
-          <p class="stat-label">Análisis</p>
-        </div>
-      </section>
+        <!-- Yomi+ promo -->
+        <section class="section-promo">
+          <div class="promo-card">
+            <div class="promo-card-text">
+              <p class="promo-title">Activa Yomi+</p>
+              <p class="promo-sub">Perfil IA · OCR · Historial · Agente personalizado</p>
+            </div>
+            <div class="promo-btn-wrap">
+              <button class="promo-btn" disabled>Próximamente · $29 al mes</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Stats -->
+        <section class="section-stats">
+          <div class="stat-card">
+            <p class="stat-value">3M+</p>
+            <p class="stat-label">Productos</p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-value">OFF + USDA</p>
+            <p class="stat-label">Bases de datos</p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-value">OCR + IA</p>
+            <p class="stat-label">Análisis</p>
+          </div>
+        </section>
+      </div>
 
     </main>
 

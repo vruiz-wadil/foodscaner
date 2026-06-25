@@ -30,6 +30,12 @@ const productImg = document.getElementById("product-img");
 const productName = document.getElementById("product-name");
 const productBrand = document.getElementById("product-brand");
 const productBarcode = document.getElementById("product-barcode");
+const productSidebar = document.getElementById("product-sidebar");
+const sidebarImg = document.getElementById("sidebar-img");
+const sidebarName = document.getElementById("sidebar-name");
+const sidebarBrand = document.getElementById("sidebar-brand");
+const sidebarBarcode = document.getElementById("sidebar-barcode");
+const scannerWrapper = document.querySelector(".scanner-wrapper");
 const caloriesVal = document.getElementById("calories-val");
 const caloriesProgress = document.getElementById("calories-progress");
 const caloriesLevel = document.getElementById("calories-level");
@@ -141,11 +147,16 @@ document.addEventListener("DOMContentLoaded", () => {
   else if (params.get('scan')) toggleCamera();
 });
 
+function isDesktopSplit() {
+  return window.innerWidth >= 768 && window.innerHeight >= 600;
+}
+
 function resetToScan() {
   if (isScanning) stopScanning();
   showState(resultEmpty);
   barcodeInput.value = "";
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (productSidebar) { productSidebar.classList.add("hidden"); scannerWrapper.classList.remove("hidden"); }
 }
 
 function setupEventListeners() {
@@ -154,6 +165,10 @@ function setupEventListeners() {
 
   // New scan button (single-column layout)
   document.getElementById("btn-new-scan").addEventListener("click", resetToScan);
+
+  // New scan button (desktop sidebar)
+  const btnNewScanSidebar = document.getElementById("btn-new-scan-sidebar");
+  if (btnNewScanSidebar) btnNewScanSidebar.addEventListener("click", resetToScan);
 
   // Nav "Escanear" button — reset to scan view if results are showing
   const navScanReset = document.getElementById("nav-scan-reset");
@@ -1167,6 +1182,16 @@ function renderProductData(product, barcode) {
     productImg.alt = product.name;
   } else {
     productImg.src = "";
+  }
+
+  if (isDesktopSplit() && productSidebar) {
+    sidebarImg.src = product.image || "";
+    sidebarImg.alt = product.name || "";
+    sidebarName.textContent = product.name || "";
+    sidebarBrand.textContent = product.brand || "";
+    sidebarBarcode.textContent = barcode;
+    scannerWrapper.classList.add("hidden");
+    productSidebar.classList.remove("hidden");
   }
 
   // Render ingredients list EARLY so it shows even for fallback products
