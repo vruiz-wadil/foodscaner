@@ -10,14 +10,17 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
   extractDietaryFromLabels = exports.extractDietaryFromLabels
+  eanChecksum = exports.eanChecksum
+  expandUpcE = exports.expandUpcE
+  validateBarcode = exports.validateBarcode
 })
 
 // ─── isGlutenRelated ───────────────────────────────────────
@@ -371,5 +374,79 @@ describe('parseApiProduct', () => {
     const result = parseApiProduct(product)
     expect(result.name).toBe('Producto Desconocido')
     expect(result.brand).toBe('Marca genérica')
+  })
+})
+
+// ─── eanChecksum ───────────────────────────────────────────────
+describe('eanChecksum', () => {
+  it('validates a correct EAN-13', () => {
+    expect(eanChecksum('4006381333931')).toBe(true)
+  })
+  it('rejects an EAN-13 with wrong check digit', () => {
+    expect(eanChecksum('4006381333932')).toBe(false)
+  })
+  it('validates a correct UPC-A', () => {
+    expect(eanChecksum('036000291452')).toBe(true)
+  })
+  it('rejects a UPC-A with wrong check digit', () => {
+    expect(eanChecksum('036000291453')).toBe(false)
+  })
+  it('validates a correct EAN-8', () => {
+    expect(eanChecksum('40111223')).toBe(true)
+  })
+  it('rejects an EAN-8 with wrong check digit', () => {
+    expect(eanChecksum('40111221')).toBe(false)
+  })
+})
+
+// ─── expandUpcE ───────────────────────────────────────────────
+describe('expandUpcE', () => {
+  it('expands UPC-E with last digit 0 → UPC-A', () => {
+    // 01234505 → 0 12 0 0000 345 5 (last digit of mid=5, wait...)
+    // Use a known pair: UPC-E 01234565 where mid=123456
+    // last=6 (>=5): S d1d2d3d4d5 0000 last E → 0 12345 0000 6 5 = 012345000065
+    expect(expandUpcE('01234565')).toBe('012345000065')
+  })
+  it('expands UPC-E with last digit 3 → UPC-A', () => {
+    // mid=123453, last=3: S d1d2d3 00000 d4d5 E → 0 123 00000 45 3 (wait, E should be 5)
+    // UPC-E: 01234535 (mid=123453, E=5)
+    // expanded: 0 123 00000 45 5 = 012300000455
+    expect(expandUpcE('01234535')).toBe('012300000455')
+  })
+})
+
+// ─── validateBarcode ────────────────────────────────────────────
+describe('validateBarcode', () => {
+  it('accepts a valid EAN-13', () => {
+    const r = validateBarcode('4006381333931')
+    expect(r.valid).toBe(true)
+    expect(r.code).toBe('4006381333931')
+  })
+  it('rejects a truncated code (7 digits)', () => {
+    expect(validateBarcode('7500227').valid).toBe(false)
+  })
+  it('rejects a code with bad checksum', () => {
+    expect(validateBarcode('4006381333932').valid).toBe(false)
+  })
+  it('accepts a valid UPC-A', () => {
+    const r = validateBarcode('036000291452')
+    expect(r.valid).toBe(true)
+    expect(r.code).toBe('036000291452')
+  })
+  it('accepts a valid EAN-8', () => {
+    const r = validateBarcode('40111223')
+    expect(r.valid).toBe(true)
+    expect(r.code).toBe('40111223')
+  })
+  it('expands a valid UPC-E to UPC-A', () => {
+    const r = validateBarcode('01234565')
+    expect(r.valid).toBe(true)
+    expect(r.code).toBe('012345000065')
+  })
+  it('strips spaces and dashes before validating', () => {
+    expect(validateBarcode('4006381 333931').valid).toBe(true)
+  })
+  it('rejects non-digit characters', () => {
+    expect(validateBarcode('ABCDEFGHIJKLM').valid).toBe(false)
   })
 })

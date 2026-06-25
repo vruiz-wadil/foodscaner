@@ -91,6 +91,49 @@ const EXTRA_ALLERGEN_ICONS = {
   "apio": "🥬", "celery": "🥬"
 };
 
+// ── Barcode validation ────────────────────────────────────────
+
+function eanChecksum(code) {
+  const n = code.length;
+  let sum = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const w = ((n - 1 - i) % 2 === 0) ? 1 : 3;
+    sum += parseInt(code[i]) * w;
+  }
+  return (10 - (sum % 10)) % 10 === parseInt(code[n - 1]);
+}
+
+function expandUpcE(code) {
+  // code: 8 chars [S, d0, d1, d2, d3, d4, d5, E]
+  const S = code[0], E = code[7];
+  const d = code.slice(1, 7);
+  const last = d[5];
+  let expanded;
+  if (last <= '2') {
+    expanded = `${S}${d[0]}${d[1]}${last}0000${d[2]}${d[3]}${d[4]}${E}`;
+  } else if (last === '3') {
+    expanded = `${S}${d[0]}${d[1]}${d[2]}00000${d[3]}${d[4]}${E}`;
+  } else if (last === '4') {
+    expanded = `${S}${d[0]}${d[1]}${d[2]}${d[3]}00000${d[4]}${E}`;
+  } else {
+    expanded = `${S}${d[0]}${d[1]}${d[2]}${d[3]}${d[4]}0000${last}${E}`;
+  }
+  return expanded;
+}
+
+function validateBarcode(raw) {
+  const code = raw.replace(/[\s\-]/g, '');
+  if (!/^\d+$/.test(code)) return { valid: false };
+  const n = code.length;
+  if (n !== 8 && n !== 12 && n !== 13) return { valid: false };
+  if (n === 8 && code[0] === '0') {
+    const expanded = expandUpcE(code);
+    if (eanChecksum(expanded)) return { valid: true, code: expanded };
+  }
+  if (eanChecksum(code)) return { valid: true, code };
+  return { valid: false };
+}
+
 // Application Scanner State
 let html5QrCode = null;
 let isScanning = false;
