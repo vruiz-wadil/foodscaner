@@ -401,16 +401,14 @@ describe('eanChecksum', () => {
 
 // ─── expandUpcE ───────────────────────────────────────────────
 describe('expandUpcE', () => {
-  it('expands UPC-E with last digit 0 → UPC-A', () => {
-    // 01234505 → 0 12 0 0000 345 5 (last digit of mid=5, wait...)
-    // Use a known pair: UPC-E 01234565 where mid=123456
-    // last=6 (>=5): S d1d2d3d4d5 0000 last E → 0 12345 0000 6 5 = 012345000065
+  it('expands UPC-E with last digit 6 → UPC-A', () => {
+    // UPC-E 01234565: mid=123456, last=6 (>=5)
+    // S d1d2d3d4d5 0000 last E → 0 12345 0000 6 5 = 012345000065
     expect(expandUpcE('01234565')).toBe('012345000065')
   })
   it('expands UPC-E with last digit 3 → UPC-A', () => {
-    // mid=123453, last=3: S d1d2d3 00000 d4d5 E → 0 123 00000 45 3 (wait, E should be 5)
-    // UPC-E: 01234535 (mid=123453, E=5)
-    // expanded: 0 123 00000 45 5 = 012300000455
+    // UPC-E 01234535: mid=123453, last=3
+    // S d1d2d3 00000 d4d5 E → 0 123 00000 45 5 = 012300000455
     expect(expandUpcE('01234535')).toBe('012300000455')
   })
 })

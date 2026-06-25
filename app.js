@@ -346,7 +346,7 @@ function restartCameraWithSelectedDevice() {
   } else {
     if (!html5QrCode) return;
     html5QrCode.stop().then(() => startScanningFallback(selectedCameraId))
-      .catch(err => console.error('Error al cambiar cámara:', err));
+      .catch(err => { console.error('Error al cambiar cámara:', err); resetCameraButton(); });
   }
 }
 
@@ -403,9 +403,10 @@ async function startScanningNative(cameraId) {
     const tick = () => {
       if (!isScanning) return;
       detector.detect(video).then(barcodes => {
+        if (!isScanning) return;
         if (barcodes.length > 0) onBarcodeDetected(barcodes[0].rawValue);
         else nativeScanRafId = requestAnimationFrame(tick);
-      }).catch(() => { nativeScanRafId = requestAnimationFrame(tick); });
+      }).catch(() => { if (isScanning) nativeScanRafId = requestAnimationFrame(tick); });
     };
     nativeScanRafId = requestAnimationFrame(tick);
   } catch (err) {
