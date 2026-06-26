@@ -473,27 +473,30 @@ async function startScanningNative(cameraId) {
 
       scanFrameCount++;
 
-      // Throttle: process every 3rd frame
-      if (scanFrameCount % 3 !== 0) {
+      // Throttle: process every 2nd frame (not 3rd)
+      if (scanFrameCount % 2 !== 0) {
         nativeScanRafId = requestAnimationFrame(tick);
         return;
       }
 
-      // Canvas 800px max width
-      const maxW = 800;
+      // Canvas 1000px max width (better for low-res webcams)
+      const maxW = 1000;
       const sc = Math.min(1, maxW / video.videoWidth);
       canvas.width = Math.round(video.videoWidth * sc);
       canvas.height = Math.round(video.videoHeight * sc);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Motion detection: skip if <5% change
+      // Motion detection: skip if <2% change (first 3s always process)
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const h = quickHash(imageData);
-      if (prevFrameHash !== null && hashDiff(prevFrameHash, h) < 0.05) {
-        nativeScanRafId = requestAnimationFrame(tick);
-        return;
+      const elapsed = Date.now() - scanStartTime;
+      if (elapsed > 3000) {
+        const h = quickHash(imageData);
+        if (prevFrameHash !== null && hashDiff(prevFrameHash, h) < 0.02) {
+          nativeScanRafId = requestAnimationFrame(tick);
+          return;
+        }
+        prevFrameHash = h;
       }
-      prevFrameHash = h;
 
       detecting = true;
 
@@ -507,25 +510,10 @@ async function startScanningNative(cameraId) {
         .then(code => {
           detecting = false;
           if (!isScanning) return;
-          // Multi-frame confirmation
-          if (code === lastDecoded) {
-            confirmCount++;
-          } else {
-            lastDecoded = code;
-            confirmCount = 1;
-          }
-          if (confirmCount >= 2) {
-            lastDecoded = null;
-            confirmCount = 0;
-            if (!onBarcodeDetected(code)) nativeScanRafId = requestAnimationFrame(tick);
-          } else {
-            nativeScanRafId = requestAnimationFrame(tick);
-          }
+          if (!onBarcodeDetected(code)) nativeScanRafId = requestAnimationFrame(tick);
         })
         .catch(() => {
           detecting = false;
-          lastDecoded = null;
-          confirmCount = 0;
           if (isScanning) nativeScanRafId = requestAnimationFrame(tick);
         });
     };
