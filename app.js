@@ -374,16 +374,16 @@ function onBarcodeDetected(rawCode) {
   analyzeBarcode(result.code);
   return true;
 }
-
 function decodeNative(detector, canvas) {
-  if (!detector) return Promise.reject();
-  return detector.detect(canvas).then(b => b.length ? b[0].rawValue : Promise.reject());
+  if (!detector) return Promise.reject('BarcodeDetector no disponible');
+  return detector.detect(canvas).then(b => b.length ? b[0].rawValue : Promise.reject('BarcodeDetector: código no encontrado'));
 }
+
 function decodeZbar(imageData) {
-  if (!window.zbarWasm) return Promise.reject();
+  if (!window.zbarWasm) return Promise.reject('ZBar-WASM no cargado');
   return window.zbarWasm.scanImageData(imageData).then(syms => {
     for (const s of syms) { const v = s.decode(); if (v) return v; }
-    return Promise.reject();
+    return Promise.reject('ZBar: código no encontrado');
   });
 }
 
@@ -403,6 +403,8 @@ function updateScanDebug() {
   f('debug-hits', scanDebug.hits);
   f('debug-errors', scanDebug.errors);
   f('debug-last-error', scanDebug.lastError || '—');
+  f('debug-native-error', scanDebug.lastNativeError || '—');
+  f('debug-zbar-error', scanDebug.lastZbarError || '—');
   f('debug-camera', scanDebug.cameraLabel);
   f('debug-resolution', scanDebug.resolution);
   f('debug-bd', scanDebug.bdReady ? '✓' : '✗');
@@ -416,7 +418,7 @@ async function startScanningNative(cameraId) {
     return;
   }
   // Initialize diagnostic counters
-  scanDebug = { frames: 0, decodes: 0, hits: 0, errors: 0, lastError: '', cameraLabel: '', resolution: '', bdReady: !!('BarcodeDetector' in window), zbarReady: !!window.zbarWasm };
+  scanDebug = { frames: 0, decodes: 0, hits: 0, errors: 0, lastError: '', lastNativeError: '', lastZbarError: '', cameraLabel: '', resolution: '', bdReady: !!('BarcodeDetector' in window), zbarReady: !!window.zbarWasm };
   document.getElementById('btn-debug')?.classList.remove('hidden');
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -465,7 +467,10 @@ async function startScanningNative(cameraId) {
         .catch(err => {
           detecting = false;
           scanDebug.errors++;
-          scanDebug.lastError = err?.message || err?.errors?.[0]?.message || 'decode failed';
+          const errors = err?.errors || [];
+          scanDebug.lastNativeError = errors[0] || '—';
+          scanDebug.lastZbarError = errors[1] || '—';
+          scanDebug.lastError = (errors[0] !== '—' ? errors[0] : '') + ' | ' + (errors[1] !== '—' ? errors[1] : '');
           if (scanDebugVisible) updateScanDebug();
           if (isScanning) nativeScanRafId = requestAnimationFrame(tick);
         });
