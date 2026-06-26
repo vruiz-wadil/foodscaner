@@ -388,7 +388,7 @@ function onBarcodeDetected(rawCode) {
 async function startScanningNative(cameraId) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: cameraId }, facingMode: 'environment' }
+      video: { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 } }
     });
     nativeScanStream = stream;
     const placeholder = scannerView.querySelector('.scanner-placeholder');
@@ -399,6 +399,7 @@ async function startScanningNative(cameraId) {
     video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
     scannerView.appendChild(video);
     await video.play();
+    await new Promise(r => video.readyState >= 2 ? r() : video.addEventListener('loadeddata', r, { once: true }));
     const detector = new BarcodeDetector({ formats: ['ean_13', 'upc_a', 'upc_e', 'ean_8'] });
     const tick = () => {
       if (!isScanning) return;
