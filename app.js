@@ -142,6 +142,17 @@ let isScanning = false;
 let nativeScanRafId = null;
 let nativeScanStream = null;
 let torchOn = false;
+
+// Smart scanner state
+let scanFrameCount = 0;
+let prevFrameHash = null;
+let lastDecoded = null;
+let confirmCount = 0;
+let scanStartTime = 0;
+let scanTimeoutId = null;
+let invalidAttempts = 0;
+let audioCtx = null;
+let lastZbarRetry = 0;
 // Initialize Application
 // ── Scan History (localStorage, max 5) ───────────────
 function saveToHistory(barcode, name, brand, image) {
@@ -347,26 +358,52 @@ function resetCameraButton() {
 
 function onBarcodeDetected(rawCode) {
   const result = validateBarcode(rawCode);
-  if (!result.valid) return false;
+  if (!result.valid) {
+    invalidAttempts++;
+    return false;
+  }
   barcodeInput.value = result.code;
   if (navigator.vibrate) navigator.vibrate(100);
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
     osc.type = 'sine';
     osc.frequency.value = 880;
     gain.gain.value = 0.3;
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(audioCtx.destination);
     osc.start();
-    osc.stop(ctx.currentTime + 0.15);
+    osc.stop(audioCtx.currentTime + 0.15);
   } catch (e) { /* audio not available */ }
   stopScanning();
   analyzeBarcode(result.code);
   return true;
 }
+function quickHash(imageData) {
+  const d = imageData.data;
+  const w = imageData.width;
+  const h = imageData.height;
+  let sum = 0;
+  const pts = [0.25, 0.5, 0.75];
+  const fixed = [[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9], [0.5, 0.1], [0.5, 0.9], [0.33, 0.33]];
+  for (const fy of pts) for (const fx of pts) {
+    const i = (Math.floor(fy * h) * w + Math.floor(fx * w)) * 4;
+    sum += d[i] + d[i + 1] + d[i + 2];
+  }
+  for (const [fx, fy] of fixed) {
+    const i = (Math.floor(fy * h) * w + Math.floor(fx * w)) * 4;
+    sum += d[i] + d[i + 1] + d[i + 2];
+  }
+  return sum;
+}
+
+function hashDiff(a, b) {
+  return Math.abs(a - b) / (a || 1);
+}
+
 function decodeNative(detector, canvas) {
   if (!detector) return Promise.reject('BarcodeDetector no disponible');
   return detector.detect(canvas).then(b => b.length ? b[0].rawValue : Promise.reject('BarcodeDetector: código no encontrado'));
@@ -374,10 +411,14 @@ function decodeNative(detector, canvas) {
 
 function decodeZbar(imageData) {
   const zw = window.zbarWasm;
-  if (window._zbarFailed) return Promise.reject('ZBar: previamente falló');
+  if (window._zbarFailed) {
+    if (Date.now() - lastZbarRetry < 5000) return Promise.reject('ZBar: previamente falló');
+    lastZbarRetry = Date.now();
+    window._zbarFailed = false;
+  }
   if (!zw || typeof zw.scanImageData !== 'function') {
     window._zbarFailed = true;
-    return Promise.reject('ZBar: scanImageData=' + typeof zw?.scanImageData + ' keys=' + Object.keys(zw || {}).join(','));
+    return Promise.reject('ZBar: scanImageData=' + typeof zw?.scanImageData);
   }
   try {
     return zw.scanImageData(imageData).then(syms => {
@@ -429,27 +470,80 @@ async function startScanningNative(cameraId) {
         nativeScanRafId = requestAnimationFrame(tick);
         return;
       }
-      detecting = true;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
+
+      scanFrameCount++;
+
+      // Throttle: process every 3rd frame
+      if (scanFrameCount % 3 !== 0) {
+        nativeScanRafId = requestAnimationFrame(tick);
+        return;
+      }
+
+      // Canvas 800px max width
+      const maxW = 800;
+      const sc = Math.min(1, maxW / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * sc);
+      canvas.height = Math.round(video.videoHeight * sc);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Motion detection: skip if <5% change
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const h = quickHash(imageData);
+      if (prevFrameHash !== null && hashDiff(prevFrameHash, h) < 0.05) {
+        nativeScanRafId = requestAnimationFrame(tick);
+        return;
+      }
+      prevFrameHash = h;
+
+      detecting = true;
+
+      // Both decoders in PARALLEL
       const decoders = [decodeNative(detector, canvas)];
-      if (!detector && window.zbarWasm && typeof window.zbarWasm.scanImageData === 'function' && !window._zbarFailed) {
+      if (window.zbarWasm && typeof window.zbarWasm.scanImageData === 'function' && !window._zbarFailed) {
         decoders.push(decodeZbar(imageData));
       }
+
       Promise.any(decoders)
         .then(code => {
           detecting = false;
           if (!isScanning) return;
-          if (!onBarcodeDetected(code)) nativeScanRafId = requestAnimationFrame(tick);
+          // Multi-frame confirmation
+          if (code === lastDecoded) {
+            confirmCount++;
+          } else {
+            lastDecoded = code;
+            confirmCount = 1;
+          }
+          if (confirmCount >= 2) {
+            lastDecoded = null;
+            confirmCount = 0;
+            if (!onBarcodeDetected(code)) nativeScanRafId = requestAnimationFrame(tick);
+          } else {
+            nativeScanRafId = requestAnimationFrame(tick);
+          }
         })
         .catch(() => {
           detecting = false;
+          lastDecoded = null;
+          confirmCount = 0;
           if (isScanning) nativeScanRafId = requestAnimationFrame(tick);
         });
     };
     nativeScanRafId = requestAnimationFrame(tick);
+
+    // Dynamic timeout: suggest manual after 15s
+    scanStartTime = Date.now();
+    invalidAttempts = 0;
+    scanTimeoutId = setInterval(() => {
+      if (!isScanning) { clearInterval(scanTimeoutId); return; }
+      const elapsed = Date.now() - scanStartTime;
+      if (elapsed > 15000 && scanHintEl) {
+        scanHintEl.textContent = '¿No funciona? Ingresa el código manualmente ↑';
+      }
+      if (invalidAttempts >= 3 && scanHintEl) {
+        scanHintEl.textContent = 'Código dañado, ingresa manualmente ↑';
+      }
+    }, 1000);
   } catch (err) {
     console.error('Error al iniciar BarcodeDetector:', err);
     stopScanningNative();
@@ -458,6 +552,11 @@ async function startScanningNative(cameraId) {
 }
 
 function stopScanningNative() {
+  if (scanTimeoutId) { clearInterval(scanTimeoutId); scanTimeoutId = null; }
+  lastDecoded = null;
+  confirmCount = 0;
+  prevFrameHash = null;
+  scanFrameCount = 0;
   if (nativeScanRafId) { cancelAnimationFrame(nativeScanRafId); nativeScanRafId = null; }
   if (nativeScanStream) { nativeScanStream.getTracks().forEach(t => t.stop()); nativeScanStream = null; }
   teardownScanControls();
