@@ -859,6 +859,7 @@ body {
 }
 
 .analysis-card.full-width { width: 100%; }
+.analysis-grid .analysis-card { width: 100%; }
 
 .card-icon-wrapper {
   background: var(--surface);
