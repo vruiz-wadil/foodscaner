@@ -630,7 +630,7 @@ body {
 #result-success {
   width: 100%;
   text-align: left;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: flex-start;
   gap: 20px;
   overflow-x: hidden;
@@ -841,6 +841,7 @@ body {
   grid-template-columns: 1fr;
   gap: 14px;
   width: 100%;
+  min-width: 0;
 }
 
 /* ── Analysis Cards ──────────────────────────────── */
@@ -853,11 +854,12 @@ body {
   gap: 12px;
   align-items: flex-start;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   box-shadow: 0 2px 8px rgba(13,61,53,0.07);
 }
 
-.analysis-card.full-width { grid-column: span 1; }
+.analysis-card.full-width { width: 100%; }
 
 .card-icon-wrapper {
   background: var(--surface);
