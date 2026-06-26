@@ -380,14 +380,15 @@ function decodeNative(detector, canvas) {
 }
 
 function decodeZbar(imageData) {
-  if (!window.zbarWasm || typeof window.zbarWasm.scanImageData !== 'function') {
-    return Promise.reject('ZBar-WASM: scanImageData no disponible');
+  const zw = window.zbarWasm;
+  if (!zw || typeof zw.scanImageData !== 'function') {
+    return Promise.reject('ZBar: scanImageData=' + typeof zw?.scanImageData + ' keys=' + Object.keys(zw || {}).join(','));
   }
   try {
-    return window.zbarWasm.scanImageData(imageData).then(syms => {
+    return zw.scanImageData(imageData).then(syms => {
       for (const s of syms) { const v = s.decode(); if (v) return v; }
       return Promise.reject('ZBar: código no encontrado');
-    });
+    }, err => Promise.reject('ZBar: ' + (err?.message || err)));
   } catch (e) {
     return Promise.reject('ZBar: ' + (e?.message || e));
   }
