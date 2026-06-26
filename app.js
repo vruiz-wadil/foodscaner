@@ -1693,8 +1693,8 @@ function runAICheck(product, barcode) {
       data.notRecommended.forEach(aiItem => {
         const reason = (aiItem.razon || '').toLowerCase();
         if (reason.includes('no aplica') || reason.includes('no contiene') || reason.includes('no apto') || reason.includes('no es')) return;
-        const normGrupo = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-        if (!product.notRecommended.some(n => normGrupo(n.grupo) === normGrupo(aiItem.grupo))) {
+        const grupoClave = s => { const n = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); if (n.includes('diabet')) return 'diabet'; if (n.includes('hipert')) return 'hipert'; if (n.includes('lact')) return 'lactos'; if (n.includes('fenilc')) return 'fenilc'; if (n.includes('celiac') || n.includes('celiaq')) return 'celiac'; if (n.includes('gluten')) return 'gluten'; if (n.includes('nino') || n.includes('ninos') || n.includes('menor')) return 'ninos'; return n; };
+        if (!product.notRecommended.some(n => grupoClave(n.grupo) === grupoClave(aiItem.grupo))) {
           const isGlutenWarning = /gluten|celiac|celiaq/i.test(aiItem.grupo + ' ' + aiItem.razon);
           const certain = isGlutenWarning && !!product.gluten?.hasGluten;
           product.notRecommended.push({ icon: "🤖", grupo: aiItem.grupo, razon: aiItem.razon, certain });
