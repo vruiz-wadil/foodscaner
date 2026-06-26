@@ -71,7 +71,6 @@ const rejectedProductCategory = document.getElementById("rejected-product-catego
 
 let currentBarcodeQuery = "";
 let currentDataSources = "";
-let currentSourceResults = [];
 
 const COMMON_ALLERGENS = [
   { emoji: "🥛", label: "Lácteos", match: ["leche", "lácteos", "lactosa", "milk", "dairy"] },
@@ -146,8 +145,6 @@ let torchOn = false;
 // Smart scanner state
 let scanFrameCount = 0;
 let prevFrameHash = null;
-let lastDecoded = null;
-let confirmCount = 0;
 let scanStartTime = 0;
 let scanTimeoutId = null;
 let invalidAttempts = 0;
@@ -316,7 +313,7 @@ async function toggleCamera() {
       isScanning = true;
       // Start scanning using rear camera by default
       showScanHint();
-      startScanning(defaultCam.id);
+      startScanningNative(defaultCam.id);
     } else {
       alert("No se encontraron cámaras en este dispositivo.");
       resetCameraButton();
@@ -326,10 +323,6 @@ async function toggleCamera() {
     alert("Permiso de cámara denegado o dispositivo ocupado.");
     resetCameraButton();
   }
-}
-
-function startScanning(cameraId) {
-  startScanningNative(cameraId);
 }
 
 function stopScanning() {
@@ -584,8 +577,6 @@ async function startScanningNative(cameraId) {
 function stopScanningNative() {
   setScanState(null);
   if (scanTimeoutId) { clearInterval(scanTimeoutId); scanTimeoutId = null; }
-  lastDecoded = null;
-  confirmCount = 0;
   prevFrameHash = null;
   scanFrameCount = 0;
   if (nativeScanRafId) { cancelAnimationFrame(nativeScanRafId); nativeScanRafId = null; }
@@ -695,7 +686,6 @@ async function analyzeBarcode(barcode) {
 
     currentScanLogId = response.headers.get('x-scan-log-id') || null;
     currentDataSources = data.sourceLabel || "Desconocido";
-    currentSourceResults = data.sourceResults || [];
 
     // Process and normalize API data
     let product;
@@ -1829,7 +1819,6 @@ function runAICheck(product, barcode) {
   loadingEl.classList.remove("hidden");
   errorEl.classList.add("hidden");
 
-  function addProviderLog() {}
 
   function callProvider(provider, timeout) {
     const controller = new AbortController();
@@ -2013,12 +2002,10 @@ function runAICheck(product, barcode) {
       .then(data => {
         if (scanToken !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
         if (data.error) throw new Error(data.error);
-        addProviderLog(p.label, 'ok', p.model);
         processAIResult(data);
       })
       .catch(err => {
         if (scanToken !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
-        addProviderLog(p.label, 'fail', err.message, err.toString());
         tryProvider(i + 1);
       });
   })(0);
