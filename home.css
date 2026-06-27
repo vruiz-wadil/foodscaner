@@ -260,7 +260,7 @@ body {
 
 .product-card-img {
   width: 100%;
-  aspect-ratio: 3/4;
+  aspect-ratio: 1/1;
   object-fit: contain;
   display: block;
   background: #d8f5ef;
@@ -268,7 +268,7 @@ body {
 
 .product-card-img-placeholder {
   width: 100%;
-  aspect-ratio: 3/4;
+  aspect-ratio: 1/1;
   background: #d8f5ef;
   display: flex;
   align-items: center;
@@ -279,10 +279,10 @@ body {
 .product-card-img-placeholder svg { opacity: 0.4; }
 
 .product-card-body {
-  padding: 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .product-card-name {
@@ -306,8 +306,8 @@ body {
 }
 
 .product-card-badge-row {
-  margin-top: 8px;
-  min-height: 28px;
+  margin-top: 4px;
+  min-height: 20px;
   display: flex;
   align-items: flex-end;
 }
