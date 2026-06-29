@@ -301,10 +301,6 @@ async function toggleCamera() {
         cameraSelect.appendChild(option);
       });
 
-      if (devices.length > 1) {
-        cameraSelectWrapper.classList.remove("hidden");
-      }
-
       // Detect rear camera by label keywords
       const rearKeywords = ["back", "rear", "environment", "trasera", "posterior", "trás"];
       const rearCam = devices.find(d =>
@@ -345,7 +341,6 @@ function resetCameraButton() {
   hideScanHint();
   isScanning = false;
   scannerView.classList.remove("active");
-  cameraSelectWrapper.classList.add("hidden");
   btnToggleCamera.innerHTML = `
     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>
     Activar cámara
@@ -599,8 +594,9 @@ function setupScanControls(track, caps) {
   if (caps.torch) {
     torchBtn.classList.remove('hidden');
     torchBtn.onclick = async () => {
-      torchOn = !torchOn;
-      await track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => {});
+      const next = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: next }] }).catch(() => {});
+      torchOn = next;
       torchBtn.classList.toggle('on', torchOn);
     };
   }
@@ -623,6 +619,7 @@ function setupScanControls(track, caps) {
   }
 
   setupCameraSwitch();
+  if (cameraSelect.options.length < 2) btnCameraSwitch.classList.add('hidden');
 }
 
 function teardownScanControls() {
@@ -633,6 +630,7 @@ function teardownScanControls() {
   zoomWrap.classList.add('hidden');
   zoomWrap.innerHTML = '';
   btnCameraSwitch.onclick = null;
+  btnCameraSwitch.classList.remove('hidden');
   closeCameraPopover();
   cameraHud.classList.add('hidden');
 }
@@ -687,6 +685,7 @@ function openCameraPopover() {
 }
 
 function closeCameraPopover() {
+  document.removeEventListener('click', closeCameraPopover);
   const popover = document.getElementById('camera-popover');
   if (popover) popover.remove();
   document.removeEventListener('keydown', handlePopoverEsc);
