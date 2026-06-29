@@ -36,7 +36,7 @@
 | **IA — texto** | Groq (LLaMA 3.3 70B, LLaMA 3.1 8B, Mixtral, Gemma) + OpenRouter + Gemini 2.5 Flash |
 | **IA — visión** | Groq Vision (Llama 4 Scout) |
 | **Deploy** | Vercel (Fluid Compute) |
-| **Escáner** | `BarcodeDetector` API nativa (iOS 17+, Chrome, Edge) + `html5-qrcode` v2.3.8 (fallback) |
+| **Escáner** | `BarcodeDetector` API nativa + ZXing-WASM ponyfill + ZBar-WASM — 4 decoders en paralelo por frame |
 | **Fuentes de productos** | Open Food Facts (MX / World / USA), USDA FoodData Central, UPCItemDb, GTINHub |
 
 ---
@@ -48,7 +48,7 @@
 │                  FRONTEND                   │
 │  index.html + app.js + styles.css           │
 │                                             │
-│  • Escáner de cámara (html5-qrcode)         │
+│  • Escáner de cámara (dual-engine rAF loop)  │
 │  • Ingreso manual de código de barras       │
 │  • Historial de últimos 5 escaneos          │
 │  • Modales OCR (ingredientes + nutrición)   │
@@ -374,23 +374,54 @@ Estructura estática. Los estados de resultado (`#result-empty`, `#result-loadin
 
 #### Escáner de código de barras
 
-El escáner usa **progressive enhancement** según el soporte del dispositivo:
+El escáner corre un `requestAnimationFrame` loop con **4 decoders en paralelo por frame**. Gana el primero que decodifique (`Promise.any`).
+
+##### Motores de decodificación
+
+| Motor | Plataforma | Carga |
+|---|---|---|
+| `BarcodeDetector` nativo | Android Chrome, Mac Safari, Edge (Chromium) | API del navegador |
+| ZXing-WASM (`barcode-detector@2/pure`) | iOS Safari, Windows Chrome/Edge, Firefox | ESM CDN (ponyfill) |
+| ZBar-WASM (`@undecaf/zbar-wasm@0.11.0`) | Todas las plataformas | jsDelivr CDN |
+
+En plataformas sin `BarcodeDetector` nativo el ponyfill ZXing lo expone en `window.BarcodeDetector`. ZBar corre siempre como segundo motor independiente.
+
+##### Pipeline por frame (`tick`)
 
 ```
-USE_NATIVE_SCANNER = 'BarcodeDetector' in window
+1. Throttle — procesa 1 de cada 2 frames (rAF a ~60 fps → ~30 evaluaciones/s)
         │
-        ├── true  → startScanningNative()
-        │           getUserMedia + requestAnimationFrame loop
-        │           BarcodeDetector({ formats: ['ean_13','upc_a','upc_e','ean_8'] })
-        │           Usa el framework Vision nativo de Apple/Chromium — mucho más rápido
+2. Canvas 1200px — escala el frame a máx. 1200px de ancho
         │
-        └── false → startScanningFallback()
-                    html5-qrcode con fps:20 y qrbox 85%×30%
-                    (ancho optimizado para códigos 1D lineales)
-
-Ambos caminos convergen en:
-onBarcodeDetected(rawCode) → validateBarcode(rawCode) → analyzeBarcode(code)
+3. Motion detection — calcula hash rápido del frame
+   └── Si cambio < 2% respecto al frame anterior → saltar (sin movimiento)
+       (desactivado los primeros 3s para no perder el primer código)
+        │
+4. preprocessImage() — copia grayscale + auto-contraste para ZBar
+   (normaliza el rango de luminancia → mejora lectura en etiquetas oscuras o
+    productos en botellas curvas donde la iluminación es desigual)
+        │
+5. Canvas pequeño (≈500px) — downscale adicional para códigos de barras
+   muy pequeños o muy alejados de la cámara
+        │
+6. Promise.any([
+     decodeNative(detector, canvas),       // BarcodeDetector full-scale
+     decodeNative(detector, smallCanvas),  // BarcodeDetector small-scale
+     decodeZbar(processed),               // ZBar full-scale preprocessado
+     decodeZbar(smallProcessed)           // ZBar small-scale preprocessado
+   ])
+        │
+        ├── resolve(code) → onBarcodeDetected(code) → validateBarcode → analyzeBarcode
+        └── reject (todos fallaron) → siguiente tick
 ```
+
+##### Características adicionales
+
+- **Resolución 1080p**: `getUserMedia` solicita `{ width: { ideal: 1920 }, height: { ideal: 1080 } }`.
+- **Linterna y zoom**: se muestran solo cuando `track.getCapabilities()` reporta soporte de hardware (iPhone, Android). No aparecen en webcam.
+- **ZBar fault tolerance**: flag `_zbarFailed` + cooldown de 5s ante un abort del WASM, para no bloquear el loop si el módulo falla al cargar.
+- **Timeout dinámico**: tras 15s sin detectar un código válido, se sugiere ingreso manual.
+- **Estados visuales**: el marco del escáner pulsa ámbar (buscando), destella verde (detectado), destella rojo (frame sin código).
 
 **Validación de código (`validateBarcode`):**
 1. Normaliza — elimina espacios y guiones, verifica solo dígitos.
