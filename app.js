@@ -40,9 +40,10 @@ const sidebarName = document.getElementById("sidebar-name");
 const sidebarBrand = document.getElementById("sidebar-brand");
 const sidebarBarcode = document.getElementById("sidebar-barcode");
 const scannerWrapper = document.querySelector(".scanner-wrapper");
-const torchBtn   = document.getElementById('btn-torch');
-const zoomWrap   = document.getElementById('zoom-wrapper');
-const zoomSlider = document.getElementById('zoom-slider');
+const torchBtn        = document.getElementById('btn-torch');
+const zoomWrap        = document.getElementById('zoom-wrapper');
+const cameraHud       = document.getElementById('camera-hud');
+const btnCameraSwitch = document.getElementById('btn-camera-switch');
 const caloriesVal = document.getElementById("calories-val");
 const caloriesProgress = document.getElementById("calories-progress");
 const caloriesLevel = document.getElementById("calories-level");
@@ -593,31 +594,51 @@ function stopScanningNative() {
 }
 
 function setupScanControls(track, caps) {
+  cameraHud.classList.remove('hidden');
+
   if (caps.torch) {
     torchBtn.classList.remove('hidden');
     torchBtn.onclick = async () => {
-      try {
-        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
-        torchOn = !torchOn;
-        torchBtn.classList.toggle('on', torchOn);
-      } catch (e) { /* equipo rechazó torch */ }
+      torchOn = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => {});
+      torchBtn.classList.toggle('on', torchOn);
     };
   }
-  if (caps.zoom) {
+
+  if (caps.zoom && caps.zoom.max >= 2) {
+    const levels = [1, 2, 3].filter(l => l <= caps.zoom.max);
+    levels.forEach(level => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'zoom-btn' + (level === 1 ? ' active' : '');
+      btn.textContent = level + '×';
+      btn.dataset.zoom = level;
+      btn.onclick = () => {
+        track.applyConstraints({ advanced: [{ zoom: level }] }).catch(() => {});
+        zoomWrap.querySelectorAll('.zoom-btn').forEach(b => b.classList.toggle('active', b === btn));
+      };
+      zoomWrap.appendChild(btn);
+    });
     zoomWrap.classList.remove('hidden');
-    zoomSlider.min = caps.zoom.min;
-    zoomSlider.max = caps.zoom.max;
-    zoomSlider.step = caps.zoom.step || 0.1;
-    zoomSlider.value = (track.getSettings().zoom) || caps.zoom.min;
-    zoomSlider.oninput = () => track.applyConstraints({ advanced: [{ zoom: Number(zoomSlider.value) }] }).catch(() => {});
   }
+
+  setupCameraSwitch();
 }
 
 function teardownScanControls() {
   torchOn = false;
-  torchBtn.classList.add('hidden'); torchBtn.classList.remove('on'); torchBtn.onclick = null;
-  zoomWrap.classList.add('hidden'); zoomSlider.oninput = null;
+  torchBtn.classList.add('hidden');
+  torchBtn.classList.remove('on');
+  torchBtn.onclick = null;
+  zoomWrap.classList.add('hidden');
+  zoomWrap.innerHTML = '';
+  btnCameraSwitch.onclick = null;
+  closeCameraPopover();
+  cameraHud.classList.add('hidden');
 }
+
+function closeCameraPopover() {}
+function setupCameraSwitch() {}
 
 let scanActivityTimer = null;
 let scanHintEl = null;

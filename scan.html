@@ -79,25 +79,35 @@
                 <p class="scan-title">La cámara no está activa</p>
                 <p class="scan-help">Apunta al código de barras del producto</p>
               </div>
+
+              <!-- Camera HUD: overlay visible only with active camera -->
+              <div class="camera-hud hidden" id="camera-hud">
+                <button id="btn-torch" type="button" class="hud-btn hud-torch hidden" aria-label="Linterna">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 18h6"/><path d="M10 22h4"/>
+                    <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>
+                  </svg>
+                </button>
+                <div id="zoom-wrapper" class="zoom-levels hidden"></div>
+                <button id="btn-camera-switch" type="button" class="hud-btn hud-switch" aria-label="Cambiar cámara">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 7h-9"/><path d="M14 17H5"/>
+                    <polyline points="17 4 20 7 17 10"/><polyline points="8 14 5 17 8 20"/>
+                  </svg>
+                </button>
+              </div>
+
               <div class="scan-frame"><span></span><span></span></div>
             </div>
-            
+
             <div class="scanner-controls">
               <button id="btn-toggle-camera" class="btn btn-camera">
                 <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>
                 Activar cámara
               </button>
-              <div class="camera-select-container hidden" id="camera-select-wrapper">
+              <div class="camera-select-container hidden" id="camera-select-wrapper" style="display:none">
                 <label for="camera-select">Cámara:</label>
                 <select id="camera-select" class="styled-select"></select>
-              </div>
-              <button id="btn-torch" type="button" class="btn btn-torch hidden" aria-label="Linterna">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
-                Linterna
-              </button>
-              <div id="zoom-wrapper" class="zoom-control hidden">
-                <label for="zoom-slider">Zoom</label>
-                <input type="range" id="zoom-slider" class="zoom-slider">
               </div>
             </div>
 
@@ -613,6 +623,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=56" defer></script>
+  <script src="app.js?v=57" defer></script>
 </body>
 </html>
