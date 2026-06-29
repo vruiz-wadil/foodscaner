@@ -318,13 +318,13 @@ En cada respuesta (hit o miss de caché), el servidor llama a `addOcrDataIfAvail
 
 ### Renderizado de veredictos
 
-| Estado | Color | Significado |
+| Estado | Apariencia | Significado |
 |---|---|---|
-| `db-yes` | Verde | Confirmado por base de datos |
-| `ai-yes` | Ámbar | Probable (inferido por IA o sin ingredientes negativos) |
-| `db-no` | Rojo | Contiene el alérgeno/componente (confirmado) |
-| `ai-no` | Ámbar oscuro | Probable que contenga (IA) |
-| `unknown` | Gris | Sin información suficiente |
+| `db-yes` | Verde sólido | Confirmado por base de datos |
+| `ai-yes` | Verde claro + tramado diagonal amarillo + 🤖 | Probable que sí (inferido por IA) |
+| `db-no` | Rojo sólido | Confirmado por base de datos que NO aplica |
+| `ai-no` | Rojo claro + tramado diagonal amarillo + 🤖 | Probable que NO aplica (inferido por IA) |
+| `unknown` | Gris desaturado | Sin información suficiente |
 
 ---
 
