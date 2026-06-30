@@ -2133,7 +2133,7 @@ body {
   }
   #result-success { height: auto; }
   .product-header { display: none; }
-  .panel-section:has(#barcode-form) { display: none; }
+
   #dietary-section { border-top: none; }
   #btn-new-scan { display: none; }
   .bottom-nav { max-width: 1100px; }
