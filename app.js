@@ -1517,6 +1517,8 @@ function renderProductData(product, barcode) {
 
   currentBarcode = barcode;
   showState(resultSuccess);
+  cardAllergens.classList.add("hidden");
+  analysisGrid.classList.add("hidden");
   saveToHistory(barcode, product.name, product.brand, product.image);
 
   // Default data availability when not set by parser
@@ -1978,6 +1980,7 @@ function runAICheck(product, barcode) {
         if (product.allergensDataAvailable === false) {
           const legendEl = document.querySelector(".allergen-legend");
           if (gridEl) {
+            cardAllergens.classList.remove("hidden");
             gridEl.classList.remove("hidden");
             gridEl.innerHTML = "";
             COMMON_ALLERGENS.forEach(item => {
