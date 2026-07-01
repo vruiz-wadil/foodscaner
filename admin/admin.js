@@ -19,6 +19,7 @@
   let nextPageToken = null;
   let allItems = [];
   let reportBarcodes = null;
+  let lastCacheData = null;
 
   async function loadBarcodeFlags() {
     if (reportBarcodes) return; // cached for session
@@ -75,13 +76,14 @@
     currentCol = btn.dataset.col;
     filterInput.value = '';
     allItems = [];
+    lastCacheData = null;
     nextPageToken = null;
     loadCollection();
   });
 
   filterInput.addEventListener('input', () => {
     if (currentCol === 'cache') {
-      loadCollection();
+      if (lastCacheData) renderCacheAll(lastCacheData, filterInput.value.trim().toLowerCase());
     } else {
       renderList();
     }
@@ -95,8 +97,11 @@
       const r = await apiFetch('/api/admin/cache-all');
       if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al cargar.</div>'; return; }
       const data = await r.json();
-      renderCacheAll(data);
-      statsBar.textContent = (data.product.length + data.ai.length) + ' entradas cacheadas';
+      lastCacheData = data;
+      const q = filterInput.value.trim().toLowerCase();
+      renderCacheAll(data, q);
+      const total = (data.product.length + data.ai.length);
+      statsBar.textContent = total + ' entradas cacheadas' + (q ? ' (filtrado)' : '');
       loadMoreEl.innerHTML = '';
       return;
     }
@@ -138,8 +143,12 @@
     </table>`;
   }
 
-  function renderCacheAll(data) {
-    const { product = [], ai = [] } = data;
+  function renderCacheAll(data, filterText = '') {
+    let { product = [], ai = [] } = data;
+    if (filterText) {
+      product = product.filter(i => (i.barcode || '').toLowerCase().includes(filterText) || (i.source || '').toLowerCase().includes(filterText));
+      ai = ai.filter(i => (i.key || '').toLowerCase().includes(filterText) || (i.displayName || '').toLowerCase().includes(filterText) || (i.model || '').toLowerCase().includes(filterText));
+    }
     let html = '';
 
     // Product section
@@ -150,6 +159,7 @@
       html += product.map(item => {
         const badge = item.inL1 && item.inL2 ? 'L1+L2' : item.inL1 ? 'L1' : 'L2';
         const badgeCls = item.inL1 && item.inL2 ? 'cache-badge-both' : item.inL1 ? 'cache-badge-l1' : 'cache-badge-l2';
+        const layer = item.inL1 && item.inL2 ? 'all' : item.inL1 ? 'l1' : 'l2';
         const date = item.cachedAt ? new Date(item.cachedAt * 1000).toLocaleString('es-MX') : '—';
         return `<div class="doc-item">
           <div>
@@ -158,7 +168,7 @@
           </div>
           <div class="doc-actions">
             <span class="cache-badge ${badgeCls}">${badge}</span>
-            <button class="btn-del" data-action="del-cache" data-type="product" data-key="${escHtml(item.barcode)}" data-layer="${escHtml(badge === 'L1+L2' ? 'all' : badge.toLowerCase())}">✕</button>
+            <button class="btn-del" data-action="del-cache" data-type="product" data-key="${escHtml(item.barcode)}" data-layer="${escHtml(layer)}">✕</button>
           </div>
         </div>`;
       }).join('');
@@ -173,6 +183,7 @@
       html += ai.map(item => {
         const badge = item.inL1 && item.inL2 ? 'L1+L2' : item.inL1 ? 'L1' : 'L2';
         const badgeCls = item.inL1 && item.inL2 ? 'cache-badge-both' : item.inL1 ? 'cache-badge-l1' : 'cache-badge-l2';
+        const layer = item.inL1 && item.inL2 ? 'all' : item.inL1 ? 'l1' : 'l2';
         const date = item.cachedAt ? new Date(item.cachedAt * 1000).toLocaleString('es-MX') : '—';
         const displayName = item.displayName.length > 60 ? item.displayName.substring(0, 60) + '…' : item.displayName;
         return `<div class="doc-item">
@@ -183,7 +194,7 @@
           <div class="doc-actions">
             <span class="cache-badge ${badgeCls}">${badge}</span>
             <button class="btn-view" data-action="view-cache" data-key="${escHtml(item.key)}">Ver</button>
-            <button class="btn-del" data-action="del-cache" data-type="ai" data-key="${escHtml(item.key)}" data-layer="${escHtml(badge === 'L1+L2' ? 'all' : badge.toLowerCase())}">✕</button>
+            <button class="btn-del" data-action="del-cache" data-type="ai" data-key="${escHtml(item.key)}" data-layer="${escHtml(layer)}">✕</button>
           </div>
         </div>`;
       }).join('');
