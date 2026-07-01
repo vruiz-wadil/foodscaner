@@ -217,6 +217,7 @@ function resetToScan() {
   barcodeInput.value = "";
   window.scrollTo({ top: 0, behavior: "smooth" });
   if (productSidebar) { productSidebar.classList.add("hidden"); scannerWrapper.classList.remove("hidden"); }
+  toggleCamera(); // start the camera automatically so consecutive scans don't need a manual tap
 }
 
 function setupEventListeners() {
