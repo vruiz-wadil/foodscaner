@@ -246,7 +246,7 @@ async function fireSetOcrData(barcode, ingredients) {
   }
 }
 
-const ADMIN_COLLECTIONS = ['scan_logs', 'reports', 'products_ocr', 'products_nutrition', 'product_cache', 'ai_cache'];
+const ADMIN_COLLECTIONS = ['scan_logs', 'reports', 'products_ocr', 'products_nutrition'];
 
 async function fireListDocs(col, pageToken) {
   const token = await getAccessToken();
