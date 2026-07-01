@@ -636,11 +636,12 @@ app.get('/api/product/:barcode', async (req, res) => {
             const nonFoodKw = ["shampoo","soap","jabón","detergent","limpieza","higiene","cosmetics","pet food","mascotas"];
             const isFoodGtin = !nonFoodKw.some(k => titleLower.includes(k) || descLower.includes(k) || catLower.includes(k));
             const hasGlutenGtin = detectGluten(titleLower, descLower).hasGluten;
+            const isGlutenFreeClaim = /sin\s*gluten|libre\s*de\s*gluten|gluten\s*free|no\s*gluten/i.test(titleLower);
             const caseinGtin = detectCasein(titleLower, descLower);
             fallbackResult = { status: 1, source: 'local', sourceLabel: 'GTINHub', product: {
               name: nameGtin, brand: brandGtin, image: p.image || "", isFood: isFoodGtin,
               category: p.category || (isFoodGtin ? "Comida / Bebida (GTINHub)" : "No Alimenticio"),
-              gluten: { hasGluten: hasGlutenGtin, details: hasGlutenGtin ? "Contiene gluten (detectado)" : "Información no disponible (Requiere verificar el empaque)" },
+              gluten: { hasGluten: hasGlutenGtin, classification: isGlutenFreeClaim ? "declared" : undefined, details: hasGlutenGtin ? "Contiene gluten (detectado)" : isGlutenFreeClaim ? "Producto declarado libre de gluten (en nombre)" : "Información no disponible (Requiere verificar el empaque)" },
               calories: { value: 0, level: "No Especificado", percent: 10 },
               allergens: [], nutriscore: "-", isFromFallback: true,
               dietary: caseinGtin.hasCasein ? { caseinFree: false, caseinFreeSource: 'db', caseinFreeDetail: `Contiene caseína/lácteos (detectado: ${caseinGtin.detected.join(", ")})` } : {}
