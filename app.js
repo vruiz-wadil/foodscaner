@@ -2062,7 +2062,7 @@ function runAICheck(product, barcode) {
 
   // --- Ejecución secuencial: 7 proveedores en cadena ---
   const providers = [
-    { query: 'groq&model=llama-3.3-70b-versatile', timeout: 7000, label: 'Groq 70b', model: 'llama-3.3-70b-versatile' },
+    { query: 'groq&model=llama-3.1-70b-versatile', timeout: 7000, label: 'Groq 70b', model: 'llama-3.1-70b-versatile' },
     { query: 'groq&model=llama-3.1-8b-instant',    timeout: 7000, label: 'Groq 8b',   model: 'llama-3.1-8b-instant' },
     { query: 'groq&model=llama3-8b-8192',          timeout: 7000, label: 'Groq 8b-1K', model: 'llama3-8b-8192 (1000r/m)' },
     { query: 'groq&model=gemma2-9b-it',            timeout: 7000, label: 'Gemma2 9b', model: 'gemma2-9b-it' },

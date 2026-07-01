@@ -162,7 +162,7 @@ function detectGluten(...texts) {
 }
 
 // --- AI Helpers (Groq + Gemini fallback) ---
-async function callGroq(prompt, model = 'llama-3.3-70b-versatile', max_tokens = 3000) {
+async function callGroq(prompt, model = 'llama-3.1-70b-versatile', max_tokens = 3000) {
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -229,7 +229,7 @@ async function callAI(prompt, max_tokens = 3000) {
   if (!process.env.GROQ_API_KEY) return callOpenRouter(prompt);
 
   const groqModels = [
-    'llama-3.3-70b-versatile',
+    'llama-3.1-70b-versatile',
     'llama-3.1-8b-instant',
     'llama-3.1-70b-versatile',
     'mixtral-8x7b-32768',
@@ -870,13 +870,13 @@ app.post('/api/ai-query', async (req, res) => {
   const provider = req.query.provider || 'all';
   let modelLabel;
   if (provider === 'groq') {
-    modelLabel = "Groq: " + (req.query.model || 'llama-3.3-70b-versatile');
+    modelLabel = "Groq: " + (req.query.model || 'llama-3.1-70b-versatile');
   } else if (provider === 'openrouter') {
     modelLabel = "OpenRouter: " + (req.query.model || 'free');
   } else if (provider === 'gemini') {
     modelLabel = "Gemini 2.5 Flash";
   } else {
-    modelLabel = "Groq: " + (req.query.model || 'llama-3.3-70b-versatile');
+    modelLabel = "Groq: " + (req.query.model || 'llama-3.1-70b-versatile');
   }
   const cacheKey = [name, brand, ingredients, sugars, carbohydrates, fiber, isBeverage].join('|');
   const cached = await getAiCacheEntry(cacheKey);
@@ -930,7 +930,7 @@ REGLAS:
     try {
       if (provider === 'groq') {
         if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY no configurada");
-        const groqModel = req.query.model || 'llama-3.3-70b-versatile';
+        const groqModel = req.query.model || 'llama-3.1-70b-versatile';
         ({ content, model } = await callGroq(prompt, groqModel));
       } else if (provider === 'openrouter') {
         ({ content, model } = await callOpenRouter(prompt));
