@@ -2136,7 +2136,7 @@ body {
   .control-panel {
     grid-column: 1;
     display: flex !important;
-    overflow: hidden;
+    overflow-y: auto;
     border-right: 1px solid var(--border);
     padding: 16px 20px;
   }
