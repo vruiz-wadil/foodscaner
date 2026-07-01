@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yomi-v2';
+const CACHE_NAME = 'yomi-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -57,7 +57,24 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Static assets: cache-first
+  // App shell (HTML/JS/CSS): network-first so deploys show up immediately.
+  // Falls back to cache only when offline.
+  if (/\.(html|js|css)$/.test(url.pathname) || url.pathname === '/') {
+    e.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Other static assets (icons, etc.): cache-first, rarely change.
   e.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
