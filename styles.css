@@ -654,6 +654,10 @@ body {
   animation: fadeIn 0.3s ease-out forwards;
 }
 
+.result-state:not(.active) {
+  display: none !important;
+}
+
 .result-state.active { display: flex; }
 
 @keyframes fadeIn {
@@ -787,6 +791,9 @@ body {
   flex-direction: column;
   width: 100%;
   text-align: left;
+}
+#result-success:not(.active) {
+  display: none !important;
 }
 #result-success > * + * {
   margin-top: 20px;
