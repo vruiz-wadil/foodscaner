@@ -358,6 +358,16 @@ body {
   gap: 8px;
 }
 
+.scan-coaching-text {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-align: center;
+  line-height: 1.4;
+  margin: 8px 0 0;
+  padding: 0 16px;
+  min-height: calc(1.4em * 2); /* reserve 2 lines so text appearing/changing never shifts layout below it */
+}
+
 .camera-select-container {
   display: flex;
   flex-direction: column;

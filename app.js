@@ -230,6 +230,10 @@ function setupEventListeners() {
   const btnNewScanSidebar = document.getElementById("btn-new-scan-sidebar");
   if (btnNewScanSidebar) btnNewScanSidebar.addEventListener("click", resetToScan);
 
+  // New scan button (not-found / rejected state)
+  const btnNewScanRejected = document.getElementById("btn-new-scan-rejected");
+  if (btnNewScanRejected) btnNewScanRejected.addEventListener("click", resetToScan);
+
   // Nav "Escanear" button — reset to scan view if results are showing
   const navScanReset = document.getElementById("nav-scan-reset");
   if (navScanReset) navScanReset.addEventListener("click", resetToScan);
@@ -699,23 +703,20 @@ function handlePopoverEsc(e) {
 }
 
 let scanActivityTimer = null;
-let scanHintEl = null;
 
 function showScanHint() {
-  if (scanHintEl) return;
-  scanHintEl = document.createElement('p');
-  scanHintEl.id = 'scan-coaching';
-  scanHintEl.style.cssText = 'color:var(--text-secondary);font-size:0.8rem;text-align:center;margin:8px 0 0;padding:0 16px;line-height:1.4;';
+  const scanHintEl = document.getElementById('scan-coaching');
+  if (!scanHintEl) return;
   scanHintEl.textContent = 'Centra el código y mueve el teléfono despacio de lado a lado';
-  if (scannerWrapper) scannerWrapper.insertBefore(scanHintEl, scannerWrapper.querySelector('.scanner-controls').nextSibling);
   scanActivityTimer = setTimeout(() => {
-    if (scanHintEl && isScanning) scanHintEl.textContent = 'Buscando código...';
+    if (isScanning) scanHintEl.textContent = 'Buscando código...';
   }, 3000);
 }
 
 function hideScanHint() {
   if (scanActivityTimer) { clearTimeout(scanActivityTimer); scanActivityTimer = null; }
-  if (scanHintEl) { scanHintEl.remove(); scanHintEl = null; }
+  const scanHintEl = document.getElementById('scan-coaching');
+  if (scanHintEl) scanHintEl.textContent = '';
 }
 
 // Display Result State Panels
@@ -735,7 +736,8 @@ function showState(stateElement) {
     if (resultsPanel) resultsPanel.classList.add("hidden");
   } else {
     if (!isDesktop) controlPanel.classList.add("hidden");
-    if (isDesktop && manualInput) manualInput.classList.add("hidden");
+    // Rejected/not-found has no sidebar retry action, so keep the manual search reachable on desktop
+    if (isDesktop && manualInput) manualInput.classList.toggle("hidden", stateElement !== resultRejected);
     if (resultsPanel) resultsPanel.classList.remove("hidden");
     const target = stateElement.closest(".results-panel") || stateElement;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
