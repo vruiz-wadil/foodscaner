@@ -727,11 +727,12 @@ function showState(stateElement) {
 
   const controlPanel = document.querySelector(".control-panel");
   const resultsPanel = document.querySelector(".results-panel");
+  const isDesktop = window.matchMedia("(min-width: 769px)").matches;
   if (stateElement === resultEmpty) {
     controlPanel.classList.remove("hidden");
     if (resultsPanel) resultsPanel.classList.add("hidden");
   } else {
-    controlPanel.classList.add("hidden");
+    if (!isDesktop) controlPanel.classList.add("hidden");
     if (resultsPanel) resultsPanel.classList.remove("hidden");
     const target = stateElement.closest(".results-panel") || stateElement;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
