@@ -157,6 +157,10 @@ function computeEnergyLevel(kcal) {
 
 function detectGluten(...texts) {
   const combined = texts.join(" ").toLowerCase();
+  // Check for gluten-free claims first — if name says "sin gluten", trust it
+  if (/sin\s*gluten|libre\s*de\s*gluten|gluten\s*free|no\s*gluten/i.test(combined)) {
+    return { hasGluten: false, detected: [] };
+  }
   const detected = GLUTEN_KW.filter(kw => combined.includes(kw));
   return { hasGluten: detected.length > 0, detected };
 }
