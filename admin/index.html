@@ -77,6 +77,22 @@
     .log-badge-red    { background: var(--chile-light); color: var(--chile); border-color: var(--chile-border); }
     .log-badge-blue   { background: #e8f0fe; color: #1a56c4; border-color: #a8c0f0; }
     .log-badge-orange { background: #fff3e0; color: #b45309; border-color: #fcd49a; }
+    /* Scan cards */
+    .scan-card { border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); box-shadow: 2px 2px 0 var(--border); cursor: pointer; transition: border-color 0.15s; }
+    .scan-card:hover { border-color: var(--ink); }
+    .scan-card-summary { padding: 12px 14px; }
+    .scan-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .scan-card-date { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
+    .scan-card-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+    .scan-card-barcode { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 500; color: var(--ink); text-decoration: none; }
+    .scan-card-barcode:hover { text-decoration: underline; }
+    .scan-card-name { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+    .scan-card-meta { font-size: 0.72rem; color: var(--ink-3); margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .scan-card-meta span { white-space: nowrap; }
+    .scan-card-detail { border-top: 1px solid var(--border); padding: 12px 14px; font-size: 0.78rem; color: var(--ink); }
+    .scan-card-detail-row { display: flex; gap: 8px; margin-bottom: 4px; }
+    .scan-card-detail-label { font-weight: 600; min-width: 100px; flex-shrink: 0; }
+    .scan-card-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
     /* Logs expandibles */
     .log-row { cursor: pointer; }
     .log-pname { color: var(--text-muted); font-size: 0.75rem; }

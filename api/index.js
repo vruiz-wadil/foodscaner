@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
 const { computeStats } = require('./stats');
 
 function detectOS(ua = '') {
@@ -319,6 +319,7 @@ app.get('/api/product/:barcode', async (req, res) => {
 
     if (cached) {
       cached.response._fromCache = true;
+      const cacheLevel = memoryCache[cachedBarcode] && (Math.floor(Date.now() / 1000) - memoryCache[cachedBarcode].cachedAt) <= CACHE_MAX_AGE ? 'L1' : 'L2';
       const age = now - cached.cachedAt;
       const isOFF = cached.source && cached.source.includes("Open Food Facts");
 
@@ -330,7 +331,7 @@ app.get('/api/product/:barcode', async (req, res) => {
       }
 
       if (age < OFF_FRESH_TTL) {
-        fireMarkScanSource(_scanLogId, 'cache');
+        fireMarkScanSources(_scanLogId, [], cacheLevel, '', '');
         return res.json(cached.response);
       }
 
@@ -339,14 +340,14 @@ app.get('/api/product/:barcode', async (req, res) => {
         const currentModified = await checkOFFLastModified(cachedBarcode, host);
         if (currentModified !== null && currentModified === cached.offLastModified) {
           memoryCache[cachedBarcode].cachedAt = now;
-          fireMarkScanSource(_scanLogId, 'cache');
+          fireMarkScanSources(_scanLogId, [], cacheLevel, '', '');
           return res.json(cached.response);
         }
       }
 
       if (!isOFF && age < FALLBACK_TTL) {
         memoryCache[cachedBarcode].cachedAt = now;
-        fireMarkScanSource(_scanLogId, 'cache');
+        fireMarkScanSources(_scanLogId, [], cacheLevel, '', '');
         return res.json(cached.response);
       }
 
@@ -507,7 +508,7 @@ app.get('/api/product/:barcode', async (req, res) => {
         sourceResults.push({ source: "USDA FoodData Central", found: true, productName: pn, brandName: bn, allergenInfo: ai, nutritionInfo: ni });
         const respData = { ...usdaResult, sourceResults };
         await setCacheEntry(barcode, respData, "USDA FoodData Central", null);
-        fireMarkScanSource(_scanLogId, 'db');
+        fireMarkScanSources(_scanLogId, sourceResults, 'none', 'db', 'db');
         return res.json(respData);
       } else {
         sourceResults.push({ source: "USDA FoodData Central", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
@@ -796,7 +797,9 @@ app.get('/api/product/:barcode', async (req, res) => {
       bestResult.product = await addOcrDataIfAvailable(bestResult.product);
       const respData = { ...bestResult, sourceResults };
       await setCacheEntry(barcode, respData, bestSource, bestLastModified);
-      fireMarkScanSource(_scanLogId, 'db');
+      const _ingSrc = respData.product?.ingredients_ocr ? 'ocr' : (bestSource || '').includes('Groq') ? 'ai' : 'db';
+      const _nutSrc = respData.product?.nutritionData?.source === 'ocr' ? 'ocr' : (bestSource || '').includes('Groq') ? 'ai' : 'db';
+      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc, _nutSrc);
       return res.json(respData);
     }
 
@@ -826,7 +829,9 @@ app.get('/api/product/:barcode', async (req, res) => {
       fallbackResult.product = await addOcrDataIfAvailable(fallbackResult.product);
       const respData = { ...fallbackResult, sourceResults };
       await setCacheEntry(barcode, respData, "UpcItemDb", null);
-      fireMarkScanSource(_scanLogId, 'db');
+      const _ingSrc2 = respData.product?.ingredients_ocr ? 'ocr' : 'db';
+      const _nutSrc2 = respData.product?.nutritionData?.source === 'ocr' ? 'ocr' : 'db';
+      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc2, _nutSrc2);
       return res.json(respData);
     }
 
@@ -852,7 +857,9 @@ app.get('/api/product/:barcode', async (req, res) => {
 
         const respData = { status: 1, source: 'local', sourceLabel: 'Groq + USDA', product: gp, sourceResults };
         await setCacheEntry(barcode, respData, "Groq+USDA", null);
-        fireMarkScanSource(_scanLogId, 'ia');
+        const _ingSrc3 = respData.product?.ingredients_ocr ? 'ocr' : 'ai';
+        const _nutSrc3 = respData.product?.nutritionData?.source === 'ocr' ? 'ocr' : 'ai';
+        fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc3, _nutSrc3);
         return res.json(respData);
       }
     }
@@ -862,11 +869,14 @@ app.get('/api/product/:barcode', async (req, res) => {
     const ocrOnlyProduct = await addOcrDataIfAvailable(ocrOnlyBase);
     if (ocrOnlyProduct._from_ocr || ocrOnlyProduct._from_nutrition_ocr) {
       const respData = { status: 1, source: 'local', sourceLabel: 'OCR', product: ocrOnlyProduct, sourceResults };
-      fireMarkScanSource(_scanLogId, 'db');
+      const _ingSrc4 = ocrOnlyProduct._from_ocr ? 'ocr' : 'db';
+      const _nutSrc4 = ocrOnlyProduct._from_nutrition_ocr ? 'ocr' : 'db';
+      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc4, _nutSrc4);
       return res.json(respData);
     }
 
     fireMarkScanNotFound(_scanLogId);
+    fireMarkScanSources(_scanLogId, sourceResults, 'none', '', '');
     return res.status(404).json({ status: 0, message: "Producto no encontrado", sourceResults });
   } catch (err) {
     res.status(500).json({ status: 0, message: "Error interno del servidor" });

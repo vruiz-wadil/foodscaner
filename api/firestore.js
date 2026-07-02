@@ -268,6 +268,15 @@ async function fireListDocs(col, pageToken) {
     if (parsed && d.fields?._confidence?.stringValue) parsed.confidence = d.fields._confidence.stringValue;
     if (parsed && d.fields?._confidenceNotes?.stringValue) parsed.confidenceNotes = d.fields._confidenceNotes.stringValue;
     if (parsed && d.fields?._source?.stringValue) parsed.source = d.fields._source.stringValue;
+    if (parsed && d.fields?._sourcesTried?.arrayValue?.values) {
+      parsed.sourcesTried = d.fields._sourcesTried.arrayValue.values.map(v => ({
+        source: v.mapValue?.fields?.source?.stringValue || '',
+        found: v.mapValue?.fields?.found?.booleanValue || false
+      }));
+    }
+    if (parsed && d.fields?._cacheLevel?.stringValue) parsed.cacheLevel = d.fields._cacheLevel.stringValue;
+    if (parsed && d.fields?._ingredientSource?.stringValue) parsed.ingredientSource = d.fields._ingredientSource.stringValue;
+    if (parsed && d.fields?._nutritionSource?.stringValue) parsed.nutritionSource = d.fields._nutritionSource.stringValue;
     return { id, data: parsed };
   });
   return { items, nextPageToken: data.nextPageToken || null };
@@ -353,6 +362,29 @@ async function fireMarkScanSource(id, source) {
   }).catch(() => {});
 }
 
+async function fireMarkScanSources(id, sources, cacheLevel = 'none', ingredientSource = '', nutritionSource = '') {
+  const token = await getAccessToken(); if (!token) return;
+  const arr = (sources || []).map(s => ({
+    mapValue: { fields: {
+      source: { stringValue: s.source || '' },
+      found: { booleanValue: !!s.found }
+    }}
+  }));
+  const fields = {
+    _sourcesTried: { arrayValue: { values: arr } },
+    _cacheLevel: { stringValue: cacheLevel },
+    _ingredientSource: { stringValue: ingredientSource },
+    _nutritionSource: { stringValue: nutritionSource }
+  };
+  const mask = '?updateMask.fieldPaths=_sourcesTried&updateMask.fieldPaths=_cacheLevel&updateMask.fieldPaths=_ingredientSource&updateMask.fieldPaths=_nutritionSource';
+  fetch(docPath('scan_logs', id) + mask, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  }).catch(() => {});
+}
+
 // ponytail: inline base64 image; migrar a Storage si los docs crecen > 800 KB promedio.
 async function fireLogReport(entry) {
   const token = await getAccessToken(); if (!token) return false;
@@ -378,5 +410,5 @@ module.exports = {
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
-  fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireLogReport, ADMIN_COLLECTIONS
+  fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS
 };

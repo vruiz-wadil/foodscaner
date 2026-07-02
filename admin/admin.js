@@ -265,52 +265,63 @@
   }
 
   const SOURCE_LABELS = { cache: '💾 Cache', ia: '🤖 IA', db: '🌐 DB' };
+  const CACHE_LABELS = { L1: '💾 L1', L2: '💾 L2', none: '—' };
+  const ING_LABELS = { ocr: '📷 OCR', db: '🌐 DB', ai: '🤖 IA', none: '—' };
+  const NUT_LABELS = { ocr: '📊 OCR', db: '🌐 DB', ai: '🤖 IA', none: '—' };
 
   function renderLogs(items) {
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin logs todavía.</div>'; return; }
-    const rows = items.map(item => {
+    docList.innerHTML = items.map(item => {
       const d = item.data || {};
       const fecha = d.ts ? new Date(d.ts).toLocaleString('es-MX') : '—';
       const loc = [d.city, d.region, d.country].filter(Boolean).join(', ') || '—';
       const bc = d.barcode || '';
       const badges = [
-        d.notFound    ? '<span class="log-badge log-badge-red">No encontrado</span>'      : '',
-        d.hasOcr      ? '<span class="log-badge log-badge-blue">📷 Ingredientes</span>'   : '',
-        d.hasNutritionOcr ? '<span class="log-badge log-badge-blue">📊 Nutrición</span>' : '',
+        d.notFound       ? '<span class="log-badge log-badge-red">🔍 No encontrado</span>'    : '',
+        d.hasOcr         ? '<span class="log-badge log-badge-blue">📷 Ing OCR</span>'          : '',
+        d.hasNutritionOcr? '<span class="log-badge log-badge-blue">📊 Nut OCR</span>'          : '',
         reportBarcodes?.has(bc) ? '<span class="log-badge log-badge-orange">🚩 Reporte</span>' : ''
       ].filter(Boolean).join(' ');
-      const pname = d.productName ? `<div class="log-pname">${escHtml(d.productName)}</div>` : '';
-      const barcodeCell = bc
-        ? `<a href="https://www.yomi.mx/scan.html?barcode=${encodeURIComponent(bc)}" target="_blank" rel="noopener" class="barcode-link">${escHtml(bc)}</a> ${badges}${pname}`
+      const cacheLabel = CACHE_LABELS[d.cacheLevel] || '—';
+      const ingLabel = ING_LABELS[d.ingredientSource] || '—';
+      const nutLabel = NUT_LABELS[d.nutritionSource] || '—';
+      const sourcesLabel = (d.sourcesTried && d.sourcesTried.length)
+        ? d.sourcesTried.map(s => s.source + (s.found ? ' ✓' : ' ✗')).join(' · ')
         : '—';
-      const confMap = { alta: '🟢 Alta', media: '🟡 Media', baja: '🔴 Baja' };
-      const confLabel = d.confidence ? (confMap[d.confidence.toLowerCase()] || escHtml(d.confidence)) : null;
-      const confCell = confLabel
-        ? `<span class="conf-wrap">${confLabel}<span class="conf-tooltip"><span class="conf-tooltip-level">Confianza del análisis: ${confLabel}</span>${d.confidenceNotes ? `<span class="conf-tooltip-notes">${escHtml(d.confidenceNotes)}</span>` : ''}</span></span>`
-        : '—';
-      const srcCell = SOURCE_LABELS[d.source] || (d.source ? escHtml(d.source) : '—');
-      const detailRows = [
-        `<span><b>ID:</b> ${escHtml(item.id)}</span>`,
-        `<span><b>IP:</b> ${escHtml(d.ip || '—')}</span>`,
-        `<span><b>User-Agent:</b> ${escHtml(d.ua || '—')}</span>`,
-        `<span><b>Fuente:</b> ${srcCell}</span>`,
-        d.confidenceNotes ? `<span><b>Notas de confianza:</b> ${escHtml(d.confidenceNotes)}</span>` : ''
+      const metaParts = [
+        `📍 ${escHtml(loc)}`,
+        `🖥 ${escHtml(d.os || '—')}`,
+        `💾 ${escHtml(cacheLabel)}`,
+        d.ingredientSource ? `🔍 ${ingLabel}` : '',
+        d.nutritionSource ? `📊 ${nutLabel}` : ''
+      ].filter(Boolean);
+      const detailParts = [
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">IP:</span><span>${escHtml(d.ip || '—')}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">User-Agent:</span><span>${escHtml(d.ua || '—')}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Fuentes:</span><span>${escHtml(sourcesLabel)}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Cache:</span><span>${escHtml(cacheLabel)}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Ingredientes:</span><span>${ingLabel}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Nutrición:</span><span>${nutLabel}</span></div>`,
+        d.confidenceNotes ? `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Notas:</span><span>${escHtml(d.confidenceNotes)}</span></div>` : '',
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">ID:</span><span>${escHtml(item.id)}</span></div>`
       ].filter(Boolean).join('');
-      return `<tr class="log-row">
-        <td class="mono">${escHtml(fecha)}</td>
-        <td class="mono">${barcodeCell}</td>
-        <td>${escHtml(loc)}</td>
-        <td>${escHtml(d.os || '—')}</td>
-        <td>${confCell}</td>
-        <td>${srcCell}</td>
-        <td><button class="del-log btn-del" data-action="del" data-id="${escHtml(item.id)}">✕</button></td>
-      </tr>
-      <tr class="log-detail" hidden><td colspan="7"><div class="log-detail-grid">${detailRows}</div></td></tr>`;
+      return `<div class="scan-card" data-id="${escHtml(item.id)}">
+        <div class="scan-card-summary">
+          <div class="scan-card-top">
+            <span class="scan-card-date">${escHtml(fecha)}</span>
+            <div class="scan-card-badges">${badges}</div>
+          </div>
+          ${bc ? `<a href="https://www.yomi.mx/scan.html?barcode=${encodeURIComponent(bc)}" target="_blank" rel="noopener" class="scan-card-barcode">${escHtml(bc)}</a>` : ''}
+          ${d.productName ? `<div class="scan-card-name">${escHtml(d.productName)}</div>` : ''}
+          <div class="scan-card-meta">${metaParts.map(p => `<span>${p}</span>`).join('')}</div>
+        </div>
+        <div class="scan-card-detail" hidden>${detailParts}
+          <div class="scan-card-actions">
+            <button class="btn-del" data-action="del" data-id="${escHtml(item.id)}">Eliminar</button>
+          </div>
+        </div>
+      </div>`;
     }).join('');
-    docList.innerHTML = `<table class="log-table">
-      <thead><tr><th>Fecha/Hora</th><th>Código</th><th>Ubicación</th><th>Sistema</th><th>Confianza</th><th>Fuente</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
   }
 
   function summaryOf(item) {
@@ -328,7 +339,7 @@
     const items = q ? allItems.filter(i => {
       if (currentCol === 'scan_logs') {
         const d = i.data || {};
-        return i.id.includes(q) || (d.barcode||'').includes(q) || (d.ip||'').toLowerCase().includes(q) || (d.os||'').toLowerCase().includes(q);
+        return i.id.includes(q) || (d.barcode||'').includes(q) || (d.ip||'').toLowerCase().includes(q) || (d.os||'').toLowerCase().includes(q) || (d.productName||'').toLowerCase().includes(q) || (d.cacheLevel||'').toLowerCase().includes(q) || (d.sourcesTried||[]).some(s => (s.source||'').toLowerCase().includes(q));
       }
       if (currentCol === 'reports') {
         const d = i.data || {};
@@ -355,15 +366,16 @@
   }
 
   docList.addEventListener('click', async e => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) {
-      const row = e.target.closest('tr.log-row');
-      if (row && !e.target.closest('a')) {
-        const det = row.nextElementSibling;
-        if (det && det.classList.contains('log-detail')) det.hidden = !det.hidden;
-      }
+    // Toggle scan card expand/collapse
+    const card = e.target.closest('.scan-card');
+    if (card && !e.target.closest('[data-action]') && !e.target.closest('a')) {
+      const detail = card.querySelector('.scan-card-detail');
+      if (detail) detail.hidden = !detail.hidden;
       return;
     }
+
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
     const id = btn.dataset.id;
 
     if (btn.dataset.action === 'view') {
