@@ -8,7 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <style>
-    .admin-layout { display: flex; min-height: 100vh; }
+    body { display: block !important; justify-content: unset !important; align-items: unset !important; }
+    .admin-layout { display: flex; min-height: 100vh; width: 100vw; }
     .sidebar { width: 200px; min-width: 200px; flex-shrink: 0; border-right: 2px solid var(--border); padding: 20px 12px; box-sizing: border-box; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
     .sidebar-brand { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; color: var(--ink); margin-bottom: 18px; padding: 0 8px; }
     .side-nav { display: flex; flex-direction: column; gap: 6px; }
