@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="Yomi">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="home.css?v=7">
+  <link rel="stylesheet" href="home.css?v=8">
 </head>
 <body>
   <div class="app-shell">
@@ -51,6 +51,17 @@
       </div>
 
       <div class="home-right">
+        <!-- About card -->
+        <section class="section-about">
+          <div class="about-card">
+            <div class="about-card-icon">🔍</div>
+            <div class="about-card-body">
+              <h3 class="about-title">¿Qué es Yomi?</h3>
+              <p class="about-text">Escanea o ingresa el código de barras de cualquier alimento y obtén al instante su información nutricional, niveles de gluten, alérgenos y un análisis de salud generado con inteligencia artificial.</p>
+            </div>
+          </div>
+        </section>
+
         <!-- Recent products -->
         <section class="section-recent">
           <div class="section-recent-header">
@@ -61,19 +72,6 @@
           </div>
           <div class="products-empty hidden" id="products-empty">
             <p>Aún no has escaneado ningún producto.</p>
-          </div>
-        </section>
-
-        <!-- Yomi+ promo -->
-        <section class="section-promo">
-          <div class="promo-card">
-            <div class="promo-card-text">
-              <p class="promo-title">Activa Yomi+</p>
-              <p class="promo-sub">Perfil IA · OCR · Historial · Agente personalizado</p>
-            </div>
-            <div class="promo-btn-wrap">
-              <button class="promo-btn" disabled>Próximamente · $29 al mes</button>
-            </div>
           </div>
         </section>
 

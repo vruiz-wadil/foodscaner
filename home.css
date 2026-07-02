@@ -142,6 +142,42 @@ body {
   color: rgba(126,189,172,0.8);
   line-height: 1.5;
 }
+/* ── About card ──────────────────────────────────────────────── */
+.section-about {
+  padding: 0 20px 16px;
+}
+.about-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--paper);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.about-card-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.about-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.about-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+.about-text {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 0;
+  line-height: 1.5;
+}
 
 /* ── Recent products ─────────────────────────────────────────── */
 .section-recent {
