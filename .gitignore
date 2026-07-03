@@ -6,3 +6,5 @@ node_modules/
 .vercel
 .superpowers/
 .worktrees/
+.playwright-mcp/
+/*.png
