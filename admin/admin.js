@@ -67,8 +67,8 @@
       <div class="stats-cols">
         <div>
           <h3 class="stats-h">Top productos</h3>
-          <table class="log-table"><thead><tr><th>Código</th><th>Producto</th><th>#</th></tr></thead>
-          <tbody>${topRows || '<tr><td colspan="3" class="empty-msg">Sin datos.</td></tr>'}</tbody></table>
+          <div class="table-scroll"><table class="data-table"><thead><tr><th>Código</th><th>Producto</th><th>#</th></tr></thead>
+          <tbody>${topRows || '<tr><td colspan="3" class="empty-msg">Sin datos.</td></tr>'}</tbody></table></div>
         </div>
         <div>
           <h3 class="stats-h">País</h3>${breakdown(s.byCountry)}
@@ -196,10 +196,10 @@
         </td>
       </tr>`;
     }).join('');
-    docList.innerHTML = `<table class="log-table">
+    docList.innerHTML = `<div class="table-scroll"><table class="data-table">
       <thead><tr><th>Fecha/Hora</th><th>Código</th><th>Categoría</th><th>Comentario</th><th>Sistema</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table></div>`;
   }
 
   function renderCacheAll(data, filterText = '') {
