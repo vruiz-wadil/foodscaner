@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
+const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
 
 function detectOS(ua = '') {
@@ -291,20 +292,23 @@ app.get('/api/product/:barcode', async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
 
     // Fire-and-forget scan log (no await — never delays the response)
-    const _decCity = c => { try { return decodeURIComponent(c || ''); } catch { return c || ''; } };
     const _scanLogId = String(1e16 - Date.now()).padStart(16, '0') + '_' + Math.random().toString(36).slice(2, 8);
     res.setHeader('X-Scan-Log-Id', _scanLogId);
-    fireLogScan({
-      _id: _scanLogId,
-      ts: Date.now(),
-      barcode,
-      ip: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '',
-      country: req.headers['x-vercel-ip-country'] || '',
-      region:  req.headers['x-vercel-ip-country-region'] || '',
-      city:    _decCity(req.headers['x-vercel-ip-city']),
-      os:      detectOS(req.headers['user-agent']),
-      ua:      req.headers['user-agent'] || ''
-    });
+    const _scanIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
+    (async () => {
+      const geo = await getGeoData(_scanIp, req.headers);
+      fireLogScan({
+        _id: _scanLogId,
+        ts: Date.now(),
+        barcode,
+        ip: _scanIp,
+        country: geo.country,
+        region:  geo.region,
+        city:    geo.city,
+        os:      detectOS(req.headers['user-agent']),
+        ua:      req.headers['user-agent'] || ''
+      });
+    })();
 
     // ----- CACHE LOOKUP (try all variations) -----
     let cached = null;
@@ -1215,16 +1219,16 @@ app.post('/api/report', async (req, res) => {
   if (!category && !comment) return res.status(400).json({ error: 'Se requiere categoría o comentario' });
   if (image && image.length > 700000) return res.status(413).json({ error: 'Imagen demasiado grande (máx ~700 KB)' });
   const ua = req.headers['user-agent'] || '';
-  const decCity = c => { try { return decodeURIComponent(c || ''); } catch { return c || ''; } };
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
+  const geo = await getGeoData(ip, req.headers);
   const ok = await fireLogReport({
     ts: Date.now(), barcode: barcode || '', productName: productName || '',
     category: category || '', comment: comment || '',
     ...(image ? { image } : {}),
-    os: detectOS(ua), ua,
-    ip: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '',
-    country: req.headers['x-vercel-ip-country'] || '',
-    region: req.headers['x-vercel-ip-country-region'] || '',
-    city: decCity(req.headers['x-vercel-ip-city'])
+    os: detectOS(ua), ua, ip,
+    country: geo.country,
+    region: geo.region,
+    city: geo.city
   });
   if (!ok) return res.status(500).json({ error: 'No se pudo guardar el reporte' });
   res.json({ ok: true });
