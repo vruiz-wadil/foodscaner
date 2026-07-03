@@ -292,6 +292,7 @@ app.get('/api/product/:barcode', async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
 
     // Fire-and-forget scan log (no await — never delays the response)
+    const _reqStart = Date.now();
     const _scanLogId = String(1e16 - Date.now()).padStart(16, '0') + '_' + Math.random().toString(36).slice(2, 8);
     res.setHeader('X-Scan-Log-Id', _scanLogId);
     const _scanIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
@@ -335,7 +336,7 @@ app.get('/api/product/:barcode', async (req, res) => {
       }
 
       if (age < OFF_FRESH_TTL) {
-        fireMarkScanSources(_scanLogId, [], cacheLevel, '', '');
+        fireMarkScanSources(_scanLogId, [], cacheLevel, '', '', Date.now() - _reqStart);
         return res.json(cached.response);
       }
 
@@ -344,14 +345,14 @@ app.get('/api/product/:barcode', async (req, res) => {
         const currentModified = await checkOFFLastModified(cachedBarcode, host);
         if (currentModified !== null && currentModified === cached.offLastModified) {
           memoryCache[cachedBarcode].cachedAt = now;
-          fireMarkScanSources(_scanLogId, [], cacheLevel, '', '');
+          fireMarkScanSources(_scanLogId, [], cacheLevel, '', '', Date.now() - _reqStart);
           return res.json(cached.response);
         }
       }
 
       if (!isOFF && age < FALLBACK_TTL) {
         memoryCache[cachedBarcode].cachedAt = now;
-        fireMarkScanSources(_scanLogId, [], cacheLevel, '', '');
+        fireMarkScanSources(_scanLogId, [], cacheLevel, '', '', Date.now() - _reqStart);
         return res.json(cached.response);
       }
 
@@ -512,7 +513,7 @@ app.get('/api/product/:barcode', async (req, res) => {
         sourceResults.push({ source: "USDA FoodData Central", found: true, productName: pn, brandName: bn, allergenInfo: ai, nutritionInfo: ni });
         const respData = { ...usdaResult, sourceResults };
         await setCacheEntry(barcode, respData, "USDA FoodData Central", null);
-        fireMarkScanSources(_scanLogId, sourceResults, 'none', 'db', 'db');
+        fireMarkScanSources(_scanLogId, sourceResults, 'none', 'db', 'db', Date.now() - _reqStart);
         return res.json(respData);
       } else {
         sourceResults.push({ source: "USDA FoodData Central", found: false, productName: "—", brandName: "—", allergenInfo: "—", nutritionInfo: "—" });
@@ -803,7 +804,7 @@ app.get('/api/product/:barcode', async (req, res) => {
       await setCacheEntry(barcode, respData, bestSource, bestLastModified);
       const _ingSrc = respData.product?.ingredients_ocr ? 'ocr' : (bestSource || '').includes('Groq') ? 'ai' : 'db';
       const _nutSrc = respData.product?.nutritionData?.source === 'ocr' ? 'ocr' : (bestSource || '').includes('Groq') ? 'ai' : 'db';
-      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc, _nutSrc);
+      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc, _nutSrc, Date.now() - _reqStart);
       return res.json(respData);
     }
 
@@ -835,7 +836,7 @@ app.get('/api/product/:barcode', async (req, res) => {
       await setCacheEntry(barcode, respData, "UpcItemDb", null);
       const _ingSrc2 = respData.product?.ingredients_ocr ? 'ocr' : 'db';
       const _nutSrc2 = respData.product?.nutritionData?.source === 'ocr' ? 'ocr' : 'db';
-      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc2, _nutSrc2);
+      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc2, _nutSrc2, Date.now() - _reqStart);
       return res.json(respData);
     }
 
@@ -863,7 +864,7 @@ app.get('/api/product/:barcode', async (req, res) => {
         await setCacheEntry(barcode, respData, "Groq+USDA", null);
         const _ingSrc3 = respData.product?.ingredients_ocr ? 'ocr' : 'ai';
         const _nutSrc3 = respData.product?.nutritionData?.source === 'ocr' ? 'ocr' : 'ai';
-        fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc3, _nutSrc3);
+        fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc3, _nutSrc3, Date.now() - _reqStart);
         return res.json(respData);
       }
     }
@@ -875,12 +876,12 @@ app.get('/api/product/:barcode', async (req, res) => {
       const respData = { status: 1, source: 'local', sourceLabel: 'OCR', product: ocrOnlyProduct, sourceResults };
       const _ingSrc4 = ocrOnlyProduct._from_ocr ? 'ocr' : 'db';
       const _nutSrc4 = ocrOnlyProduct._from_nutrition_ocr ? 'ocr' : 'db';
-      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc4, _nutSrc4);
+      fireMarkScanSources(_scanLogId, sourceResults, 'none', _ingSrc4, _nutSrc4, Date.now() - _reqStart);
       return res.json(respData);
     }
 
     fireMarkScanNotFound(_scanLogId);
-    fireMarkScanSources(_scanLogId, sourceResults, 'none', '', '');
+    fireMarkScanSources(_scanLogId, sourceResults, 'none', '', '', Date.now() - _reqStart);
     return res.status(404).json({ status: 0, message: "Producto no encontrado", sourceResults });
   } catch (err) {
     res.status(500).json({ status: 0, message: "Error interno del servidor" });

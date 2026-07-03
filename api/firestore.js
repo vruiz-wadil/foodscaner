@@ -277,6 +277,7 @@ async function fireListDocs(col, pageToken) {
     if (parsed && d.fields?._cacheLevel?.stringValue) parsed.cacheLevel = d.fields._cacheLevel.stringValue;
     if (parsed && d.fields?._ingredientSource?.stringValue) parsed.ingredientSource = d.fields._ingredientSource.stringValue;
     if (parsed && d.fields?._nutritionSource?.stringValue) parsed.nutritionSource = d.fields._nutritionSource.stringValue;
+    if (parsed && d.fields?._durationMs?.integerValue) parsed.durationMs = parseInt(d.fields._durationMs.integerValue, 10);
     return { id, data: parsed };
   });
   return { items, nextPageToken: data.nextPageToken || null };
@@ -362,7 +363,7 @@ async function fireMarkScanSource(id, source) {
   }).catch(() => {});
 }
 
-async function fireMarkScanSources(id, sources, cacheLevel = 'none', ingredientSource = '', nutritionSource = '') {
+async function fireMarkScanSources(id, sources, cacheLevel = 'none', ingredientSource = '', nutritionSource = '', durationMs = 0) {
   const token = await getAccessToken(); if (!token) return;
   const arr = (sources || []).map(s => ({
     mapValue: { fields: {
@@ -374,9 +375,10 @@ async function fireMarkScanSources(id, sources, cacheLevel = 'none', ingredientS
     _sourcesTried: { arrayValue: { values: arr } },
     _cacheLevel: { stringValue: cacheLevel },
     _ingredientSource: { stringValue: ingredientSource },
-    _nutritionSource: { stringValue: nutritionSource }
+    _nutritionSource: { stringValue: nutritionSource },
+    _durationMs: { integerValue: String(durationMs) }
   };
-  const mask = '?updateMask.fieldPaths=_sourcesTried&updateMask.fieldPaths=_cacheLevel&updateMask.fieldPaths=_ingredientSource&updateMask.fieldPaths=_nutritionSource';
+  const mask = '?updateMask.fieldPaths=_sourcesTried&updateMask.fieldPaths=_cacheLevel&updateMask.fieldPaths=_ingredientSource&updateMask.fieldPaths=_nutritionSource&updateMask.fieldPaths=_durationMs';
   fetch(docPath('scan_logs', id) + mask, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
