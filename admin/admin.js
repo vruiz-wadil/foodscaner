@@ -350,7 +350,12 @@
       return i.id.toLowerCase().includes(q);
     }) : allItems;
     const noun = currentCol === 'scan_logs' ? 'escaneo' : currentCol === 'reports' ? 'reporte' : 'documento';
-    statsBar.textContent = items.length + ' ' + noun + (items.length !== 1 ? 's' : '') + (q ? ' (filtrado)' : '');
+    const totalEl = document.querySelector(`.nav-count[data-count="${currentCol}"]`);
+    const total = totalEl && totalEl.textContent ? parseInt(totalEl.textContent, 10) : null;
+    const scopeNote = (q && nextPageToken && total != null)
+      ? ` — buscando en ${allItems.length} de ${total} cargados, carga más para ampliar`
+      : (q ? ' (filtrado)' : '');
+    statsBar.textContent = items.length + ' ' + noun + (items.length !== 1 ? 's' : '') + scopeNote;
     if (currentCol === 'scan_logs') { renderLogs(items); return; }
     if (currentCol === 'reports') { renderReports(items); return; }
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin resultados.</div>'; return; }
