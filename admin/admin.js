@@ -150,7 +150,8 @@
   async function loadCollection(append = false) {
     if (currentCol === 'resumen') { await loadStats(); return; }
     if (!append) { allItems = []; nextPageToken = null; docList.innerHTML = '<div class="empty-msg">Cargando…</div>'; loadMoreEl.innerHTML = ''; }
-    if (currentCol === 'scan_logs' && !append) await loadBarcodeFlags();
+    const _cfg = TAB_CONFIG[currentCol];
+    if (_cfg?.onLoad && !append) await _cfg.onLoad();
 
     if (currentCol === 'cache') {
       const r = await apiFetch('/api/admin/cache-all');
@@ -336,28 +337,39 @@
     return JSON.stringify(d).substring(0, 60) + '…';
   }
 
+  function filterScanLogs(item, q) {
+    const d = item.data || {};
+    return item.id.includes(q) || (d.barcode||'').includes(q) || (d.ip||'').toLowerCase().includes(q) || (d.os||'').toLowerCase().includes(q) || (d.productName||'').toLowerCase().includes(q) || (d.cacheLevel||'').toLowerCase().includes(q) || (d.sourcesTried||[]).some(s => (s.source||'').toLowerCase().includes(q));
+  }
+
+  function filterReports(item, q) {
+    const d = item.data || {};
+    return (d.barcode||'').includes(q) || (d.category||'').toLowerCase().includes(q) || (d.comment||'').toLowerCase().includes(q);
+  }
+
+  function filterById(item, q) {
+    return item.id.toLowerCase().includes(q);
+  }
+
+  const TAB_CONFIG = {
+    scan_logs: { noun: 'escaneo', filterPredicate: filterScanLogs, render: renderLogs, onLoad: loadBarcodeFlags },
+    reports: { noun: 'reporte', filterPredicate: filterReports, render: renderReports },
+    products_ocr: { noun: 'documento', filterPredicate: filterById, render: null },
+    products_nutrition: { noun: 'documento', filterPredicate: filterById, render: null }
+  };
+
   function renderList() {
     const q = filterInput.value.trim().toLowerCase();
-    const items = q ? allItems.filter(i => {
-      if (currentCol === 'scan_logs') {
-        const d = i.data || {};
-        return i.id.includes(q) || (d.barcode||'').includes(q) || (d.ip||'').toLowerCase().includes(q) || (d.os||'').toLowerCase().includes(q) || (d.productName||'').toLowerCase().includes(q) || (d.cacheLevel||'').toLowerCase().includes(q) || (d.sourcesTried||[]).some(s => (s.source||'').toLowerCase().includes(q));
-      }
-      if (currentCol === 'reports') {
-        const d = i.data || {};
-        return (d.barcode||'').includes(q) || (d.category||'').toLowerCase().includes(q) || (d.comment||'').toLowerCase().includes(q);
-      }
-      return i.id.toLowerCase().includes(q);
-    }) : allItems;
-    const noun = currentCol === 'scan_logs' ? 'escaneo' : currentCol === 'reports' ? 'reporte' : 'documento';
+    const cfg = TAB_CONFIG[currentCol];
+    const items = q ? allItems.filter(i => cfg.filterPredicate(i, q)) : allItems;
+    const noun = cfg.noun;
     const totalEl = document.querySelector(`.nav-count[data-count="${currentCol}"]`);
     const total = totalEl && totalEl.textContent ? parseInt(totalEl.textContent, 10) : null;
     const scopeNote = (q && nextPageToken && total != null)
       ? ` — buscando en ${allItems.length} de ${total} cargados, carga más para ampliar`
       : (q ? ' (filtrado)' : '');
     statsBar.textContent = items.length + ' ' + noun + (items.length !== 1 ? 's' : '') + scopeNote;
-    if (currentCol === 'scan_logs') { renderLogs(items); return; }
-    if (currentCol === 'reports') { renderReports(items); return; }
+    if (cfg.render) { cfg.render(items); return; }
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin resultados.</div>'; return; }
     docList.innerHTML = items.map(item => `
       <div class="list-card doc-item" data-id="${escHtml(item.id)}">
