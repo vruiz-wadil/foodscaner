@@ -35,7 +35,8 @@
     .toolbar input { flex: 1; font-family: var(--font-mono); font-size: 0.85rem; padding: 8px 12px; border: 2px solid var(--border); background: var(--paper); color: var(--ink); border-radius: var(--radius-sm); outline: none; }
     .toolbar input:focus { border-color: var(--ink); }
     .doc-list { display: flex; flex-direction: column; gap: 8px; }
-    .doc-item { border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--paper); box-shadow: 2px 2px 0 var(--border); }
+    .list-card { border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); box-shadow: 2px 2px 0 var(--border); }
+    .doc-item { padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .doc-item:hover { border-color: var(--ink); }
     .doc-id { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 500; color: var(--ink); cursor: pointer; }
     .doc-id:hover { text-decoration: underline; }
@@ -79,7 +80,7 @@
     .log-badge-blue   { background: #e8f0fe; color: #1a56c4; border-color: #a8c0f0; }
     .log-badge-orange { background: #fff3e0; color: #b45309; border-color: #fcd49a; }
     /* Scan cards */
-    .scan-card { border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); box-shadow: 2px 2px 0 var(--border); cursor: pointer; transition: border-color 0.15s; }
+    .scan-card { cursor: pointer; transition: border-color 0.15s; }
     .scan-card:hover { border-color: var(--ink); }
     .scan-card-summary { padding: 12px 14px; }
     .scan-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }

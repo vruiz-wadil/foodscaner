@@ -220,7 +220,7 @@
         const badgeCls = item.inL1 && item.inL2 ? 'cache-badge-both' : item.inL1 ? 'cache-badge-l1' : 'cache-badge-l2';
         const layer = item.inL1 && item.inL2 ? 'all' : item.inL1 ? 'l1' : 'l2';
         const date = item.cachedAt ? new Date(item.cachedAt * 1000).toLocaleString('es-MX') : '—';
-        return `<div class="doc-item">
+        return `<div class="list-card doc-item">
           <div>
             <div class="doc-id">${escHtml(item.barcode)}</div>
             <div class="doc-meta">${item.name ? escHtml(item.name) + ' · ' : ''}<span class="cache-source">${escHtml(item.source)}</span> · ${escHtml(date)}</div>
@@ -246,7 +246,7 @@
         const date = item.cachedAt ? new Date(item.cachedAt * 1000).toLocaleString('es-MX') : '—';
         const displayName = item.displayName.length > 60 ? item.displayName.substring(0, 60) + '…' : item.displayName;
         const barcodesLabel = (item.barcodes && item.barcodes.length) ? item.barcodes.join(', ') : '—';
-        return `<div class="doc-item">
+        return `<div class="list-card doc-item">
           <div>
             <div class="doc-id">${escHtml(displayName)}</div>
             <div class="doc-meta">${escHtml(barcodesLabel)} · ${escHtml(item.model || '—')} · ${escHtml(date)}</div>
@@ -307,7 +307,7 @@
         d.confidenceNotes ? `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Notas:</span><span>${escHtml(d.confidenceNotes)}</span></div>` : '',
         `<div class="scan-card-detail-row"><span class="scan-card-detail-label">ID:</span><span>${escHtml(item.id)}</span></div>`
       ].filter(Boolean).join('');
-      return `<div class="scan-card" data-id="${escHtml(item.id)}">
+      return `<div class="list-card scan-card" data-id="${escHtml(item.id)}">
         <div class="scan-card-summary">
           <div class="scan-card-top">
             <span class="scan-card-date">${escHtml(fecha)}</span>
@@ -360,7 +360,7 @@
     if (currentCol === 'reports') { renderReports(items); return; }
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin resultados.</div>'; return; }
     docList.innerHTML = items.map(item => `
-      <div class="doc-item" data-id="${escHtml(item.id)}">
+      <div class="list-card doc-item" data-id="${escHtml(item.id)}">
         <div>
           <div class="doc-id">${escHtml(item.id)}</div>
           <div class="doc-meta">${escHtml(summaryOf(item))}</div>
