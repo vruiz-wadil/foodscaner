@@ -288,12 +288,14 @@
       const sourcesLabel = (d.sourcesTried && d.sourcesTried.length)
         ? d.sourcesTried.map(s => s.source + (s.found ? ' ✓' : ' ✗')).join(' · ')
         : '—';
+      const durationLabel = d.durationMs != null ? `⏱ ${(d.durationMs / 1000).toFixed(1)}s` : '';
       const metaParts = [
         `📍 ${escHtml(loc)}`,
         `🖥 ${escHtml(d.os || '—')}`,
         `💾 ${escHtml(cacheLabel)}`,
         d.ingredientSource ? `🔍 ${ingLabel}` : '',
-        d.nutritionSource ? `📊 ${nutLabel}` : ''
+        d.nutritionSource ? `📊 ${nutLabel}` : '',
+        durationLabel
       ].filter(Boolean);
       const detailParts = [
         `<div class="scan-card-detail-row"><span class="scan-card-detail-label">IP:</span><span>${escHtml(d.ip || '—')}</span></div>`,
