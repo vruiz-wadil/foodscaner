@@ -182,26 +182,43 @@
 
   function renderReports(items) {
     if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin reportes todavía.</div>'; return; }
-    const rows = items.map(item => {
+    docList.innerHTML = items.map(item => {
       const d = item.data || {};
       const fecha = d.ts ? new Date(d.ts).toLocaleString('es-MX') : '—';
-      const commentShort = (d.comment || '').substring(0, 50) + ((d.comment || '').length > 50 ? '…' : '');
-      return `<tr>
-        <td class="mono">${escHtml(fecha)}</td>
-        <td class="mono">${escHtml(d.barcode || '—')}</td>
-        <td>${escHtml(d.category || '—')}</td>
-        <td>${escHtml(commentShort || '—')}</td>
-        <td>${escHtml(d.os || '—')}</td>
-        <td>
-          <button class="btn-view" data-action="view" data-id="${escHtml(item.id)}">Ver</button>
-          <button class="del-log btn-del" data-action="del" data-id="${escHtml(item.id)}">✕</button>
-        </td>
-      </tr>`;
+      const loc = [d.city, d.region, d.country].filter(Boolean).join(', ') || '—';
+      const bc = d.barcode || '';
+      const badges = d.image ? '<span class="log-badge log-badge-blue">📷 Imagen</span>' : '';
+      const metaParts = [
+        `📍 ${escHtml(loc)}`,
+        `🖥 ${escHtml(d.os || '—')}`,
+        d.category ? `🏷 ${escHtml(d.category)}` : ''
+      ].filter(Boolean);
+      const imgHtml = d.image
+        ? `<img src="data:image/jpeg;base64,${d.image}" style="max-width:100%;border-radius:6px;margin-top:8px;display:block;">`
+        : '';
+      const detailParts = [
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Comentario:</span><span>${escHtml(d.comment || '—')}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">IP:</span><span>${escHtml(d.ip || '—')}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">User-Agent:</span><span>${escHtml(d.ua || '—')}</span></div>`,
+        `<div class="scan-card-detail-row"><span class="scan-card-detail-label">ID:</span><span>${escHtml(item.id)}</span></div>`
+      ].join('') + imgHtml;
+      return `<div class="list-card scan-card" data-id="${escHtml(item.id)}">
+        <div class="scan-card-summary">
+          <div class="scan-card-top">
+            <span class="scan-card-date">${escHtml(fecha)}</span>
+            <div class="scan-card-badges">${badges}</div>
+          </div>
+          ${bc ? `<a href="https://www.yomi.mx/scan.html?barcode=${encodeURIComponent(bc)}" target="_blank" rel="noopener" class="scan-card-barcode">${escHtml(bc)}</a>` : ''}
+          ${d.productName ? `<div class="scan-card-name">${escHtml(d.productName)}</div>` : ''}
+          <div class="scan-card-meta">${metaParts.map(p => `<span>${p}</span>`).join('')}</div>
+        </div>
+        <div class="scan-card-detail" hidden>${detailParts}
+          <div class="scan-card-actions">
+            <button class="btn-del" data-action="del" data-id="${escHtml(item.id)}">Eliminar</button>
+          </div>
+        </div>
+      </div>`;
     }).join('');
-    docList.innerHTML = `<div class="table-scroll"><table class="data-table">
-      <thead><tr><th>Fecha/Hora</th><th>Código</th><th>Categoría</th><th>Comentario</th><th>Sistema</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`;
   }
 
   function renderCacheAll(data, filterText = '') {
