@@ -104,22 +104,6 @@
     .cache-badge-l2 { background: #d4edda; color: #155724; border-color: #c3e6cb; }
     .cache-badge-both { background: #e8d4f0; color: #6c3483; border-color: #d2b4de; }
     .cache-source { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
-    /* Confidence tooltip */
-    .conf-wrap { position: relative; display: inline-block; cursor: help; }
-    .conf-tooltip {
-      display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
-      transform: translateX(-50%); background: var(--ink); color: #fff;
-      border-radius: 6px; padding: 10px 14px; width: 260px; font-size: 0.78rem;
-      line-height: 1.5; z-index: 20; white-space: normal; pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-    }
-    .conf-tooltip::after {
-      content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-      border: 6px solid transparent; border-top-color: var(--ink);
-    }
-    .conf-wrap:hover .conf-tooltip { display: block; }
-    .conf-tooltip-level { font-weight: 700; margin-bottom: 4px; }
-    .conf-tooltip-notes { color: rgba(255,255,255,0.75); }
     /* Resumen */
     .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
     .stat-card { border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); box-shadow: 2px 2px 0 var(--border); padding: 14px; }
@@ -178,7 +162,7 @@
       <button class="btn" id="logout-btn" style="font-size:0.8rem;padding:6px 12px;">Cerrar sesión</button>
     </div>
     <div class="toolbar" id="toolbar">
-      <input id="filter-input" type="text" placeholder="Filtrar por ID / código de barras…">
+      <input id="filter-input" type="text" placeholder="Filtrar…">
     </div>
     <div class="stats-bar" id="stats-bar"></div>
     <div class="doc-list" id="doc-list"></div>

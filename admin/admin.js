@@ -133,6 +133,7 @@
     sectionTitle.textContent = SECTION_TITLES[currentCol] || currentCol;
     toolbarEl.style.display = currentCol === 'resumen' ? 'none' : 'flex';
     filterInput.value = '';
+    filterInput.placeholder = FILTER_PLACEHOLDERS[currentCol] || 'Filtrar…';
     allItems = [];
     lastCacheData = null;
     nextPageToken = null;
@@ -351,6 +352,14 @@
     return item.id.toLowerCase().includes(q);
   }
 
+  const FILTER_PLACEHOLDERS = {
+    scan_logs: 'Filtrar por código, IP, sistema, producto, fuente o cache…',
+    reports: 'Filtrar por código, categoría o comentario…',
+    products_ocr: 'Filtrar por ID…',
+    products_nutrition: 'Filtrar por ID…',
+    cache: 'Filtrar por código, nombre, fuente o modelo…'
+  };
+
   const TAB_CONFIG = {
     scan_logs: { noun: 'escaneo', filterPredicate: filterScanLogs, render: renderLogs, onLoad: loadBarcodeFlags },
     reports: { noun: 'reporte', filterPredicate: filterReports, render: renderReports },
@@ -453,6 +462,9 @@
 
   modalClose.addEventListener('click', () => modalOverlay.classList.remove('open'));
   modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) modalOverlay.classList.remove('open'); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modalOverlay.classList.contains('open')) modalOverlay.classList.remove('open');
+  });
 
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
