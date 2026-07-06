@@ -263,10 +263,16 @@ function setupEventListeners() {
         barcodeInput.value = "";
         return;
       }
+      const validation = validateBarcode(barcode);
+      if (!validation.valid) {
+        renderError("Código inválido", "El código no parece válido (verifica que tenga 8, 12 o 13 dígitos y esté completo). Revisa el número e intenta de nuevo.");
+        barcodeInput.value = "";
+        return;
+      }
       if (isScanning) {
         stopScanning();
       }
-      analyzeBarcode(barcode);
+      analyzeBarcode(validation.code);
     }
   });
 
@@ -323,12 +329,12 @@ async function toggleCamera() {
       showScanHint();
       startScanningNative(defaultCam.id);
     } else {
-      alert("No se encontraron cámaras en este dispositivo.");
+      renderError("Sin cámara disponible", "No se encontraron cámaras en este dispositivo. Puedes ingresar el código de barras manualmente más abajo.");
       resetCameraButton();
     }
   } catch (error) {
     console.error("Error al iniciar cámara:", error);
-    alert("Permiso de cámara denegado o dispositivo ocupado.");
+    renderError("No se pudo acceder a la cámara", "Permiso de cámara denegado o dispositivo ocupado. Revisa los permisos de cámara en tu navegador, o ingresa el código de barras manualmente más abajo.");
     resetCameraButton();
   }
 }
@@ -464,7 +470,7 @@ function decodeZbar(imageData) {
 
 async function startScanningNative(cameraId) {
   if (!('BarcodeDetector' in window) && !(window.zbarWasm && typeof window.zbarWasm.scanImageData === 'function')) {
-    alert('El escáner aún no está listo. Ingresa el código manualmente.');
+    renderError("Escáner no disponible todavía", "El escáner aún no está listo (puede tardar unos segundos en cargar). Ingresa el código de barras manualmente más abajo, o espera unos segundos y vuelve a intentar.");
     resetCameraButton();
     return;
   }

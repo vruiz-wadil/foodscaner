@@ -207,6 +207,7 @@ body {
   aspect-ratio: 3/4;
   width: 100%;
   max-height: calc(100svh - 360px);
+  min-height: 220px;
   border-radius: var(--radius-lg);
   background: radial-gradient(circle at 50% 42%, #1d6f5e 0%, var(--ink) 68%);
   border: none;
@@ -484,8 +485,8 @@ body {
 }
 
 .hud-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: rgba(255,255,255,0.15);
   border: 1.5px solid rgba(255,255,255,0.3);
@@ -515,7 +516,8 @@ body {
 }
 
 .zoom-btn {
-  padding: 4px 10px;
+  padding: 8px 14px;
+  min-height: 36px;
   border-radius: 16px;
   font-family: var(--font-body);
   font-size: 0.75rem;
