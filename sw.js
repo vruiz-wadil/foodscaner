@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yomi-v3';
+const CACHE_NAME = 'yomi-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -17,6 +17,10 @@ const STATIC_ASSETS = [
   '/assets/redesign/icon-scan.svg',
   '/assets/redesign/icon-analysis.svg',
   '/assets/redesign/icon-profile.svg',
+  '/vendor/barcode-detector.js',
+  '/vendor/zxing_reader.wasm',
+  '/vendor/zbar-wasm.mjs',
+  '/vendor/zbar.wasm',
 ];
 
 self.addEventListener('install', (e) => {

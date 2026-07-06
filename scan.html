@@ -25,14 +25,17 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <link rel="stylesheet" href="styles.css?v=45">
-  <!-- BarcodeDetector ponyfill: activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
+  <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
-    import { BarcodeDetector } from "https://esm.sh/barcode-detector@2/pure";
+    import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
+    setZXingModuleOverrides({ locateFile: (path) => '/vendor/' + path });
     if (!('BarcodeDetector' in window)) window.BarcodeDetector = BarcodeDetector;
   </script>
-  <!-- ZBar-WASM: segundo motor en carrera (más robusto en códigos borrosos/curvos) -->
+  <!-- ZBar-WASM: self-hosted (offline PWA) — segundo motor en carrera (más robusto en códigos borrosos/curvos).
+       Nota: la URL de CDN anterior (dist/zbar-wasm.mjs) llevaba tiempo dando 404 — este archivo no existía
+       en el paquete publicado — así que este motor estaba efectivamente muerto en producción. -->
   <script type="module">
-    import * as zbarWasm from "https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/zbar-wasm.mjs";
+    import * as zbarWasm from "/vendor/zbar-wasm.mjs";
     window.zbarWasm = zbarWasm;
   </script>
 </head>
