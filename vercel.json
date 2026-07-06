@@ -16,6 +16,10 @@
     {
       "src": "assets/**",
       "use": "@vercel/static"
+    },
+    {
+      "src": "vendor/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
