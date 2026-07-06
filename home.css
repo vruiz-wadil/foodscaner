@@ -201,17 +201,6 @@ body {
   line-height: 1.5;
 }
 
-.btn-ver-todos {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: none;
-  line-height: 1.5;
-}
 
 .products-grid {
   display: grid;
@@ -366,62 +355,6 @@ body {
 .badge-sano   { background: rgba(22,163,74,0.12);  color: #16a34a; }
 .badge-evitar { background: rgba(220,38,38,0.12);  color: #dc2626; }
 .badge-regular{ background: rgba(234,179,8,0.15);  color: #eab308; }
-
-/* ── Yomi+ promo card ────────────────────────────────────────── */
-.section-promo {
-  padding: 0 20px 24px;
-}
-
-.promo-card {
-  background: var(--ink);
-  border-radius: var(--radius);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.promo-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--white);
-  line-height: 1.5;
-}
-
-.promo-sub {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--teal-soft);
-  line-height: 1.5;
-}
-
-.promo-btn-wrap {
-  margin-top: 12px;
-}
-
-.promo-btn {
-  background: var(--accent);
-  color: var(--white);
-  border: none;
-  border-radius: var(--radius);
-  padding: 9px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: 'Inter', sans-serif;
-  cursor: pointer;
-  line-height: 1.5;
-  transition: opacity 0.15s;
-}
-
-.promo-btn:active { opacity: 0.85; }
-
-.promo-btn:disabled {
-  background: transparent;
-  border: 1.5px solid rgba(255,255,255,0.25);
-  color: rgba(255,255,255,0.45);
-  cursor: not-allowed;
-  opacity: 1;
-}
 
 /* ── Stats ───────────────────────────────────────────────────── */
 .section-stats {

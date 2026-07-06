@@ -845,10 +845,6 @@ body {
   display: block;
 }
 
-/* keep legacy selectors working if referenced from JS */
-.product-image-container { display: none; }
-.product-info { display: contents; }
-
 /* Badges */
 .badge {
   display: inline-block;
