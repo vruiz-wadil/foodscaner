@@ -810,6 +810,21 @@ body {
   margin-top: 20px;
 }
 
+.verdict-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+}
+.verdict-banner.hidden { display: none; }
+.verdict-sano    { background: rgba(22,163,74,0.12);  color: #16a34a; }
+.verdict-regular { background: rgba(234,179,8,0.15);  color: #eab308; }
+.verdict-evitar  { background: rgba(220,38,38,0.12);  color: #dc2626; }
+
 .product-header {
   display: flex;
   flex-direction: row;

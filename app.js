@@ -1500,6 +1500,16 @@ function parseApiProduct(product) {
 // Format numeric value to show at most 2 decimal places, strip trailing zeros
 function fmt(n) { return n === null || n === undefined || isNaN(n) ? n : parseFloat(Number(n).toFixed(2)); }
 
+// Derive a top-line SANO/REGULAR/EVITAR verdict from data already computed
+// by parseApiProduct (NOM-051 sellos + notRecommended groups) — no new data needed.
+function computeVerdict(product) {
+  const sellos = (product.sellos || []).length;
+  const critical = (product.notRecommended || []).some(n => n.certain !== false);
+  if (sellos >= 3 || (critical && sellos >= 2)) return 'evitar';
+  if (sellos >= 1 || critical) return 'regular';
+  return 'sano';
+}
+
 function renderNotRecommended(product) {
   const cardNotRec = document.getElementById("card-not-recommended");
   const notRecContainer = document.getElementById("not-recommended-container");
@@ -1528,6 +1538,14 @@ function renderProductData(product, barcode) {
 
   currentBarcode = barcode;
   showState(resultSuccess);
+
+  const verdict = computeVerdict(product);
+  const verdictBanner = document.getElementById('verdict-banner');
+  if (verdictBanner) {
+    const verdictText = { sano: '✓ Puedes comerlo', regular: '⚠ Con moderación', evitar: '✗ Mejor evítalo' }[verdict];
+    verdictBanner.className = 'verdict-banner verdict-' + verdict;
+    verdictBanner.textContent = verdictText;
+  }
   cardAllergens.classList.add("hidden");
   analysisGrid.classList.add("hidden");
   saveToHistory(barcode, product.name, product.brand, product.image);
