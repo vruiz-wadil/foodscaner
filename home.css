@@ -15,6 +15,9 @@
   --shadow-stat:   0 1px 1px rgba(45,188,158,0.05);
   --shadow-scan:   0 4px 12px rgba(45,188,158,0.2);
   --radius:        4px;
+  --paper:         var(--white);
+  --border:        rgba(45,188,158,0.2);
+  --ink-3:         var(--ink-muted);
 }
 
 html, body { height: 100%; background: var(--bg); }
