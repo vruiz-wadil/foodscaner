@@ -1108,21 +1108,6 @@ RESPUESTA (SOLO JSON):`;
   }
 });
 
-// Debug: Check OCR data in Firebase
-app.get('/api/ocr/debug/:barcode', async (req, res) => {
-  try {
-    const { barcode } = req.params;
-    const ocrData = await fireGetOcrData(barcode);
-    if (ocrData) {
-      res.json({ status: 'found', barcode, data: ocrData });
-    } else {
-      res.json({ status: 'not_found', barcode, message: 'No OCR data in Firebase' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Delete OCR data from Firebase
 app.delete('/api/ocr/:barcode', async (req, res) => {
   try {
@@ -1170,20 +1155,6 @@ app.delete('/api/nutrition/:barcode', async (req, res) => {
   }
 });
 
-// Debug: Test Firebase access
-app.get('/api/debug/firebase', async (req, res) => {
-  try {
-    const hasKey = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    res.json({
-      hasFirebaseKey: hasKey,
-      keyLength: hasKey ? process.env.FIREBASE_SERVICE_ACCOUNT_KEY.length : 0,
-      keyPreview: hasKey ? process.env.FIREBASE_SERVICE_ACCOUNT_KEY.substring(0, 50) + '...' : 'N/A'
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Save processed ingredients to Firebase
 app.post('/api/products/ocr', async (req, res) => {
   try {
@@ -1215,10 +1186,15 @@ app.post('/api/products/ocr', async (req, res) => {
 });
 
 // --- Report Endpoint ---
+const BASE64_RE = /^[A-Za-z0-9+/]+=*$/;
 app.post('/api/report', async (req, res) => {
   const { barcode, productName, category, comment, image } = req.body || {};
   if (!category && !comment) return res.status(400).json({ error: 'Se requiere categoría o comentario' });
-  if (image && image.length > 700000) return res.status(413).json({ error: 'Imagen demasiado grande (máx ~700 KB)' });
+  if (image) {
+    if (typeof image !== 'string' || image.length > 700000 || !BASE64_RE.test(image)) {
+      return res.status(400).json({ error: 'Imagen inválida' });
+    }
+  }
   const ua = req.headers['user-agent'] || '';
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
   const geo = await getGeoData(ip, req.headers);

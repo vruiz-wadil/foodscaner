@@ -194,7 +194,7 @@
         d.category ? `🏷 ${escHtml(d.category)}` : ''
       ].filter(Boolean);
       const imgHtml = d.image
-        ? `<img src="data:image/jpeg;base64,${d.image}" style="max-width:100%;border-radius:6px;margin-top:8px;display:block;">`
+        ? `<img src="data:image/jpeg;base64,${escHtml(d.image)}" style="max-width:100%;border-radius:6px;margin-top:8px;display:block;">`
         : '';
       const detailParts = [
         `<div class="scan-card-detail-row"><span class="scan-card-detail-label">Comentario:</span><span>${escHtml(d.comment || '—')}</span></div>`,
