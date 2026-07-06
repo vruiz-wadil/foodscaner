@@ -24,7 +24,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=42">
+  <link rel="stylesheet" href="styles.css?v=43">
   <!-- BarcodeDetector ponyfill: activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector } from "https://esm.sh/barcode-detector@2/pure";
@@ -111,7 +111,7 @@
               </div>
             </div>
 
-            <p id="scan-coaching" class="scan-coaching-text"></p>
+            <p id="scan-coaching" class="scan-coaching-text" aria-live="polite"></p>
 
           </div>
         </div>
@@ -463,7 +463,7 @@
           </div>
 
           <div id="ai-loading" class="hidden" style="margin-top:8px;text-align:center;color:var(--text-secondary);font-size:0.85rem;">Consultando IA...</div>
-          <div id="ai-error" class="hidden" style="margin-top:8px;text-align:center;color:var(--accent-error);font-size:0.85rem;"></div>
+          <div id="ai-error" class="hidden" role="alert" aria-live="assertive" style="margin-top:8px;text-align:center;color:var(--accent-error);font-size:0.85rem;"></div>
 
           <!-- 11. DISCLAIMERS -->
           <div id="db-disclaimer" class="db-disclaimer hidden">
@@ -495,11 +495,11 @@
       </div>
       <span class="nav-label">Escanear</span>
     </button>
-    <button class="nav-item nav-disabled" aria-label="Análisis" aria-disabled="true">
+    <button class="nav-item nav-disabled" aria-label="Análisis (próximamente)" aria-disabled="true" tabindex="-1">
       <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
       <span class="nav-label">Análisis</span>
     </button>
-    <button class="nav-item nav-disabled" aria-label="Perfil" aria-disabled="true">
+    <button class="nav-item nav-disabled" aria-label="Perfil (próximamente)" aria-disabled="true" tabindex="-1">
       <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
       <span class="nav-label">Perfil</span>
     </button>

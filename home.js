@@ -76,4 +76,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!card) return;
     window.location.href = 'scan.html?barcode=' + encodeURIComponent(card.dataset.barcode);
   });
+
+  // Same navigation via keyboard (cards are role="button" tabindex="0")
+  document.getElementById('products-grid').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const card = e.target.closest('.product-card');
+    if (!card) return;
+    e.preventDefault();
+    window.location.href = 'scan.html?barcode=' + encodeURIComponent(card.dataset.barcode);
+  });
 });

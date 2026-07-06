@@ -7,7 +7,7 @@
   /* ── Base palette ─────────────────────────────────── */
   --ink:           #0d3d35;   /* dark teal — primary text & CTA bg */
   --ink-2:         #1a5446;   /* mid teal */
-  --ink-3:         #7a9080;   /* muted text */
+  --ink-3:         #5f7568;   /* muted text, ~4.5:1 on --paper */
   --paper:         #eaf9f6;   /* mint — app background */
   --card:          #ffffff;   /* card surfaces */
   --surface:       #d8f5ef;   /* image placeholder, tints */
@@ -335,7 +335,7 @@ body {
 }
 
 .scan-help {
-  color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.75);
   font-size: 0.85rem;
   margin: 0;
   line-height: 1.4;
@@ -982,6 +982,11 @@ body {
 
 /* ítem seleccionado (tap activo) */
 .dietary-grid-item.selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
