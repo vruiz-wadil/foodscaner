@@ -157,9 +157,9 @@ let audioCtx = null;
 let lastZbarRetry = 0;
 // Initialize Application
 // ── Scan History (localStorage, max 5) ───────────────
-function saveToHistory(barcode, name, brand, image) {
+function saveToHistory(barcode, name, brand, image, rating) {
   const history = getHistory().filter(h => h.barcode !== barcode);
-  history.unshift({ barcode, name, brand, image: image || '' });
+  history.unshift({ barcode, name, brand, image: image || '', rating: rating || '' });
   if (history.length > 5) history.length = 5;
   localStorage.setItem("yomi_history", JSON.stringify(history));
   renderHistory();
@@ -1548,7 +1548,7 @@ function renderProductData(product, barcode) {
   }
   cardAllergens.classList.add("hidden");
   analysisGrid.classList.add("hidden");
-  saveToHistory(barcode, product.name, product.brand, product.image);
+  saveToHistory(barcode, product.name, product.brand, product.image, verdict);
 
   // Default data availability when not set by parser
   if (product.isFromFallback) {
