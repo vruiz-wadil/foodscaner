@@ -193,13 +193,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const DISCLAIMER_KEY = 'yomi_disclaimer_accepted';
   const dm = document.getElementById('disclaimer-modal');
   if (dm && !localStorage.getItem(DISCLAIMER_KEY)) {
-    dm.classList.remove('hidden');
-    openModalA11y(dm);
-    document.getElementById('disclaimer-accept').onclick = () => {
+    const acceptDisclaimer = () => {
       localStorage.setItem(DISCLAIMER_KEY, '1');
       dm.classList.add('hidden');
       closeModalA11y(dm);
     };
+    dm.classList.remove('hidden');
+    openModalA11y(dm, acceptDisclaimer);
+    document.getElementById('disclaimer-accept').onclick = acceptDisclaimer;
   }
 
   setupEventListeners();
@@ -265,7 +266,7 @@ function setupEventListeners() {
       }
       const validation = validateBarcode(barcode);
       if (!validation.valid) {
-        renderError("Código inválido", "El código no parece válido (verifica que tenga 8, 12 o 13 dígitos y esté completo). Revisa el número e intenta de nuevo.");
+        renderError("Código inválido", "El código no es un código de barras válido (dígito verificador incorrecto o longitud inválida). Revisa el número e intenta de nuevo.");
         barcodeInput.value = "";
         return;
       }
@@ -1506,9 +1507,18 @@ function parseApiProduct(product) {
 // Format numeric value to show at most 2 decimal places, strip trailing zeros
 function fmt(n) { return n === null || n === undefined || isNaN(n) ? n : parseFloat(Number(n).toFixed(2)); }
 
+// True when the product came from a fallback DB (e.g. UPCItemDb) with no real
+// ingredients/nutrition data — same condition #no-nutrition-alert uses (line ~1636).
+function hasNoRealData(product) {
+  return !!(product.isFromFallback && !product._enrichedFrom && !product.ingredientsText && !product._from_nutrition_ocr);
+}
+
 // Derive a top-line SANO/REGULAR/EVITAR verdict from data already computed
 // by parseApiProduct (NOM-051 sellos + notRecommended groups) — no new data needed.
+// Never returns 'sano' when there's no real data to base that on — absence of
+// seals/risk flags on an empty fallback record is not evidence of safety.
 function computeVerdict(product) {
+  if (hasNoRealData(product)) return 'regular';
   const sellos = (product.sellos || []).length;
   const critical = (product.notRecommended || []).some(n => n.certain !== false);
   if (sellos >= 3 || (critical && sellos >= 2)) return 'evitar';
@@ -1548,7 +1558,9 @@ function renderProductData(product, barcode) {
   const verdict = computeVerdict(product);
   const verdictBanner = document.getElementById('verdict-banner');
   if (verdictBanner) {
-    const verdictText = { sano: '✓ Puedes comerlo', regular: '⚠ Con moderación', evitar: '✗ Mejor evítalo' }[verdict];
+    const verdictText = hasNoRealData(product)
+      ? '⚠ Sin datos suficientes para evaluar'
+      : { sano: '✓ Puedes comerlo', regular: '⚠ Con moderación', evitar: '✗ Mejor evítalo' }[verdict];
     verdictBanner.className = 'verdict-banner verdict-' + verdict;
     verdictBanner.textContent = verdictText;
   }
@@ -2336,7 +2348,7 @@ function renderError(title, message) {
 // === MODAL FOCUS MANAGEMENT (shared by disclaimer/ocr/nutrition/report modals) ===
 let _lastFocusedBeforeModal = null;
 
-function openModalA11y(modalEl) {
+function openModalA11y(modalEl, onClose) {
   if (!modalEl) return;
   _lastFocusedBeforeModal = document.activeElement;
   const heading = modalEl.querySelector('h2, h3');
@@ -2345,11 +2357,17 @@ function openModalA11y(modalEl) {
     heading.focus();
   }
   modalEl.addEventListener('keydown', trapTabKey);
+  modalEl._escapeHandler = (e) => { if (e.key === 'Escape' && typeof onClose === 'function') onClose(); };
+  modalEl.addEventListener('keydown', modalEl._escapeHandler);
 }
 
 function closeModalA11y(modalEl) {
   if (!modalEl) return;
   modalEl.removeEventListener('keydown', trapTabKey);
+  if (modalEl._escapeHandler) {
+    modalEl.removeEventListener('keydown', modalEl._escapeHandler);
+    modalEl._escapeHandler = null;
+  }
   if (_lastFocusedBeforeModal && typeof _lastFocusedBeforeModal.focus === 'function') {
     _lastFocusedBeforeModal.focus();
   }
@@ -2359,9 +2377,9 @@ function closeModalA11y(modalEl) {
 function trapTabKey(e) {
   if (e.key !== 'Tab') return;
   const modalEl = e.currentTarget;
-  const focusable = modalEl.querySelectorAll(
+  const focusable = Array.from(modalEl.querySelectorAll(
     'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-  );
+  )).filter(el => el.offsetParent !== null); // exclude elements inside hidden (.hidden) wizard steps
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
@@ -2385,7 +2403,7 @@ function showOcrModal(barcode) {
     document.getElementById("ocr-step-2").classList.add("hidden");
     document.getElementById("ocr-step-3").classList.add("hidden");
     document.getElementById("ocr-step-4").classList.add("hidden");
-    openModalA11y(modal);
+    openModalA11y(modal, hideOcrModal);
   }
 }
 
@@ -2521,7 +2539,7 @@ function showNutritionModal(barcode) {
     document.getElementById("nutrition-step-2").classList.add("hidden");
     document.getElementById("nutrition-step-3").classList.add("hidden");
     document.getElementById("nutrition-step-4").classList.add("hidden");
-    openModalA11y(modal);
+    openModalA11y(modal, hideNutritionModal);
   }
 }
 
@@ -2673,7 +2691,7 @@ function showReportModal() {
   if (nameEl) nameEl.textContent = "";
   const photoInput = document.getElementById("report-photo-input");
   if (photoInput) photoInput.value = "";
-  openModalA11y(modal);
+  openModalA11y(modal, hideReportModal);
 }
 
 function hideReportModal() {
