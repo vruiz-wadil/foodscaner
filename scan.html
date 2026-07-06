@@ -41,9 +41,9 @@
   <!-- Disclaimer Modal (gate on first visit) -->
   <div id="disclaimer-modal" class="modal hidden">
     <div class="modal-overlay"></div>
-    <div class="modal-content disclaimer-modal-content">
+    <div class="modal-content disclaimer-modal-content" role="dialog" aria-modal="true" aria-labelledby="disclaimer-modal-title">
       <div class="modal-header">
-        <h2>👋 Antes de empezar</h2>
+        <h2 id="disclaimer-modal-title">👋 Antes de empezar</h2>
       </div>
       <div class="disclaimer-body">
         <p>Yomi reúne información de <strong>fuentes públicas</strong> (como Open Food Facts y bases de datos abiertas) que pueden estar incompletas o no ser 100&nbsp;% exactas.</p>
@@ -508,11 +508,11 @@
   <!-- Report Error Modal -->
   <div id="report-modal" class="modal hidden">
     <div class="modal-overlay" id="report-modal-overlay"></div>
-    <div class="modal-content">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
       <button id="report-modal-close" class="modal-close">✕</button>
 
       <div id="report-step-1" class="ocr-step">
-        <h3>🚩 Reportar un error</h3>
+        <h3 id="report-modal-title">🚩 Reportar un error</h3>
         <p>¿Qué tipo de error encontraste?</p>
         <div class="report-radio-group">
           <label class="report-radio"><input type="radio" name="report-cat" value="Información incorrecta"> Información incorrecta (nombre, ingredientes, nutrición)</label>
@@ -545,9 +545,9 @@
   <!-- OCR Modal for ingredient capture -->
   <div id="ocr-modal" class="modal hidden">
     <div class="modal-overlay"></div>
-    <div class="modal-content glass-card">
+    <div class="modal-content glass-card" role="dialog" aria-modal="true" aria-labelledby="ocr-modal-title">
       <div class="modal-header">
-        <h2>📸 Capturar Ingredientes</h2>
+        <h2 id="ocr-modal-title">📸 Capturar Ingredientes</h2>
         <button id="ocr-modal-close" class="modal-close">✕</button>
       </div>
 
@@ -586,11 +586,11 @@
   <!-- Nutrition OCR Modal -->
   <div id="nutrition-modal" class="modal hidden">
     <div class="modal-overlay" id="nutrition-modal-overlay"></div>
-    <div class="modal-content">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="nutrition-modal-title">
       <button id="nutrition-modal-close" class="modal-close">✕</button>
 
       <div id="nutrition-step-1" class="ocr-step">
-        <h3>📊 Capturar Información Nutricional</h3>
+        <h3 id="nutrition-modal-title">📊 Capturar Información Nutricional</h3>
         <p>Por favor, toma una foto clara de la etiqueta nutricional</p>
         <input type="file" id="nutrition-photo-input" accept="image/*" capture="environment" style="display: none;">
         <button id="nutrition-upload-btn" class="btn-primary" style="width: 100%;">📷 Abrir Cámara</button>
@@ -620,6 +620,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=61" defer></script>
+  <script src="app.js?v=62" defer></script>
 </body>
 </html>

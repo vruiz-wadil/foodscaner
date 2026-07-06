@@ -194,9 +194,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const dm = document.getElementById('disclaimer-modal');
   if (dm && !localStorage.getItem(DISCLAIMER_KEY)) {
     dm.classList.remove('hidden');
+    openModalA11y(dm);
     document.getElementById('disclaimer-accept').onclick = () => {
       localStorage.setItem(DISCLAIMER_KEY, '1');
       dm.classList.add('hidden');
+      closeModalA11y(dm);
     };
   }
 
@@ -2307,6 +2309,47 @@ function renderError(title, message) {
   rejectedProductCategory.textContent = "-";
 }
 
+// === MODAL FOCUS MANAGEMENT (shared by disclaimer/ocr/nutrition/report modals) ===
+let _lastFocusedBeforeModal = null;
+
+function openModalA11y(modalEl) {
+  if (!modalEl) return;
+  _lastFocusedBeforeModal = document.activeElement;
+  const heading = modalEl.querySelector('h2, h3');
+  if (heading) {
+    heading.setAttribute('tabindex', '-1');
+    heading.focus();
+  }
+  modalEl.addEventListener('keydown', trapTabKey);
+}
+
+function closeModalA11y(modalEl) {
+  if (!modalEl) return;
+  modalEl.removeEventListener('keydown', trapTabKey);
+  if (_lastFocusedBeforeModal && typeof _lastFocusedBeforeModal.focus === 'function') {
+    _lastFocusedBeforeModal.focus();
+  }
+  _lastFocusedBeforeModal = null;
+}
+
+function trapTabKey(e) {
+  if (e.key !== 'Tab') return;
+  const modalEl = e.currentTarget;
+  const focusable = modalEl.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 // === OCR INGREDIENT CAPTURE ===
 
 function showOcrModal(barcode) {
@@ -2318,6 +2361,7 @@ function showOcrModal(barcode) {
     document.getElementById("ocr-step-2").classList.add("hidden");
     document.getElementById("ocr-step-3").classList.add("hidden");
     document.getElementById("ocr-step-4").classList.add("hidden");
+    openModalA11y(modal);
   }
 }
 
@@ -2327,6 +2371,7 @@ function hideOcrModal() {
     const step4 = document.getElementById("ocr-step-4");
     const savedSuccessfully = step4 && !step4.classList.contains("hidden");
     modal.classList.add("hidden");
+    closeModalA11y(modal);
     if (savedSuccessfully && currentBarcode) analyzeBarcode(currentBarcode);
   }
 }
@@ -2452,6 +2497,7 @@ function showNutritionModal(barcode) {
     document.getElementById("nutrition-step-2").classList.add("hidden");
     document.getElementById("nutrition-step-3").classList.add("hidden");
     document.getElementById("nutrition-step-4").classList.add("hidden");
+    openModalA11y(modal);
   }
 }
 
@@ -2461,6 +2507,7 @@ function hideNutritionModal() {
     const step4 = document.getElementById("nutrition-step-4");
     const savedSuccessfully = step4 && !step4.classList.contains("hidden");
     modal.classList.add("hidden");
+    closeModalA11y(modal);
     if (savedSuccessfully && currentBarcode) analyzeBarcode(currentBarcode);
   }
 }
@@ -2602,11 +2649,15 @@ function showReportModal() {
   if (nameEl) nameEl.textContent = "";
   const photoInput = document.getElementById("report-photo-input");
   if (photoInput) photoInput.value = "";
+  openModalA11y(modal);
 }
 
 function hideReportModal() {
   const modal = document.getElementById("report-modal");
-  if (modal) modal.classList.add("hidden");
+  if (modal) {
+    modal.classList.add("hidden");
+    closeModalA11y(modal);
+  }
 }
 
 function initReportHandlers() {
