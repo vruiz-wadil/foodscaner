@@ -974,8 +974,9 @@ body {
 .dietary-grid-item.unknown .emoji { filter: grayscale(1); opacity: 0.35; }
 .dietary-grid-item.unknown .label { color: #aaa; }
 
-/* db-yes — verde sólido (declarado sí) */
-.dietary-grid-item.db-yes { color: #fff; border-color: var(--green); background: var(--green); }
+/* db-yes — verde sólido (declarado sí). Darker than --green: white text on
+   --green (#16a34a) is only 3.30:1, fails WCAG AA (4.5:1); #117f3a passes at 5.10:1. */
+.dietary-grid-item.db-yes { color: #fff; border-color: #117f3a; background: #117f3a; }
 .dietary-grid-item.db-yes .label { color: #fff; }
 
 /* db-no — rojo sólido (declarado no) */
@@ -1219,11 +1220,14 @@ body {
 .allergen-grid-item.safe .emoji  { filter: grayscale(1); opacity: 0.4; }
 .allergen-grid-item.safe .label  { color: var(--ink-3); }
 
-.allergen-grid-item.detected { color: var(--chile); border-color: var(--chile-border); background: var(--chile-light); }
-.allergen-grid-item.detected .label { color: var(--chile); }
+/* Text darker than --chile/--amber: at this chip's small label size, the base
+   tokens on their own tint backgrounds fail WCAG AA (4.01:1 / measured low);
+   these pass 4.5:1+ (same fix already applied to the verdict banner). */
+.allergen-grid-item.detected { color: #ac1e1e; border-color: var(--chile-border); background: var(--chile-light); }
+.allergen-grid-item.detected .label { color: #ac1e1e; }
 
-.allergen-grid-item.traces { color: var(--amber); border-color: var(--amber-border); background: var(--amber-light); }
-.allergen-grid-item.traces .label { color: var(--amber); }
+.allergen-grid-item.traces { color: #836404; border-color: var(--amber-border); background: var(--amber-light); }
+.allergen-grid-item.traces .label { color: #836404; }
 
 .allergen-grid-item.ai-suggested {
   color: var(--purple);
