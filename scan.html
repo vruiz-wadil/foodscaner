@@ -24,7 +24,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=45">
+  <link rel="stylesheet" href="styles.css?v=46">
   <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
@@ -53,6 +53,7 @@
         <p>El análisis nutricional y de salud se genera con <strong>inteligencia artificial</strong>, por lo que puede contener errores o imprecisiones.</p>
         <p>Esta información tiene carácter <strong>meramente orientativo</strong> y no sustituye la declaración oficial del fabricante ni el consejo de un profesional de salud. <strong>Revisa siempre el etiquetado físico del producto</strong>, especialmente si tienes alergias, intolerancias o alguna condición de salud.</p>
         <p class="disclaimer-note">Si detectas información incorrecta puedes reportarlo directamente desde la pantalla de resultados.</p>
+        <p class="disclaimer-note">Al continuar, aceptas nuestro <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de Privacidad</a>.</p>
       </div>
       <button id="disclaimer-accept" class="btn-primary" style="width:100%;margin-top:4px;">✓ Entiendo y acepto</button>
     </div>
@@ -197,6 +198,7 @@
 
           <!-- 0. VEREDICTO -->
           <div id="verdict-banner" class="verdict-banner" role="status"></div>
+          <p class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>
 
           <!-- 1. IDENTIDAD DEL PRODUCTO -->
           <div class="product-header">

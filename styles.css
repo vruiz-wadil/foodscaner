@@ -826,6 +826,13 @@ body {
 .verdict-sano    { background: rgba(22,163,74,0.12);  color: #16a34a; }
 .verdict-regular { background: rgba(234,179,8,0.15);  color: #eab308; }
 .verdict-evitar  { background: rgba(220,38,38,0.12);  color: #dc2626; }
+.verdict-disclaimer {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  font-style: italic;
+  margin: -6px 0 12px;
+  line-height: 1.4;
+}
 
 .product-header {
   display: flex;
@@ -1504,6 +1511,7 @@ body {
   color: var(--ink-2);
 }
 .disclaimer-body strong { color: var(--ink); }
+.disclaimer-body a { color: var(--accent-primary); text-decoration: underline; }
 .disclaimer-note {
   font-size: 0.78rem !important;
   color: var(--ink-3) !important;
