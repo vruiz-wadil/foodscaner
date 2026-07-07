@@ -757,6 +757,12 @@ body {
 
 .error-bg { background: var(--chile-light); border-color: var(--chile); }
 
+/* Neutral tone for expected outcomes (not-found, non-food item) — these are
+   everyday results, not failures, so they don't get the red alarm treatment
+   reserved for renderError's real network/API errors. */
+.neutral-bg { background: var(--surface); border-color: var(--border); }
+.neutral-bg svg { color: var(--ink-3); }
+
 #result-rejected h3 {
   font-family: var(--font-display);
   font-size: 1.4rem;
@@ -826,6 +832,7 @@ body {
 .verdict-sano    { background: rgba(22,163,74,0.12);  color: #107535; }
 .verdict-regular { background: rgba(234,179,8,0.15);  color: #836404; }
 .verdict-evitar  { background: rgba(220,38,38,0.12);  color: #ac1e1e; }
+.verdict-sano.verdict-reveal { animation: scaleIn 0.3s ease-out; }
 .verdict-disclaimer {
   font-size: 0.72rem;
   color: var(--ink-3);

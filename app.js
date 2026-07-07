@@ -720,6 +720,7 @@ function handlePopoverEsc(e) {
 }
 
 let scanActivityTimer = null;
+let scanActivityTimer2 = null;
 
 function showScanHint() {
   const scanHintEl = document.getElementById('scan-coaching');
@@ -728,10 +729,14 @@ function showScanHint() {
   scanActivityTimer = setTimeout(() => {
     if (isScanning) scanHintEl.textContent = 'Buscando código...';
   }, 3000);
+  scanActivityTimer2 = setTimeout(() => {
+    if (isScanning) scanHintEl.textContent = 'Casi... prueba acercar un poco más el código';
+  }, 9000);
 }
 
 function hideScanHint() {
   if (scanActivityTimer) { clearTimeout(scanActivityTimer); scanActivityTimer = null; }
+  if (scanActivityTimer2) { clearTimeout(scanActivityTimer2); scanActivityTimer2 = null; }
   const scanHintEl = document.getElementById('scan-coaching');
   if (scanHintEl) scanHintEl.textContent = '';
 }
@@ -767,9 +772,9 @@ function showState(stateElement) {
 // stale responses elsewhere, reused here so a superseded scan's timers don't
 // overwrite a newer one's message.
 const LOADING_MESSAGES = [
-  [0, "Identificando producto y analizando componentes..."],
-  [2500, "Buscando en bases de datos externas..."],
-  [5000, "Esto está tardando más de lo usual, casi listo..."],
+  [0, "Leyendo el empaque..."],
+  [2500, "Consultando nuestras bases de datos..."],
+  [5000, "Ya casi, un momento más..."],
 ];
 function scheduleLoadingMessages(barcode) {
   const el = document.getElementById("result-loading-text");
@@ -796,7 +801,7 @@ async function analyzeBarcode(barcode) {
     if (barcode !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
 
     if (response.status === 404) {
-      renderNotFound();
+      renderNotFound(barcode);
       return;
     }
 
@@ -808,7 +813,7 @@ async function analyzeBarcode(barcode) {
     if (barcode !== currentBarcodeQuery) return; // stale: a newer scan started meanwhile
 
     if (data.status === 0 || !data.product) {
-      renderNotFound();
+      renderNotFound(barcode);
       return;
     }
 
@@ -837,7 +842,7 @@ async function analyzeBarcode(barcode) {
     renderProductData(product, barcode);
     showReportCardIfNeeded();
   } catch (error) {
-    renderNotFound();
+    renderNotFound(barcode);
   }
 }
 
@@ -940,8 +945,8 @@ function renderDietaryBadges(product) {
     { emoji: "🌿", yes: "Orgánico",      no: "No orgánico",      noun: "Orgánico",     state: stateFor(d.organic, d.organicSource),          detail: buildDetailText(stateFor(d.organic, d.organicSource), "orgánico", d.organicDetail || "") },
     { emoji: "🥦", yes: "Vegetariano",   no: "No vegetariano",   noun: "Vegetariano",  state: stateFor(d.vegetarian, d.vegetarianSource),    detail: buildDetailText(stateFor(d.vegetarian, d.vegetarianSource), "vegetariano", d.vegetarianDetail || "") },
     { emoji: "🌱", yes: "Vegano",        no: "No vegano",        noun: "Vegano",       state: stateFor(d.vegan, d.veganSource),              detail: buildDetailText(stateFor(d.vegan, d.veganSource), "vegano", d.veganDetail || "") },
-    { emoji: "✡️", yes: "Kosher",        no: "No kosher",        noun: "Kosher",       state: stateFor(d.kosher, d.kosherSource),            detail: buildDetailText(stateFor(d.kosher, d.kosherSource), "kosher", d.kosherDetail || "") },
-    { emoji: "🌙", yes: "Halal",         no: "No halal",         noun: "Halal",        state: stateFor(d.halal, d.halalSource),              detail: buildDetailText(stateFor(d.halal, d.halalSource), "halal", d.halalDetail || "") },
+    { emoji: "🏷️", yes: "Kosher",        no: "No kosher",        noun: "Kosher",       state: stateFor(d.kosher, d.kosherSource),            detail: buildDetailText(stateFor(d.kosher, d.kosherSource), "kosher", d.kosherDetail || "") },
+    { emoji: "📛", yes: "Halal",         no: "No halal",         noun: "Halal",        state: stateFor(d.halal, d.halalSource),              detail: buildDetailText(stateFor(d.halal, d.halalSource), "halal", d.halalDetail || "") },
     { emoji: "🧬", yes: "Sin OGM",       no: "Con OGM",          noun: "OGM",          state: stateFor(d.nonGmo, d.nonGmoSource),            detail: buildDetailText(stateFor(d.nonGmo, d.nonGmoSource), "libre de OGM", d.nonGmoDetail || "") },
     { emoji: "🧪", yes: "Sin aditivos",  no: "Con aditivos",     noun: "Aditivos",     state: stateFor(d.noAdditives, d.noAdditivesSource),  detail: buildDetailText(stateFor(d.noAdditives, d.noAdditivesSource), "libre de aditivos", d.noAdditivesDetail || "") },
     { emoji: "🌴", yes: "Sin palma",     no: "Con palma",        noun: "Palma",        state: stateFor(d.palmOilFree, d.palmOilFreeSource),  detail: buildDetailText(stateFor(d.palmOilFree, d.palmOilFreeSource), "libre de aceite de palma", d.palmOilFreeDetail || "") },
@@ -1592,6 +1597,13 @@ function renderProductData(product, barcode) {
       : { sano: '✓ Puedes comerlo', regular: '⚠ Con moderación', evitar: '✗ Mejor evítalo' }[verdict];
     verdictBanner.className = 'verdict-banner verdict-' + verdict;
     verdictBanner.textContent = verdictText;
+    // Celebratory entrance only for the "you can eat this" verdict — REGULAR/EVITAR
+    // stay static so a warning never reads as an animated/gamified moment.
+    if (verdict === 'sano' && !hasNoRealData(product)) {
+      verdictBanner.classList.remove('verdict-reveal');
+      void verdictBanner.offsetWidth; // force reflow so the animation restarts on repeat scans
+      verdictBanner.classList.add('verdict-reveal');
+    }
   }
   cardAllergens.classList.add("hidden");
   analysisGrid.classList.add("hidden");
@@ -2317,7 +2329,7 @@ function renderWeightCard(product) {
   let risk, label, detail;
   if (kcal > 300) { risk = "alta"; label = "Alta 🔴"; detail = ">300 kcal/100g. Porción pequeña = muchas calorías. Dificulta mantener un peso saludable."; }
   else if (kcal >= 150) { risk = "media"; label = "Media 🟡"; detail = "150–300 kcal/100g. Densidad moderada: requiere controlar el tamaño de la porción."; }
-  else { risk = "baja"; label = "Baja 🟢"; detail = "<150 kcal/100g. Puedes comer un volumen mayor por pocas calorías. Favorece el control de peso."; }
+  else { risk = "baja"; label = "Baja 🟢"; detail = "<150 kcal/100g. Baja densidad calórica: mayor volumen de alimento por menos energía aportada."; }
   densityEl.textContent = label;
   densityEl.className = "status-value weight-density-" + risk;
   setRiskBar(progressEl, levelEl, risk, (kcal / 600) * 100);
@@ -2352,9 +2364,30 @@ function showReportCardIfNeeded() {
 }
 
 
+const REJECTED_ICON_ERROR = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+const REJECTED_ICON_NEUTRAL = '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>';
+
+// A rejected/not-found result is an expected everyday outcome, not a failure —
+// only renderError's real network/API errors get the red alarm treatment.
+function setRejectedTone(tone) {
+  const wrap = document.getElementById("rejected-icon-wrap");
+  const svg = document.getElementById("rejected-icon-svg");
+  if (!wrap || !svg) return;
+  wrap.classList.toggle("error-bg", tone === "error");
+  wrap.classList.toggle("neutral-bg", tone !== "error");
+  svg.innerHTML = tone === "error" ? REJECTED_ICON_ERROR : REJECTED_ICON_NEUTRAL;
+}
+
+function hideReadPackageCta() {
+  const btn = document.getElementById("btn-read-package");
+  if (btn) { btn.classList.add("hidden"); btn.onclick = null; }
+}
+
 // Render rejected state screen
 function renderRejected(product) {
   showState(resultRejected);
+  setRejectedTone("neutral");
+  hideReadPackageCta();
   rejectedTitle.textContent = product.isSimulated ? "Producto Simulado (No Alimento)" : "Producto Rechazado";
   rejectedMessage.textContent = product.isSimulated
     ? "Simulación offline: Este producto no es un alimento. Yomi solo analiza alimentos para consumo humano."
@@ -2364,17 +2397,25 @@ function renderRejected(product) {
 }
 
 // Render Not Found screen (extends rejected layout style)
-function renderNotFound() {
+function renderNotFound(barcode) {
   showState(resultRejected);
+  setRejectedTone("neutral");
   rejectedTitle.textContent = "No Encontrado";
   rejectedMessage.textContent = "No encontramos este código de barras en las bases de datos disponibles.";
   rejectedProductName.textContent = "Desconocido";
   rejectedProductCategory.textContent = "N/D";
+  const cta = document.getElementById("btn-read-package");
+  if (cta) {
+    cta.classList.remove("hidden");
+    cta.onclick = () => showOcrModal(barcode);
+  }
 }
 
 // Render generic error message screen (extends rejected layout style)
 function renderError(title, message) {
   showState(resultRejected);
+  setRejectedTone("error");
+  hideReadPackageCta();
   rejectedTitle.textContent = title;
   rejectedMessage.textContent = message;
   rejectedProductName.textContent = "-";

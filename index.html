@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-title" content="Yomi">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="home.css?v=12">
+  <link rel="stylesheet" href="home.css?v=13">
 </head>
 <body>
   <div class="app-shell">
@@ -72,14 +72,14 @@
             <!-- filled by home.js -->
           </div>
           <div class="products-empty hidden" id="products-empty">
-            <p>Aún no has escaneado ningún producto.</p>
+            <p>Aquí aparecerá lo que vayas escaneando — empieza con tu primer producto.</p>
           </div>
         </section>
 
         <!-- Stats -->
         <section class="section-stats">
           <div class="stat-card">
-            <p class="stat-value">3M+</p>
+            <p class="stat-value" id="stat-products-count">3M+</p>
             <p class="stat-label">Productos</p>
           </div>
           <div class="stat-card">
@@ -90,6 +90,16 @@
             <p class="stat-value">OCR + IA</p>
             <p class="stat-label">Análisis</p>
           </div>
+        </section>
+
+        <!-- Social links -->
+        <section class="section-social">
+          <a class="social-link" href="#" target="_blank" rel="noopener noreferrer" aria-label="Síguenos en Facebook">
+            <img src="assets/redesign/icon-facebook.svg" alt="" class="social-icon">
+          </a>
+          <a class="social-link" href="#" target="_blank" rel="noopener noreferrer" aria-label="Síguenos en Instagram">
+            <img src="assets/redesign/icon-instagram.svg" alt="" class="social-icon">
+          </a>
         </section>
       </div>
 
