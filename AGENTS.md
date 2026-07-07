@@ -53,13 +53,16 @@ assets/icons/         — Favicon SVG + PNGs (generated via sharp)
 - **ZBar retry**: Every 5s (Safari iOS WASM fails with "aborted")
 
 ### API (api/index.js)
-- `GET /api/product?barcode=XXX` — Product lookup (OFF → USDA fallback)
+- `GET /api/product/:barcode` — Product lookup (OFF → USDA → GTINHub fallback)
 - `GET /api/ai-query?barcode=XXX&provider=groq|openrouter|gemini` — AI analysis
 - `DELETE /api/cache/:barcode` — Clear L1+L2 cache
+- `GET /api/admin/cache-all` — Unified cache view (L1+L2 merged by barcode)
+- `DELETE /api/admin/cache-all/:type/:key?layer=l1|l2|all` — Delete cache entry
 - **Rate limit**: 30 req/min/IP (express-rate-limit)
 - **Barcode validation**: 8-14 digits only
 - **Provider chain**: Sequential (tryProvider recursive), returns `{ content, model }`
 - **XSS sanitization**: `esc()` helper on all AI output
+- **detectGluten()**: Trusts "sin gluten" claims in product name before keyword matching
 
 ### Cache
 - **L1**: `memoryCache` / `memoryAiCache` (in-memory objects, ephemeral per Vercel instance)
@@ -87,11 +90,13 @@ Each returns `{ content, model }`:
 - SW not registered on scan.html (WASM interference)
 - `renderNotRecommended()` global function (reused from multiple places)
 - Provider model calculated from `req.query` for cache hits
+- `detectGluten()` trusts "sin gluten" claims in product name before keyword matching
+- Gluten `classification: "declared"` shows as `db-yes` (confirmed) not `ai-yes` (possible)
 
 ## Git
 - Branch: `master`
-- Last commit: `88b22ec` (migrate Groq models to openai/gpt-oss-120b)
-- Previous: `305c15b` (Groq migration), `50c078a` (SW cache bump)
+- Last commit: `633fd35` (gluten classification 'declared' shows as db-yes)
+- Previous: `11806b1` (GTINHub sin gluten classification), `7d4fe7f` (name-based detection)
 
 ## PWA
 - favicon.svg (teal rounded square + barcode + checkmark)
