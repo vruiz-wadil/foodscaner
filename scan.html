@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
   <title>Yomi - Identificador Nutricional de Alimentos</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/assets/icons/favicon-32x32.png" sizes="32x32" type="image/png">
@@ -24,7 +25,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=48">
+  <link rel="stylesheet" href="styles.css?v=49">
   <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
@@ -628,6 +629,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=65" defer></script>
+  <script src="app.js?v=66" defer></script>
 </body>
 </html>
