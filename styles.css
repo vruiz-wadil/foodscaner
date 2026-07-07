@@ -840,6 +840,15 @@ body {
   margin: -6px 0 12px;
   line-height: 1.4;
 }
+.report-ack {
+  font-size: 0.78rem;
+  color: #107535;
+  background: rgba(22,163,74,0.08);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin: -4px 0 12px;
+  line-height: 1.4;
+}
 
 .product-header {
   display: flex;

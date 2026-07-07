@@ -176,6 +176,25 @@ function getHistory() {
   try { return JSON.parse(localStorage.getItem("yomi_history")) || []; } catch { return []; }
 }
 
+// Tracks barcodes this device reported a problem on, so a later re-scan can
+// acknowledge it. Deliberately doesn't claim the issue was fixed — we have no
+// reliable signal for that — just that we remembered the report.
+function rememberReportedBarcode(barcode) {
+  if (!barcode) return;
+  try {
+    const reported = JSON.parse(localStorage.getItem("yomi_reported")) || {};
+    reported[barcode] = Date.now();
+    localStorage.setItem("yomi_reported", JSON.stringify(reported));
+  } catch { /* localStorage unavailable — skip silently, not critical */ }
+}
+
+function hasReportedBarcode(barcode) {
+  try {
+    const reported = JSON.parse(localStorage.getItem("yomi_reported")) || {};
+    return !!reported[barcode];
+  } catch { return false; }
+}
+
 function renderHistory() {
   const container = document.getElementById("scan-history-list");
   if (!container) return;
@@ -1589,6 +1608,9 @@ function renderProductData(product, barcode) {
   currentBarcode = barcode;
   showState(resultSuccess);
 
+  const reportAck = document.getElementById('report-ack');
+  if (reportAck) reportAck.classList.toggle('hidden', !hasReportedBarcode(barcode));
+
   const verdict = computeVerdict(product);
   const verdictBanner = document.getElementById('verdict-banner');
   if (verdictBanner) {
@@ -2868,6 +2890,7 @@ function initReportHandlers() {
           signal: AbortSignal.timeout(12000)
         });
         if (!resp.ok) throw new Error((await resp.json()).error || 'Error');
+        rememberReportedBarcode(currentBarcode);
         document.getElementById("report-step-2").classList.add("hidden");
         document.getElementById("report-step-3").classList.remove("hidden");
         capturedImage = null;

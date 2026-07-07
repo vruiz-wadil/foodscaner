@@ -25,7 +25,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=50">
+  <link rel="stylesheet" href="styles.css?v=51">
   <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
@@ -212,6 +212,7 @@
           <!-- 0. VEREDICTO -->
           <div id="verdict-banner" class="verdict-banner" role="status"></div>
           <p class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>
+          <p id="report-ack" class="report-ack hidden" role="status">Reportaste un problema con este producto anteriormente — gracias por ayudarnos a mejorarlo.</p>
 
           <!-- 1. IDENTIDAD DEL PRODUCTO -->
           <div class="product-header">
@@ -641,6 +642,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=67" defer></script>
+  <script src="app.js?v=68" defer></script>
 </body>
 </html>

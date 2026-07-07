@@ -34,11 +34,13 @@ function imgHtml(item) {
 function renderGrid() {
   const grid   = document.getElementById('products-grid');
   const empty  = document.getElementById('products-empty');
+  const hint   = document.getElementById('activation-hint');
   const history = getHistory();
 
   if (!history.length) {
     grid.innerHTML = '';
     empty.classList.remove('hidden');
+    if (hint) hint.classList.add('hidden');
     return;
   }
 
@@ -55,6 +57,17 @@ function renderGrid() {
       </div>
     </div>
   `).join('');
+
+  // One-time nudge right after the first-ever scan, when momentum is highest.
+  // Gated so it never shows again once it has, regardless of history changes.
+  if (hint) {
+    if (history.length === 1 && !localStorage.getItem('yomi_activation_shown')) {
+      hint.classList.remove('hidden');
+      localStorage.setItem('yomi_activation_shown', '1');
+    } else {
+      hint.classList.add('hidden');
+    }
+  }
 }
 
 function escHtml(s) {
