@@ -88,6 +88,13 @@ const COMMON_ALLERGENS = [
   { emoji: "🫘", label: "Soja", match: ["soja", "soya", "soy", "soybean"] }
 ];
 
+// Allergen chips convey status by color alone (detected/traces/safe/ai-suggested) —
+// this maps each state to text so screen readers get the same signal sighted users get from color.
+const ALLERGEN_STATUS_LABEL = { detected: "declarado", traces: "puede contener trazas", safe: "no detectado", "ai-suggested": "sugerido por IA" };
+function setAllergenAriaLabel(div, label, state) {
+  div.setAttribute("aria-label", `${label}: ${ALLERGEN_STATUS_LABEL[state] || state}`);
+}
+
 const EXTRA_ALLERGEN_ICONS = {
   "mostaza": "🫙", "mustard": "🫙",
   "sésamo": "🌱", "sesamo": "🌱", "sesame": "🌱",
@@ -754,11 +761,33 @@ function showState(stateElement) {
   }
 }
 
+// Progressive loading copy for cache-miss scans, which can take several
+// seconds (sequential external DB + AI lookups). Fires only while this exact
+// barcode is still the active query — `currentBarcodeQuery` already guards
+// stale responses elsewhere, reused here so a superseded scan's timers don't
+// overwrite a newer one's message.
+const LOADING_MESSAGES = [
+  [0, "Identificando producto y analizando componentes..."],
+  [2500, "Buscando en bases de datos externas..."],
+  [5000, "Esto está tardando más de lo usual, casi listo..."],
+];
+function scheduleLoadingMessages(barcode) {
+  const el = document.getElementById("result-loading-text");
+  if (!el) return;
+  LOADING_MESSAGES.forEach(([delay, text]) => {
+    if (delay === 0) { el.textContent = text; return; }
+    setTimeout(() => {
+      if (barcode === currentBarcodeQuery) el.textContent = text;
+    }, delay);
+  });
+}
+
 // Main Business Logic: Barcode Identification & API Querying
 async function analyzeBarcode(barcode) {
   _lastAiProductKey = "";
   showState(resultLoading);
   currentBarcodeQuery = barcode;
+  scheduleLoadingMessages(barcode);
 
   // 1. Query local server API (which checks local Mexican database + proxies Open Food Facts)
   try {
@@ -1761,16 +1790,20 @@ function renderProductData(product, barcode) {
         const matchesAllergen = item.match.some(m => allAllergensLower.some(a => a.includes(m)));
         const matchesTrace = item.match.some(m => allTracesLower.some(t => t.includes(m)));
         const matchesGluten = item.checkGluten && product.gluten && product.gluten.hasGluten;
+        let allergenState = "safe";
         if (matchesAllergen || matchesGluten) {
           div.classList.add("detected");
+          allergenState = "detected";
           anyGridActive = true;
         } else if (matchesTrace) {
           div.classList.add("traces");
+          allergenState = "traces";
           anyGridActive = true;
         } else {
           div.classList.add("safe");
         }
         div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>`;
+        setAllergenAriaLabel(div, item.label, allergenState);
         gridEl.appendChild(div);
       });
       // Inferred allergens (por nombre, no de BD) marcar como "ai-suggested"
@@ -1786,6 +1819,7 @@ function renderProductData(product, barcode) {
                 if (div.classList.contains("safe")) {
                   div.classList.remove("safe");
                   div.classList.add("ai-suggested");
+                  setAllergenAriaLabel(div, label.textContent, "ai-suggested");
                   const badge = document.createElement("span");
                   badge.className = "ai-badge";
                   badge.textContent = "🤖";
@@ -2034,6 +2068,7 @@ function runAICheck(product, barcode) {
               const div = document.createElement("div");
               div.className = "allergen-grid-item safe";
               div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>`;
+              setAllergenAriaLabel(div, item.label, "safe");
               gridEl.appendChild(div);
             });
           }
@@ -2050,6 +2085,7 @@ function runAICheck(product, barcode) {
                   if (div.classList.contains("safe")) {
                     div.classList.remove("safe");
                     div.classList.add("ai-suggested");
+                    setAllergenAriaLabel(div, label.textContent, "ai-suggested");
                     const badge = document.createElement("span");
                     badge.className = "ai-badge";
                     badge.textContent = "🤖";
@@ -2348,6 +2384,21 @@ function renderError(title, message) {
 // === MODAL FOCUS MANAGEMENT (shared by disclaimer/ocr/nutrition/report modals) ===
 let _lastFocusedBeforeModal = null;
 
+// In-modal error message, replacing native alert() which (a) breaks the focus
+// trap above once dismissed — focus resets to <body> and Tab escapes into the
+// page behind the still-open modal — and (b) isn't announced to screen readers.
+function showModalStepError(stepEl, message) {
+  if (!stepEl) return;
+  let errEl = stepEl.querySelector(':scope > .modal-inline-error');
+  if (!errEl) {
+    errEl = document.createElement('p');
+    errEl.className = 'modal-inline-error';
+    errEl.setAttribute('role', 'alert');
+    stepEl.appendChild(errEl);
+  }
+  errEl.textContent = message;
+}
+
 function openModalA11y(modalEl, onClose) {
   if (!modalEl) return;
   _lastFocusedBeforeModal = document.activeElement;
@@ -2403,6 +2454,7 @@ function showOcrModal(barcode) {
     document.getElementById("ocr-step-2").classList.add("hidden");
     document.getElementById("ocr-step-3").classList.add("hidden");
     document.getElementById("ocr-step-4").classList.add("hidden");
+    modal.querySelectorAll(".modal-inline-error").forEach(el => el.remove());
     openModalA11y(modal, hideOcrModal);
   }
 }
@@ -2467,17 +2519,19 @@ function initOcrHandlers() {
             document.getElementById("ocr-step-3").classList.remove("hidden");
           } catch (err) {
             console.error("[OCR Vision] Error:", err);
-            alert("Error al procesar imagen:\n" + (err?.message || err));
             document.getElementById("ocr-step-2").classList.add("hidden");
-            document.getElementById("ocr-step-1").classList.remove("hidden");
+            const step1 = document.getElementById("ocr-step-1");
+            step1.classList.remove("hidden");
+            showModalStepError(step1, "Error al procesar imagen: " + (err?.message || err));
           }
         };
         img.src = imgUrl;
       } catch (err) {
         console.error("[OCR Vision] Error:", err);
-        alert("Error al procesar imagen:\n" + (err?.message || err));
         document.getElementById("ocr-step-2").classList.add("hidden");
-        document.getElementById("ocr-step-1").classList.remove("hidden");
+        const step1 = document.getElementById("ocr-step-1");
+        step1.classList.remove("hidden");
+        showModalStepError(step1, "Error al procesar imagen: " + (err?.message || err));
       }
     };
   }
@@ -2515,7 +2569,7 @@ function initOcrHandlers() {
         saveBtn.textContent = originalText;
       } catch (err) {
         console.error("Save error:", err);
-        alert("Error al guardar: " + err.message);
+        showModalStepError(document.getElementById("ocr-step-3"), "Error al guardar: " + err.message);
         saveBtn.disabled = false;
         saveBtn.textContent = originalText;
       }
@@ -2539,6 +2593,7 @@ function showNutritionModal(barcode) {
     document.getElementById("nutrition-step-2").classList.add("hidden");
     document.getElementById("nutrition-step-3").classList.add("hidden");
     document.getElementById("nutrition-step-4").classList.add("hidden");
+    modal.querySelectorAll(".modal-inline-error").forEach(el => el.remove());
     openModalA11y(modal, hideNutritionModal);
   }
 }
@@ -2605,17 +2660,19 @@ function initNutritionHandlers() {
             document.getElementById("nutrition-step-3").classList.remove("hidden");
           } catch (err) {
             console.error("Nutrition Vision error:", err);
-            alert("Error al procesar: " + err.message);
-            document.getElementById("nutrition-step-1").classList.remove("hidden");
             document.getElementById("nutrition-step-2").classList.add("hidden");
+            const step1 = document.getElementById("nutrition-step-1");
+            step1.classList.remove("hidden");
+            showModalStepError(step1, "Error al procesar: " + err.message);
           }
         };
         img.src = imgUrl;
       } catch (err) {
         console.error("Nutrition Vision error:", err);
-        alert("Error al procesar nutrientes: " + err.message);
-        document.getElementById("nutrition-step-1").classList.remove("hidden");
         document.getElementById("nutrition-step-2").classList.add("hidden");
+        const step1 = document.getElementById("nutrition-step-1");
+        step1.classList.remove("hidden");
+        showModalStepError(step1, "Error al procesar nutrientes: " + err.message);
       }
     };
   }
@@ -2654,7 +2711,7 @@ function initNutritionHandlers() {
       saveBtn.disabled = false;
       saveBtn.textContent = original;
     } catch (err) {
-      alert("Error al guardar: " + err.message);
+      showModalStepError(document.getElementById("nutrition-step-3"), "Error al guardar: " + err.message);
       saveBtn.disabled = false;
       saveBtn.textContent = original;
     }

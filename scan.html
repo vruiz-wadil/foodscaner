@@ -24,7 +24,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=46">
+  <link rel="stylesheet" href="styles.css?v=47">
   <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
@@ -167,7 +167,7 @@
               <div class="skeleton-block animated-bg"></div>
             </div>
           </div>
-          <p class="loading-text">Identificando producto y analizando componentes...</p>
+          <p class="loading-text" id="result-loading-text" aria-live="polite">Identificando producto y analizando componentes...</p>
         </div>
 
         <!-- ESTADO ERROR / RECHAZADO (NO ES ALIMENTO) -->
@@ -628,6 +628,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=64" defer></script>
+  <script src="app.js?v=65" defer></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yomi-v4';
+const CACHE_NAME = 'yomi-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -18,9 +18,12 @@ const STATIC_ASSETS = [
   '/assets/redesign/icon-analysis.svg',
   '/assets/redesign/icon-profile.svg',
   '/vendor/barcode-detector.js',
-  '/vendor/zxing_reader.wasm',
   '/vendor/zbar-wasm.mjs',
-  '/vendor/zbar.wasm',
+  // zxing_reader.wasm (~940KB) and zbar.wasm (~240KB) are deliberately NOT
+  // precached here — they're only needed once the user taps "Activar cámara",
+  // and the cache-first handler below caches them opportunistically on that
+  // first real request. Precaching them at install downloaded ~1.18MB in the
+  // background on every visit, even to users who never open the camera.
 ];
 
 self.addEventListener('install', (e) => {

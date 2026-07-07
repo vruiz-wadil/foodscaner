@@ -357,9 +357,9 @@ body {
   text-transform: uppercase;
 }
 
-.badge-sano   { background: rgba(22,163,74,0.12);  color: #16a34a; }
-.badge-evitar { background: rgba(220,38,38,0.12);  color: #dc2626; }
-.badge-regular{ background: rgba(234,179,8,0.15);  color: #eab308; }
+.badge-sano   { background: rgba(22,163,74,0.12);  color: #107535; }
+.badge-evitar { background: rgba(220,38,38,0.12);  color: #ac1e1e; }
+.badge-regular{ background: rgba(234,179,8,0.15);  color: #836404; }
 
 /* ── Stats ───────────────────────────────────────────────────── */
 .section-stats {
