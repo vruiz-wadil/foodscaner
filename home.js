@@ -64,33 +64,8 @@ function escHtml(s) {
 // Navigate to scanner
 function goScan() { window.location.href = 'scan.html?scan=1'; }
 
-// One-time count-up on the "3M+" stat card when it scrolls into view. Purely
-// decorative — falls back to the static "3M+" already in the HTML if
-// IntersectionObserver is unavailable or the element never intersects.
-function animateProductsCount() {
-  const el = document.getElementById('stat-products-count');
-  if (!el || typeof IntersectionObserver === 'undefined') return;
-  const target = 3;
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      observer.disconnect();
-      let n = 0;
-      const step = () => {
-        n++;
-        el.textContent = n + 'M+';
-        if (n < target) setTimeout(step, 150);
-      };
-      el.textContent = '0M+';
-      setTimeout(step, 150);
-    });
-  }, { threshold: 0.4 });
-  observer.observe(el);
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   renderGrid();
-  animateProductsCount();
 
   document.getElementById('btn-scan').addEventListener('click', goScan);
   document.getElementById('nav-scan').addEventListener('click', goScan);

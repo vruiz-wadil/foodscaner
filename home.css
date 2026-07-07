@@ -361,47 +361,12 @@ body {
 .badge-evitar { background: rgba(220,38,38,0.12);  color: #ac1e1e; }
 .badge-regular{ background: rgba(234,179,8,0.15);  color: #836404; }
 
-/* ── Stats ───────────────────────────────────────────────────── */
-.section-stats {
-  display: flex;
-  gap: 12px;
-  padding: 0 20px;
-}
-
-.stat-card {
-  flex: 1;
-  background: var(--white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-stat);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.stat-value {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink);
-  text-align: center;
-  line-height: 1.5;
-}
-
-.stat-label {
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--ink-muted);
-  text-align: center;
-  line-height: 1.5;
-}
-
 /* ── Social links ────────────────────────────────────────────── */
 .section-social {
   display: flex;
   justify-content: center;
-  gap: 16px;
-  padding: 16px 20px 4px;
+  gap: 20px;
+  padding: 32px 20px 24px;
 }
 
 .social-link {
