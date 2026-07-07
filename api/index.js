@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
 const { getGeoData } = require('./geo');
@@ -20,6 +21,19 @@ function detectOS(ua = '') {
 
 const app = express();
 app.set('trust proxy', 1); // Vercel sits behind exactly one proxy hop
+
+// Security headers. Also declared in vercel.json for static assets served
+// directly by Vercel's edge (never reach this Express app in production) —
+// this middleware is what actually applies to every /api/* response, and
+// makes the headers testable against a local `node api/index.js` too.
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self';");
+  next();
+});
 
 app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json({ limit: '5mb' }));
@@ -1213,10 +1227,37 @@ app.post('/api/report', async (req, res) => {
 
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+const ADMIN_COOKIE = 'admin_session';
+const ADMIN_COOKIE_OPTS = {
+  httpOnly: true,
+  secure: !!process.env.VERCEL,
+  sameSite: 'strict',
+  maxAge: 8 * 60 * 60 * 1000, // 8h
+  path: '/',
+};
+
+function getCookie(req, name) {
+  const header = req.headers.cookie;
+  if (!header) return null;
+  const found = header.split(';').map(c => c.trim()).find(c => c.startsWith(name + '='));
+  return found ? decodeURIComponent(found.slice(name.length + 1)) : null;
+}
+
+// Constant-time comparison so token-matching isn't observable via response timing.
+function timingSafeTokenEqual(provided, expected) {
+  if (typeof provided !== 'string' || typeof expected !== 'string') return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 function requireAdmin(req, res, next) {
   if (!ADMIN_TOKEN) return res.status(503).json({ error: 'Admin no configurado' });
-  if (req.get('x-admin-token') !== ADMIN_TOKEN) return res.status(401).json({ error: 'No autorizado' });
+  // Cookie covers normal session use; header covers the one-time login form submit
+  // (the token the user just typed, never persisted client-side afterward).
+  const provided = getCookie(req, ADMIN_COOKIE) || req.get('x-admin-token');
+  if (!timingSafeTokenEqual(provided, ADMIN_TOKEN)) return res.status(401).json({ error: 'No autorizado' });
   next();
 }
 
@@ -1225,7 +1266,15 @@ function validCol(req, res, next) {
   next();
 }
 
-app.get('/api/admin/login-check', requireAdmin, (req, res) => res.json({ ok: true }));
+app.get('/api/admin/login-check', requireAdmin, (req, res) => {
+  res.cookie(ADMIN_COOKIE, ADMIN_TOKEN, ADMIN_COOKIE_OPTS);
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/logout', (req, res) => {
+  res.clearCookie(ADMIN_COOKIE, { path: '/' });
+  res.json({ ok: true });
+});
 
 // ponytail: cache módulo 5 min; en Vercel cada instancia tiene el suyo — suficiente a esta escala.
 let statsCache = { data: null, ts: 0 };

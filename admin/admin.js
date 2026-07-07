@@ -16,7 +16,6 @@
   const sectionTitle = document.getElementById('section-title');
   const toolbarEl = document.getElementById('toolbar');
 
-  let token = sessionStorage.getItem('admin_token') || '';
   let currentCol = 'resumen';
   let nextPageToken = null;
   let allItems = [];
@@ -83,15 +82,19 @@
     reportBarcodes = new Set(rr.ok ? (await rr.json()).items.map(i => (i.data||{}).barcode).filter(Boolean) : []);
   }
 
-  function apiFetch(path, opts = {}) {
-    return fetch(path, { ...opts, headers: { 'x-admin-token': token, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+  // Session lives in an HttpOnly cookie set by the server — nothing to hold or
+  // send from JS beyond the one-time login-form submit, so it isn't readable
+  // (and can't be exfiltrated) by any script running on this page.
+  async function apiFetch(path, opts = {}) {
+    const r = await fetch(path, { ...opts, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+    if (r.status === 401) { showLogin(); }
+    return r;
   }
 
   async function checkLogin() {
-    if (!token) { showLogin(); return; }
     const r = await apiFetch('/api/admin/login-check');
     if (r.ok) { hideLogin(); loadCollection(); }
-    else { token = ''; sessionStorage.removeItem('admin_token'); showLogin(); }
+    else { showLogin(); }
   }
 
   function showLogin() { loginOverlay.style.display = 'flex'; }
@@ -103,12 +106,11 @@
     loginError.textContent = '';
     loginBtn.disabled = true;
     loginBtn.textContent = 'Verificando…';
-    const r = await fetch('/api/admin/login-check', { headers: { 'x-admin-token': t } });
+    const r = await fetch('/api/admin/login-check', { credentials: 'same-origin', headers: { 'x-admin-token': t } });
     loginBtn.disabled = false;
     loginBtn.textContent = 'Entrar';
+    tokenInput.value = '';
     if (r.ok) {
-      token = t;
-      sessionStorage.setItem('admin_token', token);
       hideLogin();
       loadCollection();
     } else {
@@ -118,9 +120,8 @@
 
   tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
 
-  logoutBtn.addEventListener('click', () => {
-    token = '';
-    sessionStorage.removeItem('admin_token');
+  logoutBtn.addEventListener('click', async () => {
+    await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
     showLogin();
   });
 
