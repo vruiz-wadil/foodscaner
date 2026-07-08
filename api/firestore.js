@@ -209,7 +209,7 @@ async function fireSetNutritionOcr(barcode, nutritionData) {
   }
 }
 
-async function fireSetOcrData(barcode, ingredients) {
+async function fireSetOcrData(barcode, ingredients, extra = {}) {
   try {
     const token = await getAccessToken();
     if (!token) {
@@ -220,6 +220,8 @@ async function fireSetOcrData(barcode, ingredients) {
     const payload = JSON.stringify({
       barcode,
       ingredients_ocr: ingredients,
+      name: extra.name || null,
+      brand: extra.brand || null,
       approved: true,
       approvedBy: 'auto-initial-approval',
       createdAt: now

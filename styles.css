@@ -1848,6 +1848,19 @@ body {
 }
 .ocr-textarea:focus { border-color: var(--ink); }
 
+.reg-fields { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.reg-fields input {
+  width: 100%;
+  padding: 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: 0.9rem;
+  outline: none;
+}
+.reg-fields input:focus { border-color: var(--ink); }
+
 .ocr-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 /* OCR modal primary/secondary buttons (different context from .btn) */

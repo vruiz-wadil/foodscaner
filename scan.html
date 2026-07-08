@@ -25,7 +25,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=51">
+  <link rel="stylesheet" href="styles.css?v=52">
   <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
@@ -198,7 +198,7 @@
           </div>
           <button id="btn-read-package" class="btn btn-secondary hidden" style="margin-top:20px;">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            ¿Tienes el empaque a mano? Léelo con la cámara
+            Dar de alta este producto
           </button>
           <button id="btn-new-scan-rejected" class="btn btn-primary" style="margin-top:12px;">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -573,6 +573,15 @@
         <button id="ocr-modal-close" class="modal-close">✕</button>
       </div>
 
+      <div id="ocr-step-0" class="ocr-step hidden">
+        <p>Antes de escanear, dinos qué producto es</p>
+        <div class="reg-fields">
+          <input type="text" id="reg-product-name" placeholder="Nombre del producto" autocomplete="off" required>
+          <input type="text" id="reg-product-brand" placeholder="Marca" autocomplete="off" required>
+        </div>
+        <button id="ocr-step0-continue" class="btn-primary" style="margin-top:12px;">Continuar</button>
+      </div>
+
       <div id="ocr-step-1" class="ocr-step">
         <p>Toma una foto clara de la lista de ingredientes</p>
         <div class="camera-container">
@@ -642,6 +651,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=68" defer></script>
+  <script src="app.js?v=69" defer></script>
 </body>
 </html>

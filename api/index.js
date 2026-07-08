@@ -748,6 +748,8 @@ app.get('/api/product/:barcode', async (req, res) => {
       if (ocrData?.ingredients_ocr) {
         product.ingredients_text = ocrData.ingredients_ocr;
         product._from_ocr = true;
+        if (ocrData.name) product.name = ocrData.name;
+        if (ocrData.brand) product.brand = ocrData.brand;
         // Gluten detection from OCR ingredients (only set when detected; never downgrade richer OFF data)
         const gluten = detectGluten(ocrData.ingredients_ocr);
         if (gluten.hasGluten) {
@@ -1172,7 +1174,7 @@ app.delete('/api/nutrition/:barcode', async (req, res) => {
 // Save processed ingredients to Firebase
 app.post('/api/products/ocr', async (req, res) => {
   try {
-    const { barcode, ingredients, scanLogId } = req.body;
+    const { barcode, ingredients, scanLogId, name, brand } = req.body;
     console.log('[OCR Save] Received:', { barcode, ingredientsLength: ingredients?.length });
 
     if (!barcode || !ingredients) {
@@ -1184,7 +1186,7 @@ app.post('/api/products/ocr', async (req, res) => {
     await removeCacheEntry(barcode);
 
     console.log('[OCR Save] Calling fireSetOcrData...');
-    await fireSetOcrData(barcode, ingredients);
+    await fireSetOcrData(barcode, ingredients, { name, brand });
     if (scanLogId) fireMarkScanHasOcr(scanLogId);
 
     console.log('[OCR Save] Success');

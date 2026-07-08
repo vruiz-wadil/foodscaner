@@ -2429,7 +2429,7 @@ function renderNotFound(barcode) {
   const cta = document.getElementById("btn-read-package");
   if (cta) {
     cta.classList.remove("hidden");
-    cta.onclick = () => showOcrModal(barcode);
+    cta.onclick = () => showOcrModal(barcode, true);
   }
 }
 
@@ -2508,15 +2508,25 @@ function trapTabKey(e) {
 
 // === OCR INGREDIENT CAPTURE ===
 
-function showOcrModal(barcode) {
+let ocrRegisterMode = false;
+
+function showOcrModal(barcode, register = false) {
   if (barcode) currentBarcode = barcode;
+  ocrRegisterMode = !!register;
   const modal = document.getElementById("ocr-modal");
   if (modal) {
     modal.classList.remove("hidden");
-    document.getElementById("ocr-step-1").classList.remove("hidden");
+    document.getElementById("ocr-step-0").classList.toggle("hidden", !ocrRegisterMode);
+    document.getElementById("ocr-step-1").classList.toggle("hidden", ocrRegisterMode);
     document.getElementById("ocr-step-2").classList.add("hidden");
     document.getElementById("ocr-step-3").classList.add("hidden");
     document.getElementById("ocr-step-4").classList.add("hidden");
+    if (ocrRegisterMode) {
+      const nameEl = document.getElementById("reg-product-name");
+      const brandEl = document.getElementById("reg-product-brand");
+      if (nameEl) nameEl.value = "";
+      if (brandEl) brandEl.value = "";
+    }
     modal.querySelectorAll(".modal-inline-error").forEach(el => el.remove());
     openModalA11y(modal, hideOcrModal);
   }
@@ -2533,6 +2543,9 @@ function hideOcrModal() {
   }
 }
 
+let regName = "";
+let regBrand = "";
+
 function initOcrHandlers() {
   const fileInput = document.getElementById("ocr-photo-input");
   const uploadBtn = document.getElementById("ocr-upload-btn");
@@ -2540,6 +2553,24 @@ function initOcrHandlers() {
   const editBtn = document.getElementById("ocr-edit-btn");
   const saveBtn = document.getElementById("ocr-save-btn");
   const finalCloseBtn = document.getElementById("ocr-close-btn");
+  const step0ContinueBtn = document.getElementById("ocr-step0-continue");
+
+  if (step0ContinueBtn) {
+    step0ContinueBtn.onclick = () => {
+      const nameEl = document.getElementById("reg-product-name");
+      const brandEl = document.getElementById("reg-product-brand");
+      const name = (nameEl?.value || "").trim();
+      const brand = (brandEl?.value || "").trim();
+      if (!name || !brand) {
+        showModalStepError(document.getElementById("ocr-step-0"), "Escribe el nombre y la marca del producto");
+        return;
+      }
+      regName = name;
+      regBrand = brand;
+      document.getElementById("ocr-step-0").classList.add("hidden");
+      document.getElementById("ocr-step-1").classList.remove("hidden");
+    };
+  }
 
   if (uploadBtn) uploadBtn.onclick = () => fileInput?.click();
 
@@ -2618,18 +2649,29 @@ function initOcrHandlers() {
       const ingredients = textArea?.value || "";
 
       try {
+        const body = { barcode: currentBarcode, ingredients, scanLogId: currentScanLogId };
+        if (ocrRegisterMode) { body.name = regName; body.brand = regBrand; }
+
         const response = await fetch("/api/products/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ barcode: currentBarcode, ingredients, scanLogId: currentScanLogId })
+          body: JSON.stringify(body)
         });
 
         if (!response.ok) throw new Error(`Error ${response.status}`);
 
-        document.getElementById("ocr-step-3").classList.add("hidden");
-        document.getElementById("ocr-step-4").classList.remove("hidden");
         saveBtn.disabled = false;
         saveBtn.textContent = originalText;
+
+        if (ocrRegisterMode) {
+          // Ingredientes obligatorios ya capturados — encadenar a nutrición (también obligatoria)
+          const barcode = currentBarcode;
+          hideOcrModal();
+          showNutritionModal(barcode);
+        } else {
+          document.getElementById("ocr-step-3").classList.add("hidden");
+          document.getElementById("ocr-step-4").classList.remove("hidden");
+        }
       } catch (err) {
         console.error("Save error:", err);
         showModalStepError(document.getElementById("ocr-step-3"), "Error al guardar: " + err.message);
