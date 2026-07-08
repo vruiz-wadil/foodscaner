@@ -349,7 +349,10 @@
   function summaryOf(item) {
     const d = item.data;
     if (!d) return '—';
-    if (d.ingredients_ocr) return d.ingredients_ocr.substring(0, 60) + '…';
+    if (d.ingredients_ocr) {
+      const label = (d.name || d.brand) ? `${d.name || '?'} / ${d.brand || '?'} — ` : '';
+      return label + d.ingredients_ocr.substring(0, 60) + '…';
+    }
     if (d.nutritionData) return 'cal:' + (d.nutritionData.calorias || '?') + ' prot:' + (d.nutritionData.proteinas || '?');
     if (d.response?.product?.name) return d.response.product.name.substring(0, 60);
     if (d.response?.content) return String(d.response.content).substring(0, 60) + '…';
