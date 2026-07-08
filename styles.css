@@ -1045,10 +1045,10 @@ body {
   width: 100%;
   padding: 10px 12px;
   font-size: 0.74rem;
-  color: var(--ink-3);
+  color: #555;
   line-height: 1.5;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: #f0f0f0;
+  border: 1px solid #ddd;
   border-radius: var(--radius-sm);
   margin-top: 2px;
 }
