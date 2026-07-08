@@ -385,6 +385,7 @@ En cada respuesta (hit o miss de caché), el servidor llama a `addOcrDataIfAvail
 | Vegetariano | OFF labels + IA | `en:vegetarian` | carne, pescado, mariscos |
 | Halal | OFF labels + IA | `en:halal` | cerdo, alcohol |
 | Kosher | OFF labels + IA | `en:kosher` | — |
+| **Keto** | OFF labels + IA | `en:keto`, `en:low-carb` | ingredientes altos en carbohidratos, azúcares |
 | Orgánico | OFF labels + IA | `en:organic` | — |
 | Sin OGM | OFF labels + IA | `en:non-gmo` | — |
 | Sin Aditivos | IA | — | colorantes, conservantes, edulcorantes artificiales |
@@ -395,13 +396,22 @@ En cada respuesta (hit o miss de caché), el servidor llama a `addOcrDataIfAvail
 
 ### Renderizado de veredictos
 
+Las insignias dietéticas usan un diseño de **dos líneas**:
+- **Línea 1**: nombre de la dieta (ej. "Sin Gluten", "Vegano")
+- **Línea 2**: texto de estado ("Declarado", "Probablemente", "Sin datos") — más pequeño, color más claro
+
+El texto de sugerencia dietética:
+- Usa gris neutro (#6b6b6b) en vez de tinte verde
+- Siempre visible (no se descarta al primer toque)
+- Ya no tiene problemas de contraste verde-sobre-verde
+
 | Estado | Apariencia | Significado |
 |---|---|---|
-| `db-yes` | Verde sólido | Confirmado por base de datos |
-| `ai-yes` | Verde claro + tramado diagonal amarillo + 🤖 | Probable que sí (inferido por IA) |
-| `db-no` | Rojo sólido | Confirmado por base de datos que NO aplica |
-| `ai-no` | Rojo claro + tramado diagonal amarillo + 🤖 | Probable que NO aplica (inferido por IA) |
-| `unknown` | Gris desaturado | Sin información suficiente |
+| `db-yes` | Verde sólido | Declarado por base de datos |
+| `ai-yes` | Verde claro + tramado diagonal amarillo + 🤖 | Probablemente (inferido por IA) |
+| `db-no` | Rojo sólido | Declarado no (base de datos) |
+| `ai-no` | Rojo claro + tramado diagonal amarillo + 🤖 | Probablemente no (inferido por IA) |
+| `unknown` | Gris desaturado | Sin datos |
 
 ---
 
@@ -529,6 +539,15 @@ Sistema de diseño "Etiqueta" — identidad visual inspirada en etiquetas oficia
 - **Paleta:** `#FAFAF8` papel · `#0A0A0A` tinta · `#1A6B3E` verde bosque · `#C8350B` chile rojo · `#C87B0B` ámbar
 - **Tipografía:** DM Serif Display (nombres de producto) · JetBrains Mono (datos numéricos) · Inter (cuerpo)
 - **Cards:** flat con borde 2px solid + sombra offset 4px, sin glassmorphism
+
+### Renderizado de insignias de alérgenos
+
+Las insignias de alérgenos muestran una **etiqueta de estado visible** sobre el nombre del alérgeno:
+
+1. **Texto de estado** — "Libre de", "Contiene", "Puede contener", "Sin datos"
+2. **Nombre del alérgeno** — con emoji representativo
+
+Cada insignia incluye un tooltip (`title`) con la misma información de estado para accesibilidad. La leyenda inferior usa las mismas etiquetas.
 
 ---
 
