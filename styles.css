@@ -977,13 +977,20 @@ body {
   border-radius: var(--radius-sm);
   background: var(--paper);
   border: 1.5px solid var(--border);
+  box-shadow: var(--shadow-card);
   transition: var(--transition);
   cursor: pointer;
   font-family: inherit;
 }
 
+.dietary-grid-item:hover { border-color: var(--ink-3); box-shadow: var(--shadow-hover); }
+.dietary-grid-item:active { transform: scale(0.96); }
+
 .dietary-grid-item .emoji { font-size: 1.5rem; line-height: 1; }
-.dietary-grid-item .label { font-size: 0.65rem; font-weight: 600; text-align: center; line-height: 1.1; }
+.dietary-grid-item .label { font-size: 0.65rem; font-weight: 600; text-align: center; line-height: 1.1; border-bottom: 1px dotted currentColor; }
+
+.dietary-hint { margin: 0 0 6px; font-size: 0.72rem; color: var(--ink-3); }
+.dietary-hint.hidden { display: none; }
 
 /* unknown — gris neutral (sin información) */
 .dietary-grid-item.unknown { color: #aaa; border-color: #e0e0e0; background: #f5f5f5; }

@@ -25,7 +25,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=52">
+  <link rel="stylesheet" href="styles.css?v=53">
   <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
@@ -229,8 +229,9 @@
           <!-- 2. ENCAJE CON MI DIETA -->
           <div id="dietary-section" class="dietary-section hidden">
             <h4 class="dietary-title">Tipo de Dieta</h4>
+            <p class="dietary-hint hidden" id="dietary-hint">Toca un ícono para ver el detalle de cada clasificación.</p>
             <div id="dietary-grid" class="dietary-icon-grid"></div>
-            <div id="dietary-detail-panel" class="dietary-detail-panel hidden"></div>
+            <div id="dietary-detail-panel" class="dietary-detail-panel hidden" aria-live="polite"></div>
             <div class="allergen-legend dietary-legend">
               <span class="legend-item"><span class="dot dot-green"></span> Declarado sí</span>
               <span class="legend-item"><span class="dot dot-red"></span> Declarado no</span>
@@ -651,6 +652,6 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=69" defer></script>
+  <script src="app.js?v=70" defer></script>
 </body>
 </html>

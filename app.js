@@ -975,10 +975,14 @@ function renderDietaryBadges(product) {
   // Build grid
   gridEl.innerHTML = "";
   let selectedBtn = null;
+  const dietaryHintEl = document.getElementById("dietary-hint");
+  if (dietaryHintEl) dietaryHintEl.classList.toggle("hidden", !!localStorage.getItem('yomi_dietary_hint_shown'));
   items.forEach(item => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "dietary-grid-item " + item.state;
+    btn.setAttribute("aria-expanded", "false");
+    if (detailPanel?.id) btn.setAttribute("aria-controls", detailPanel.id);
     btn.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${labelFor(item.state, item)}</span>`;
     if (item.state === 'ai-yes' || item.state === 'ai-no') {
       const badge = document.createElement("span");
@@ -987,14 +991,20 @@ function renderDietaryBadges(product) {
       btn.appendChild(badge);
     }
     btn.addEventListener("click", () => {
+      if (!localStorage.getItem('yomi_dietary_hint_shown')) {
+        localStorage.setItem('yomi_dietary_hint_shown', '1');
+        if (dietaryHintEl) dietaryHintEl.classList.add('hidden');
+      }
       if (selectedBtn === btn) {
         // toggle off
         btn.classList.remove("selected");
+        btn.setAttribute("aria-expanded", "false");
         if (detailPanel) { detailPanel.classList.add("hidden"); detailPanel.innerHTML = ""; }
         selectedBtn = null;
       } else {
-        if (selectedBtn) selectedBtn.classList.remove("selected");
+        if (selectedBtn) { selectedBtn.classList.remove("selected"); selectedBtn.setAttribute("aria-expanded", "false"); }
         btn.classList.add("selected");
+        btn.setAttribute("aria-expanded", "true");
         selectedBtn = btn;
         if (detailPanel) {
           detailPanel.innerHTML = item.detail;
