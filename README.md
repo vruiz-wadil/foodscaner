@@ -316,7 +316,21 @@ La función `processAIResult()` en el frontend aplica los datos de IA **solo don
 
 ## OCR — Captura de etiquetas por imagen
 
-Cuando un producto no tiene ingredientes o nutrición en ninguna base de datos, la UI ofrece dos modales de captura:
+Cuando un producto no tiene ingredientes o nutrición en ninguna base de datos, la UI ofrece dos modales de captura. Hay dos formas de llegar a ellos, con comportamiento distinto:
+
+- **Producto encontrado pero incompleto** — el usuario abre cada modal de forma independiente (`showOcrModal(barcode)` / captura de nutrición) desde los botones "Corregir ingredientes" / captura de nutrición en la pantalla de resultados. Cada modal se guarda por separado.
+- **Barcode no encontrado en ninguna fuente** — la pantalla "No Encontrado" ofrece el botón **"Dar de alta este producto"**, que abre `showOcrModal(barcode, true)` en **modo registro**: un asistente de varios pasos que encadena ambos modales de forma obligatoria (ver siguiente sección).
+
+### Asistente de alta manual de producto (modo registro)
+
+Cuando ninguna fuente (OFF/USDA/UPCItemDb/GTINHub/identificación por IA) encuentra el barcode, en vez de un callejón sin salida el usuario puede darlo de alta manualmente:
+
+1. **Paso 0 — Nombre y marca** (`#ocr-step-0`, inputs `#reg-product-name` / `#reg-product-brand`): paso nuevo y obligatorio antes de fotografiar nada. Un envío vacío bloquea con un error inline (`showModalStepError`) — no hay `alert()` nativo.
+2. **Paso de ingredientes** (`#ocr-modal`, pasos 1-3, sin cambios respecto al modal normal): foto → Groq Vision extrae el texto → el usuario puede editarlo → guardar.
+3. **Encadenamiento automático a nutrición**: al guardar los ingredientes en modo registro, el modal de ingredientes se cierra y se abre directo el modal de nutrición (`showNutritionModal`) — también obligatorio, mismo patrón foto → extracción → edición → guardar. Fuera del modo registro, guardar ingredientes simplemente muestra la pantalla de éxito del propio modal.
+4. **Cierre y re-render**: al cerrar el modal de nutrición con datos guardados, se dispara `analyzeBarcode()` (el mismo camino de re-fetch que ya usan los modales OCR normales) — el producto ahora se re-lee con el nombre/marca reales capturados en el paso 0 (en vez de los valores hardcodeados `"Producto"` / `"Desconocida"` del stub anterior) y el análisis IA/veredicto se dispara automáticamente sobre esos datos, sin un paso separado de "generar veredicto".
+
+Backend: `fireSetOcrData(barcode, ingredients, extra)` (`api/firestore.js`) ahora acepta y persiste `name`/`brand` en `products_ocr/{barcode}`. `POST /api/products/ocr` (`api/index.js`) lee `name`/`brand` del body y los reenvía. `addOcrDataIfAvailable()` — la función que ya existía para inyectar OCR en cada respuesta de `GET /api/product/:barcode` — ahora también sobreescribe `product.name`/`product.brand` con los valores guardados cuando existen.
 
 ### 1. Modal de Ingredientes (`POST /api/ocr/process` + `POST /api/products/ocr`)
 
@@ -556,6 +570,7 @@ Panel propio en `/admin` (`admin/index.html` + `admin/admin.js`) para revisar ca
 - **Autenticación:** un único token (`ADMIN_TOKEN`) enviado una vez al hacer login; el servidor lo compara con `crypto.timingSafeEqual` (comparación en tiempo constante, evita filtrar el token por diferencias de timing) y, si es válido, emite una cookie de sesión `admin_session` **HttpOnly** (no accesible desde JS del cliente), `Secure` en producción, `SameSite=Strict`, con expiración de 8 horas. Las llamadas siguientes al panel viajan con esa cookie, no con el token en texto plano.
 - Si `ADMIN_TOKEN` no está configurado en el entorno, todas las rutas `/api/admin/*` responden `503 Admin no configurado` en vez de quedar abiertas.
 - Vistas: caché unificada L1+L2 (`/api/admin/cache-all`), estadísticas de escaneo con caché de 5 minutos (`/api/admin/stats`), y colecciones Firestore individuales (`scan_logs`, `reports`, etc. vía `/api/admin/:collection`).
+- En la lista de la pestaña "📷 OCR" (`products_ocr`), la línea de resumen (`summaryOf()` en `admin.js`) antepone `"{name} / {brand} — "` cuando el documento tiene esos campos, para distinguir a simple vista un producto dado de alta manualmente de una simple corrección de ingredientes, sin tener que abrir el modal "Ver" (JSON crudo).
 
 ---
 
@@ -597,7 +612,7 @@ Yomi usa Firestore **sin el SDK oficial** — solo REST API + JWT firmado con RS
 |---|---|---|
 | `product_cache` | `{barcode}` | Respuesta completa serializada en campo `_data` |
 | `ai_cache` | `hash(nombre+ingredientes)` | Respuesta JSON del análisis IA |
-| `products_ocr` | `{barcode}` | `{ ingredients_ocr, approved, createdAt }` |
+| `products_ocr` | `{barcode}` | `{ ingredients_ocr, name, brand, approved, createdAt }` — `name`/`brand` solo se guardan cuando el producto se dio de alta desde el [asistente de registro](#ocr--captura-de-etiquetas-por-imagen) |
 | `products_nutrition` | `{barcode}` | `{ nutritionData: { calories, proteins, ... }, createdAt }` |
 | `scan_logs` | auto-ID | Un registro por búsqueda de barcode: OS, fuente(s), confianza IA, geolocalización, duración |
 | `reports` | auto-ID | Reportes de usuario (`POST /api/report`): categoría, comentario, imagen opcional, geolocalización |
