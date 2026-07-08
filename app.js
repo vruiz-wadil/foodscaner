@@ -90,7 +90,7 @@ const COMMON_ALLERGENS = [
 
 // Allergen chips convey status by color alone (detected/traces/safe/ai-suggested) —
 // this maps each state to text so screen readers get the same signal sighted users get from color.
-const ALLERGEN_STATUS_LABEL = { detected: "declarado", traces: "puede contener trazas", safe: "no detectado", "ai-suggested": "sugerido por IA" };
+const ALLERGEN_STATUS_LABEL = { detected: "contiene", traces: "puede contener trazas", safe: "no detectado", "ai-suggested": "sugerido por IA" };
 function setAllergenAriaLabel(div, label, state) {
   div.setAttribute("aria-label", `${label}: ${ALLERGEN_STATUS_LABEL[state] || state}`);
 }
