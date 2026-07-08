@@ -10,19 +10,27 @@
 
 1. [Stack técnico](#stack-técnico)
 2. [Arquitectura general](#arquitectura-general)
-3. [Flujo de búsqueda de producto](#flujo-de-búsqueda-de-producto)
-4. [Sistema de caché multinivel](#sistema-de-caché-multinivel)
-5. [Análisis con Inteligencia Artificial](#análisis-con-inteligencia-artificial)
-6. [OCR — Captura de etiquetas por imagen](#ocr--captura-de-etiquetas-por-imagen)
-7. [Detección de restricciones dietéticas](#detección-de-restricciones-dietéticas)
-8. [Sellos NOM-051](#sellos-nom-051)
-9. [Riesgos para la salud](#riesgos-para-la-salud)
-10. [Frontend](#frontend)
-11. [Base de datos Firebase](#base-de-datos-firebase)
-12. [API — Endpoints](#api--endpoints)
-13. [Variables de entorno](#variables-de-entorno)
-14. [Instalación y desarrollo local](#instalación-y-desarrollo-local)
-15. [Despliegue en Vercel](#despliegue-en-vercel)
+3. [Estructura del proyecto](#estructura-del-proyecto)
+4. [Flujo de búsqueda de producto](#flujo-de-búsqueda-de-producto)
+5. [Sistema de caché multinivel](#sistema-de-caché-multinivel)
+6. [Análisis con Inteligencia Artificial](#análisis-con-inteligencia-artificial)
+7. [OCR — Captura de etiquetas por imagen](#ocr--captura-de-etiquetas-por-imagen)
+8. [Detección de restricciones dietéticas](#detección-de-restricciones-dietéticas)
+9. [Sellos NOM-051](#sellos-nom-051)
+10. [Riesgos para la salud](#riesgos-para-la-salud)
+11. [Veredicto SANO / REGULAR / EVITAR](#veredicto-sano--regular--evitar)
+12. [Frontend](#frontend)
+13. [PWA — instalable y funcionamiento offline](#pwa--instalable-y-funcionamiento-offline)
+14. [Reporte de problemas](#reporte-de-problemas)
+15. [Nudges de engagement (honestos, no gamificación)](#nudges-de-engagement-honestos-no-gamificación)
+16. [Panel de administración](#panel-de-administración)
+17. [Seguridad, accesibilidad y aspectos legales](#seguridad-accesibilidad-y-aspectos-legales)
+18. [Base de datos Firebase](#base-de-datos-firebase)
+19. [API — Endpoints](#api--endpoints)
+20. [Variables de entorno](#variables-de-entorno)
+21. [Instalación y desarrollo local](#instalación-y-desarrollo-local)
+22. [Pruebas (tests)](#pruebas-tests)
+23. [Despliegue en Vercel](#despliegue-en-vercel)
 
 ---
 
@@ -30,14 +38,17 @@
 
 | Capa | Tecnología |
 |---|---|
-| **Backend** | Node.js + Express.js |
-| **Frontend** | HTML + CSS + Vanilla JS (sin frameworks) |
-| **Base de datos** | Firebase Firestore (REST API, sin SDK) |
-| **IA — texto** | Groq (LLaMA 3.3 70B, LLaMA 3.1 8B, Mixtral, Gemma) + OpenRouter + Gemini 2.5 Flash |
-| **IA — visión** | Groq Vision (Llama 4 Scout) |
-| **Deploy** | Vercel (Fluid Compute) |
-| **Escáner** | `BarcodeDetector` API nativa + ZXing-WASM ponyfill + ZBar-WASM — 4 decoders en paralelo por frame |
+| **Backend** | Node.js + Express.js (Vercel Serverless / Fluid Compute) |
+| **Frontend** | HTML + CSS + Vanilla JS (sin frameworks, sin build step) |
+| **PWA** | Service Worker (`sw.js`) + `manifest.json` — instalable, funciona offline |
+| **Base de datos** | Firebase Firestore (REST API + JWT RS256, sin SDK oficial ni gRPC) |
+| **IA — texto** | Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, y modelos adicionales como fallback desde el frontend) + OpenRouter (`openrouter/free`) + Gemini 2.5 Flash |
+| **IA — visión (OCR)** | Groq Vision (`meta-llama/llama-4-scout-17b-16e-instruct`) |
+| **Deploy** | Vercel (`vercel.json`: función Node para `/api/*`, estático para el resto) |
+| **Escáner** | `BarcodeDetector` API nativa + ZXing-WASM ponyfill + ZBar-WASM — 4 decoders en paralelo por frame, motores **auto-hospedados** en `/vendor/` (sin CDN, funciona offline) |
 | **Fuentes de productos** | Open Food Facts (MX / World / USA), USDA FoodData Central, UPCItemDb, GTINHub |
+| **Admin** | Panel propio (`/admin`) con sesión por cookie HttpOnly, auth por token comparado en tiempo constante |
+| **Tests** | Vitest (backend + frontend, `tests/`) |
 
 ---
 
@@ -56,8 +67,13 @@
 └───────────────┬─────────────────────────────┘
                 │ GET /api/product/:barcode
                 │ POST /api/ai-query
-                │ POST /api/ocr-ingredients
-                │ POST /api/ocr-nutrition
+                │ DELETE /api/cache/:barcode
+                │ POST /api/cache/refresh/:barcode
+                │ POST /api/ocr/process, /api/products/ocr
+                │ DELETE /api/ocr/:barcode
+                │ POST /api/nutrition/process, /api/products/nutrition
+                │ DELETE /api/nutrition/:barcode
+                │ POST /api/report
                 ▼
 ┌─────────────────────────────────────────────┐
 │               API (Express.js)              │
@@ -82,7 +98,45 @@
 │  ai_cache           → análisis IA (24h TTL) │
 │  products_ocr       → ingredientes por OCR  │
 │  products_nutrition → nutrición por OCR     │
+│  scan_logs          → registro de búsquedas │
+│  reports            → reportes de usuario   │
 └─────────────────────────────────────────────┘
+```
+
+---
+
+## Estructura del proyecto
+
+```
+food/
+├── api/
+│   ├── index.js          # Express app: rutas /api/*, pipeline de búsqueda, IA, admin
+│   ├── firestore.js       # Cliente REST de Firestore (JWT RS256, sin SDK/gRPC)
+│   ├── geo.js              # Resolución de geolocalización por IP (ipquery.io)
+│   └── stats.js            # Cómputo de estadísticas del panel de admin
+├── admin/
+│   ├── index.html           # UI del panel de administración
+│   └── admin.js               # Lógica del panel (login, tabs, cache viewer, reportes)
+├── vendor/                # Motores de escaneo auto-hospedados (offline-first)
+│   ├── barcode-detector.js    # Ponyfill ZXing-WASM de BarcodeDetector
+│   ├── zbar-wasm.mjs           # Wrapper JS de ZBar
+│   ├── zbar.wasm                 # Binario ZBar
+│   └── zxing_reader.wasm          # Binario ZXing
+├── assets/
+│   └── icons/               # Favicons/PWA icons (generados con sharp)
+├── tests/                  # Suite Vitest (backend + frontend)
+├── index.html              # Home: historial, accesos, enlaces sociales, registro del SW
+├── scan.html                # Pantalla de escaneo (SW no se registra aquí, ver más abajo)
+├── app.js                    # Lógica del escáner + render de resultados + IA + reportes
+├── home.js                     # Lógica de la home (historial, nudge de activación)
+├── styles.css / home.css         # Sistema de diseño "Etiqueta"
+├── sw.js                    # Service Worker (network-first HTML/JS/CSS, cache-first assets)
+├── manifest.json             # Web App Manifest (instalable)
+├── privacidad.html             # Aviso de Privacidad
+├── terminos.html                 # Términos de Uso
+├── vercel.json               # Rutas, builds estáticos y cabeceras de seguridad HTTP
+├── vitest.config.js            # Config de tests (entorno Node, setup en tests/setup.js)
+└── package.json                  # Dependencias, scripts (start, test, test:watch)
 ```
 
 ---
@@ -194,28 +248,38 @@ El usuario puede forzar la reconsulta desde la UI con el botón **"Actualizar Ca
 
 ### Arquitectura multi-proveedor
 
-El análisis IA se dispara automáticamente después de mostrar el resultado de la base de datos, enriqueciendo campos que los datos estructurados no cubren (dietas, grupos de riesgo, impacto diabético, etc.).
+El análisis IA se dispara automáticamente después de mostrar el resultado de la base de datos, enriqueciendo campos que los datos estructurados no cubren (dietas, grupos de riesgo, impacto diabético, etc.). Hay dos rutas distintas que usan IA, con comportamiento distinto:
+
+**1. Análisis de producto en pantalla de resultados** (`analyzeWithAI()` en `app.js`) — el frontend prueba proveedores **secuencialmente**, uno a la vez, avanzando al siguiente solo si el anterior falla o hace timeout:
+
+```
+POST /api/ai-query?provider=X&model=Y   (un intento por proveedor, en orden)
+
+1. Groq — openai/gpt-oss-120b     (timeout 7s)
+2. Groq — llama-3.1-8b-instant    (timeout 7s)
+3. Groq — llama3-8b-8192          (timeout 7s)
+4. Groq — gemma2-9b-it            (timeout 7s)
+5. Groq — qwen-2.5-32b            (timeout 7s)
+6. OpenRouter — openrouter/free   (timeout 12s)
+7. Gemini — gemini-2.5-flash      (timeout 14s)
+
+→ Se usa la primera respuesta válida; si los 7 fallan, se muestra
+  "Análisis IA no disponible" y los datos de base de datos ya visibles no se tocan.
+```
+
+**2. Identificación de producto por IA** (paso 9 del pipeline de búsqueda, cuando ninguna fuente encontró el barcode) — el backend usa `callAI()`, que sí corre proveedores **en paralelo** vía `Promise.allSettled` y devuelve el primero que responda:
 
 ```
 callAI(prompt)
     │
-    ├── Groq (cola con delay de 2.5s entre llamadas)
-    │   ├── llama-3.3-70b-versatile  (primario)
-    │   ├── llama-3.1-8b-instant
-    │   ├── llama-3.1-70b-versatile
-    │   ├── mixtral-8x7b-32768
-    │   └── gemma-7b-it
-    │
-    ├── OpenRouter (modelo libre, en paralelo a Groq)
-    │
-    └── Gemini 2.5 Flash (fallback explícito)
-
-→ Se devuelve la primera respuesta válida (Promise.allSettled)
+    ├── Groq — openai/gpt-oss-120b   (cola FIFO, 2.5s mín. entre llamadas)
+    ├── Groq — openai/gpt-oss-20b    (misma cola)
+    └── OpenRouter — openrouter/free (en paralelo a Groq)
 ```
 
 ### Queue de Groq
 
-Para no superar los rate limits de Groq, todas las llamadas pasan por una cola FIFO con espera mínima de 2.5 segundos entre invocaciones.
+Para no superar los rate limits de Groq, las llamadas de `callAI()` pasan por una cola FIFO con espera mínima de 2.5 segundos entre invocaciones (`queueGroqCall`). Las llamadas del chain secuencial de `/api/ai-query` no comparten esta cola — cada request es un intento aislado con su propio timeout.
 
 ### Prompt de análisis
 
@@ -254,23 +318,22 @@ La función `processAIResult()` en el frontend aplica los datos de IA **solo don
 
 Cuando un producto no tiene ingredientes o nutrición en ninguna base de datos, la UI ofrece dos modales de captura:
 
-### 1. Modal de Ingredientes (`POST /api/ocr-ingredients`)
+### 1. Modal de Ingredientes (`POST /api/ocr/process` + `POST /api/products/ocr`)
 
 El usuario fotografía la lista de ingredientes del empaque. El servidor:
 
-1. Recibe la imagen en base64.
-2. La envía a **Groq Vision** (Llama 4 Scout) con el prompt para extraer el texto de ingredientes, incluyendo declaraciones de alérgenos y trazas.
-3. El texto extraído se guarda en Firestore (`products_ocr/{barcode}`).
+1. `/api/ocr/process` recibe la imagen en base64 y la envía a **Groq Vision** (Llama 4 Scout) con el prompt para extraer el texto de ingredientes, incluyendo declaraciones de alérgenos y trazas.
+2. El texto extraído se muestra al usuario para revisión/edición.
+3. `/api/products/ocr` guarda el texto confirmado en Firestore (`products_ocr/{barcode}`, campo `ingredients_ocr`).
 4. El frontend actualiza la UI con los ingredientes detectados y re-ejecuta la detección de gluten/caseína.
 
-### 2. Modal de Nutrición (`POST /api/ocr-nutrition`)
+### 2. Modal de Nutrición (`POST /api/nutrition/process` + `POST /api/products/nutrition`)
 
 El usuario fotografía la tabla nutricional. El servidor:
 
-1. Recibe la imagen en base64.
-2. La envía a Groq Vision con el prompt para extraer valores por 100g/ml.
-3. Los datos se guardan en Firestore (`products_nutrition/{barcode}`).
-4. Se inyectan automáticamente en futuras consultas del mismo barcode.
+1. `/api/nutrition/process` recibe la imagen en base64 y la envía a Groq Vision con el prompt para extraer valores por 100g/ml.
+2. `/api/products/nutrition` guarda los datos confirmados en Firestore (`products_nutrition/{barcode}`).
+3. Se inyectan automáticamente en futuras consultas del mismo barcode.
 
 ### Inyección automática en caché
 
@@ -357,6 +420,24 @@ El análisis muestra tarjetas de riesgo para cuatro condiciones calculadas con l
 
 ---
 
+## Veredicto SANO / REGULAR / EVITAR
+
+Sobre la pantalla de resultados, un banner destacado resume el análisis en un veredicto de tres estados, calculado client-side por `computeVerdict()` en `app.js` a partir de datos que ya se calcularon (sellos NOM-051 + grupos en `notRecommended`) — no dispara ninguna consulta adicional.
+
+| Veredicto | Texto | Condición |
+|---|---|---|
+| `sano` | ✓ Puedes comerlo | 0 sellos NOM-051 y ningún grupo de riesgo "certero" |
+| `regular` | ⚠ Con moderación | 1–2 sellos, o algún grupo de riesgo certero con ≤1 sello |
+| `evitar` | ✗ Mejor evítalo | 3+ sellos, o riesgo certero combinado con 2+ sellos |
+
+**Reglas importantes:**
+- Un producto sin datos reales (viene de un fallback como UPCItemDb sin ingredientes/nutrición) **nunca** se marca `sano` — la ausencia de sellos en un registro vacío no es evidencia de que el producto sea seguro; se muestra "⚠ Sin datos suficientes para evaluar" en su lugar.
+- Solo el veredicto `sano` dispara una animación de entrada celebratoria (`verdict-reveal`) — `regular` y `evitar` se muestran estáticos a propósito, para que una advertencia nunca se sienta como un momento gamificado.
+- Justo debajo del banner se muestra siempre el disclaimer: *"Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud."*
+- El veredicto se guarda junto con el historial de escaneos (`saveToHistory`) para que las tarjetas de "recientes" en la home también muestren su color/estado.
+
+---
+
 ## Frontend
 
 El frontend es Vanilla JS sin frameworks. Los archivos principales:
@@ -370,7 +451,7 @@ Estructura estática. Los estados de resultado (`#result-empty`, `#result-loadin
 - **`showState(el)`** — oculta todos los estados y activa el indicado. Oculta el panel de escáner cuando hay resultado.
 - **`renderDietaryBadges(product)`** — renderiza todas las filas de dietas vía `makeDietRow()` + array `dietMeta`.
 - **`processAIResult(data, product)`** — fusiona la respuesta IA, respetando veredictos deterministas.
-- **`saveToHistory(barcode, name, brand)`** — guarda en `localStorage['yomi_history']` (máx. 5 entradas).
+- **`saveToHistory(barcode, name, brand, image, verdict)`** — guarda en `localStorage['yomi_history']` (máx. 5 entradas), incluyendo el veredicto SANO/REGULAR/EVITAR para que las tarjetas de "recientes" en la home muestren su color.
 
 #### Escáner de código de barras
 
@@ -381,10 +462,10 @@ El escáner corre un `requestAnimationFrame` loop con **4 decoders en paralelo p
 | Motor | Plataforma | Carga |
 |---|---|---|
 | `BarcodeDetector` nativo | Android Chrome, Mac Safari, Edge (Chromium) | API del navegador |
-| ZXing-WASM (`barcode-detector@2/pure`) | iOS Safari, Windows Chrome/Edge, Firefox | ESM CDN (ponyfill) |
-| ZBar-WASM (`@undecaf/zbar-wasm@0.11.0`) | Todas las plataformas | jsDelivr CDN |
+| ZXing-WASM (ponyfill) | iOS Safari, Windows Chrome/Edge, Firefox | `/vendor/barcode-detector.js` + `/vendor/zxing_reader.wasm` (auto-hospedado) |
+| ZBar-WASM | Todas las plataformas | `/vendor/zbar-wasm.mjs` + `/vendor/zbar.wasm` (auto-hospedado) |
 
-En plataformas sin `BarcodeDetector` nativo el ponyfill ZXing lo expone en `window.BarcodeDetector`. ZBar corre siempre como segundo motor independiente.
+En plataformas sin `BarcodeDetector` nativo el ponyfill ZXing lo expone en `window.BarcodeDetector`. ZBar corre siempre como segundo motor independiente. Ambos motores se sirven desde `/vendor/` en el propio dominio — no hay dependencia de ningún CDN externo, lo que permite que el escáner funcione completamente offline una vez instalado (ver [PWA](#pwa--instalable-y-funcionamiento-offline)).
 
 ##### Pipeline por frame (`tick`)
 
@@ -437,6 +518,75 @@ Sistema de diseño "Etiqueta" — identidad visual inspirada en etiquetas oficia
 
 ---
 
+## PWA — instalable y funcionamiento offline
+
+Yomi es una Progressive Web App instalable, con `manifest.json` (`display: standalone`, ícono maskable 192/512px, `theme_color: #2DBC9E`) y un Service Worker (`sw.js`) con estrategias de caché distintas según el tipo de recurso:
+
+| Tipo de recurso | Estrategia | Motivo |
+|---|---|---|
+| `/api/*` | Network-first, cae a caché si falla | Datos siempre frescos cuando hay red |
+| HTML / JS / CSS del app shell | Network-first, cae a caché si falla | Un deploy nuevo se ve de inmediato; solo usa caché offline |
+| Otros estáticos (íconos, motores WASM del escáner) | Cache-first | Rara vez cambian, se sirven instantáneo |
+
+**Precacheo en la instalación (`STATIC_ASSETS`):** shell de la app (`index.html`, `scan.html`, CSS, JS), manifest, íconos, y los motores `/vendor/barcode-detector.js` + `/vendor/zbar-wasm.mjs`. Los binarios WASM pesados (`zxing_reader.wasm` ~940KB, `zbar.wasm` ~240KB) se cachean de forma oportunista la primera vez que el usuario activa la cámara, no en la instalación — para no descargar ~1.18MB de más a quien nunca escanea.
+
+El Service Worker **solo se registra en `index.html`** (la home) — no en `scan.html`, para evitar conflictos con la carga de los módulos WASM del escáner.
+
+---
+
+## Reporte de problemas
+
+Desde la pantalla de resultados, el usuario puede reportar un problema con el producto (`POST /api/report`): categoría, comentario y, opcionalmente, una foto. El servidor valida la imagen antes de guardarla — debe venir en base64 puro (regex `^[A-Za-z0-9+/]+=*$`) y no exceder ~700KB — y registra el reporte junto con user-agent, SO detectado y geolocalización por IP (`ipquery.io`).
+
+---
+
+## Nudges de engagement (honestos, no gamificación)
+
+Yomi incluye dos nudges de comportamiento deliberadamente mínimos y honestos — sin rachas, sin urgencia falsa, sin puntos ni logros:
+
+- **Hint de activación (una sola vez):** justo después del primer escaneo (`yomi_history` pasa de 0 a 1), la home muestra *"Prueba con algo que tengas a la mano ahora — toma 10 segundos."* Se marca con una flag en `localStorage` (`yomi_activation_shown`) para que aparezca exactamente una vez por dispositivo y nunca vuelva a insistir.
+- **Confirmación de reporte:** al re-escanear un barcode que este dispositivo reportó antes, se muestra *"Reportaste un problema con este producto anteriormente — gracias por ayudarnos a mejorarlo"*. Deliberadamente **no** afirma que el problema se corrigió — no hay una señal confiable para verificar eso sin trabajo adicional de backend (una invalidación de caché se ve igual si la disparó un admin corrigiendo el dato o un TTL normal) — solo confirma que el reporte quedó registrado.
+
+---
+
+## Panel de administración
+
+Panel propio en `/admin` (`admin/index.html` + `admin/admin.js`) para revisar caché, logs de escaneo, reportes y estadísticas de uso.
+
+- **Autenticación:** un único token (`ADMIN_TOKEN`) enviado una vez al hacer login; el servidor lo compara con `crypto.timingSafeEqual` (comparación en tiempo constante, evita filtrar el token por diferencias de timing) y, si es válido, emite una cookie de sesión `admin_session` **HttpOnly** (no accesible desde JS del cliente), `Secure` en producción, `SameSite=Strict`, con expiración de 8 horas. Las llamadas siguientes al panel viajan con esa cookie, no con el token en texto plano.
+- Si `ADMIN_TOKEN` no está configurado en el entorno, todas las rutas `/api/admin/*` responden `503 Admin no configurado` en vez de quedar abiertas.
+- Vistas: caché unificada L1+L2 (`/api/admin/cache-all`), estadísticas de escaneo con caché de 5 minutos (`/api/admin/stats`), y colecciones Firestore individuales (`scan_logs`, `reports`, etc. vía `/api/admin/:collection`).
+
+---
+
+## Seguridad, accesibilidad y aspectos legales
+
+### Cabeceras HTTP de seguridad
+
+Aplicadas tanto en middleware de Express (`api/index.js`, cubre todo lo que pasa por la función Node) como en `vercel.json` (cubre estáticos servidos directo por el edge de Vercel):
+
+- `X-Frame-Options: DENY`
+- `X-Content-Type-Options: nosniff`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Content-Security-Policy`: restringe scripts/estilos/conexiones a `'self'` más los orígenes explícitamente necesarios (Google Fonts, imágenes de Open Food Facts), permite `wasm-unsafe-eval` para los motores WASM del escáner, y bloquea `object-src` y `frame-ancestors` por completo.
+
+### Accesibilidad (WCAG AA)
+
+- Contraste AA verificado en chips de estado de alérgenos (`detected`/`traces`) y badges dietéticos `db-yes`.
+- Modales (disclaimer, OCR de ingredientes, OCR de nutrición, reporte) tienen semántica de diálogo (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`), focus trap real y se cierran con Escape.
+- `aria-label` en indicadores de estado de alérgenos y controles de la cámara; regiones vivas (`aria-live`) para mensajes de carga progresivos y errores.
+- Errores de cámara y validación usan diálogos de modal accesibles en vez de `alert()` nativo.
+- Tabs deshabilitados en la navegación no son focuseables (evita que el teclado se detenga en controles inertes).
+
+### Aspectos legales
+
+- **Aviso de Privacidad** (`privacidad.html`) y **Términos de Uso** (`terminos.html`), enlazados desde el modal de disclaimer inicial que el usuario debe aceptar antes de usar la app.
+- Disclaimer de IA visible **debajo del banner de veredicto** en cada resultado: *"Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud."* — lenguaje endurecido para no hacer afirmaciones de salud no verificadas (contexto COFEPRIS).
+- Los sellos NOM-051 se marcan como cálculo estimado en tiempo real, no como el etiquetado oficial impreso del producto.
+
+---
+
 ## Base de datos Firebase
 
 Yomi usa Firestore **sin el SDK oficial** — solo REST API + JWT firmado con RS256 para evitar dependencias de gRPC. La autenticación se genera en `api/firestore.js`.
@@ -449,21 +599,44 @@ Yomi usa Firestore **sin el SDK oficial** — solo REST API + JWT firmado con RS
 | `ai_cache` | `hash(nombre+ingredientes)` | Respuesta JSON del análisis IA |
 | `products_ocr` | `{barcode}` | `{ ingredients_ocr, approved, createdAt }` |
 | `products_nutrition` | `{barcode}` | `{ nutritionData: { calories, proteins, ... }, createdAt }` |
+| `scan_logs` | auto-ID | Un registro por búsqueda de barcode: OS, fuente(s), confianza IA, geolocalización, duración |
+| `reports` | auto-ID | Reportes de usuario (`POST /api/report`): categoría, comentario, imagen opcional, geolocalización |
+
+Las últimas dos (`scan_logs`, `reports`) son las que alimenta el [panel de administración](#panel-de-administración); las cuatro colecciones son visibles/editables ahí vía `/api/admin/:collection`.
 
 ---
 
 ## API — Endpoints
 
+Todas las rutas bajo `/api/` pasan por un rate limit de 30 req/min por IP (`express-rate-limit`).
+
+### Públicas
+
 | Método | Ruta | Descripción |
 |---|---|---|
-| `GET` | `/api/product/:barcode` | Búsqueda principal de producto |
-| `POST` | `/api/ai-query` | Análisis IA de un producto |
-| `POST` | `/api/ocr-ingredients` | Extrae ingredientes de una imagen |
-| `POST` | `/api/ocr-nutrition` | Extrae tabla nutricional de una imagen |
-| `GET` | `/api/ocr/:barcode` | Datos OCR guardados para un barcode |
-| `DELETE` | `/api/ocr/:barcode` | Elimina datos OCR de un barcode |
+| `GET` | `/api/product/:barcode` | Búsqueda principal de producto (pipeline completo, ver arriba) |
+| `POST` | `/api/ai-query?provider=groq\|openrouter\|gemini&model=...` | Análisis IA de un producto con un proveedor/modelo específico |
 | `DELETE` | `/api/cache/:barcode` | Invalida caché (L1 + L2) de un producto |
-| `GET` | `/api/health` | Estado del servidor |
+| `POST` | `/api/cache/refresh/:barcode` | Invalida caché y vuelve a buscar el producto en un solo request |
+| `POST` | `/api/ocr/process` | Extrae ingredientes de una imagen vía Groq Vision |
+| `POST` | `/api/products/ocr` | Guarda los ingredientes OCR editados/confirmados por el usuario |
+| `POST` | `/api/nutrition/process` | Extrae tabla nutricional de una imagen vía Groq Vision |
+| `POST` | `/api/products/nutrition` | Guarda los datos nutricionales OCR editados/confirmados |
+| `DELETE` | `/api/ocr/:barcode` | Elimina datos OCR de ingredientes de un barcode |
+| `DELETE` | `/api/nutrition/:barcode` | Elimina datos OCR de nutrición de un barcode |
+| `POST` | `/api/report` | Envía un reporte de problema (con validación server-side de imagen) |
+
+### Admin (requieren cookie de sesión `admin_session` o header `x-admin-token`, ver [Panel de administración](#panel-de-administración))
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/admin/login-check` | Valida el token y emite la cookie de sesión HttpOnly |
+| `POST` | `/api/admin/logout` | Limpia la cookie de sesión |
+| `GET` | `/api/admin/stats` | Estadísticas de escaneo (cacheadas 5 min) |
+| `GET` | `/api/admin/cache-all` | Vista unificada de caché L1+L2 por barcode |
+| `DELETE` | `/api/admin/cache-all/:type/:key?layer=l1\|l2\|all` | Elimina una entrada de caché específica |
+| `GET` | `/api/admin/:collection` | Lista documentos de una colección (`scan_logs`, `reports`, `products_ocr`, `products_nutrition`) |
+| `DELETE` | `/api/admin/:collection/:id` | Elimina un documento de una colección |
 
 ### Respuesta de `/api/product/:barcode`
 
@@ -494,26 +667,32 @@ Yomi usa Firestore **sin el SDK oficial** — solo REST API + JWT firmado con RS
 
 ## Variables de entorno
 
-Crea un archivo `.env` en la raíz del proyecto:
+Crea un archivo `.env` en la raíz del proyecto (`.env.example` trae una plantilla mínima con `GROQ_API_KEY` y `USDA_API_KEY`):
 
 ```env
-# Firebase (Firestore para caché persistente)
+# Firebase (Firestore para caché persistente — opcional, ver abajo)
 FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"...","private_key":"-----BEGIN RSA PRIVATE KEY-----\n...","client_email":"..."}'
 
-# Groq (IA principal — texto y visión)
+# Groq — único requerido: IA de texto (análisis) y visión (OCR)
 GROQ_API_KEY=gsk_...
 
-# Google Gemini (fallback de IA)
+# Google Gemini — fallback de IA (opcional)
 GEMINI_API_KEY=AIza...
 
-# OpenRouter (fallback de IA)
+# OpenRouter — fallback de IA (opcional)
 OPENROUTER_API_KEY=sk-or-...
 
-# USDA FoodData Central
+# USDA FoodData Central — fuente adicional de productos (opcional)
 USDA_API_KEY=...
+
+# Panel de administración — sin esta variable, /api/admin/* responde 503
+ADMIN_TOKEN=elige-un-token-largo-y-aleatorio
+
+# Puerto del servidor local (opcional, default 3000)
+PORT=3000
 ```
 
-Solo `GROQ_API_KEY` es estrictamente requerida. Sin Firebase la caché funciona solo en memoria. Sin USDA se omite esa fuente.
+Solo `GROQ_API_KEY` es estrictamente requerida para levantar el servidor con funcionalidad completa de búsqueda/análisis. Sin Firebase la caché funciona solo en memoria (L1, se pierde al reiniciar). Sin `USDA_API_KEY` se omite esa fuente de datos. Sin `ADMIN_TOKEN` el panel de administración queda deshabilitado (`503`) en vez de abierto.
 
 ---
 
@@ -535,13 +714,22 @@ npm start
 # → http://localhost:3000
 ```
 
-El servidor Express sirve los archivos estáticos del frontend automáticamente. No hay build step — edita HTML/CSS/JS y recarga el browser (Ctrl+Shift+R para limpiar caché).
+El servidor Express sirve los archivos estáticos del frontend automáticamente. No hay build step — edita HTML/CSS/JS y recarga el browser (Ctrl+Shift+R para limpiar caché, o desregistra el Service Worker desde DevTools → Application si los cambios no se reflejan).
+
+Requiere **Node.js** (probado con Node 18+; `package.json` no fija un `engines.node` explícito, pero las APIs usadas — `fetch` global, `AbortSignal.timeout` — requieren Node 18 o superior).
+
+---
+
+## Pruebas (tests)
+
+El proyecto usa [Vitest](https://vitest.dev/) con entorno `node` (`vitest.config.js`, setup en `tests/setup.js`). La suite vive en `tests/` y cubre tanto lógica de backend (`api.test.js`, `geo.test.js`, `stats.test.js`) como funciones de frontend extraídas para test (`app.test.js`):
 
 ```bash
-# Tests
-npm test            # ejecución única
+npm test            # ejecución única (vitest run)
 npm run test:watch  # modo watch
 ```
+
+En un checkout limpio esto corre **4 archivos de test, 71 tests**, todos deterministas (sin llamadas de red reales — los fetches externos se mockean).
 
 ---
 
@@ -552,9 +740,13 @@ npm i -g vercel
 vercel --prod
 ```
 
-Las variables de entorno se configuran en Vercel → Settings → Environment Variables.
+Las variables de entorno (incluyendo `ADMIN_TOKEN` si quieres el panel de administración activo en producción) se configuran en Vercel → Settings → Environment Variables — no se leen de `.env` en producción.
 
-La configuración en `vercel.json` enruta `/api/*` a la función Node.js y sirve el resto como estático.
+`vercel.json` define:
+- `builds`: `api/index.js` como función Node (`@vercel/node`); `admin/**`, `assets/**` y `vendor/**` como estático explícito (sin esto, los motores del escáner y los íconos devuelven 404 en producción).
+- `routes`: cabeceras de seguridad HTTP en toda ruta, `/api/*` → la función Node, `/admin` y `/admin/` → `admin/index.html`, y el resto servido como estático.
+
+Para desarrollo/preview en Vercel: `vercel` (sin `--prod`) genera una URL de preview con las mismas env vars del proyecto.
 
 ---
 
