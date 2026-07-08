@@ -92,6 +92,7 @@ const COMMON_ALLERGENS = [
 // this maps each state to text so screen readers get the same signal sighted users get from color.
 const ALLERGEN_STATUS_LABEL = { detected: "contiene", traces: "puede contener trazas", safe: "no detectado", "ai-suggested": "sugerido por IA" };
 const ALLERGEN_TITLE_LABEL = { detected: "Contiene", traces: "Puede contener", safe: "Libre de", "ai-suggested": "Sugerido por IA: posiblemente", unknown: "Sin datos sobre" };
+const DIETARY_STATE_TEXT = { "db-yes": "Declarado", "db-no": "Declarado no", "ai-yes": "Probablemente", "ai-no": "Probablemente no", unknown: "Sin datos" };
 function setAllergenAriaLabel(div, label, state) {
   div.setAttribute("aria-label", `${label}: ${ALLERGEN_STATUS_LABEL[state] || state}`);
 }
@@ -991,7 +992,7 @@ function renderDietaryBadges(product) {
     btn.className = "dietary-grid-item " + item.state;
     btn.setAttribute("aria-expanded", "false");
     if (detailPanel?.id) btn.setAttribute("aria-controls", detailPanel.id);
-    btn.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${labelFor(item.state, item)}</span>`;
+    btn.innerHTML = `<span class="emoji">${item.emoji}</span><span class="state-text">${DIETARY_STATE_TEXT[item.state] || ''}</span><span class="label">${item.noun}</span>`;
     if (item.state === 'ai-yes' || item.state === 'ai-no') {
       const badge = document.createElement("span");
       badge.className = "ai-badge";
