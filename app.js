@@ -177,7 +177,7 @@ function saveToHistory(barcode, name, brand, image, rating) {
   const history = getHistory().filter(h => h.barcode !== barcode);
   history.unshift({ barcode, name, brand, image: image || '', rating: rating || '' });
   if (history.length > 5) history.length = 5;
-  localStorage.setItem("yomi_history", JSON.stringify(history));
+  try { localStorage.setItem("yomi_history", JSON.stringify(history)); } catch { /* ponytail: localStorage unavailable — skip silently */ }
   renderHistory();
 }
 
@@ -214,10 +214,10 @@ function renderHistory() {
   }
   container.innerHTML = history.map(h => `
     <button class="history-item" data-barcode="${h.barcode}">
-      ${h.image ? `<img class="history-thumb" src="${h.image}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<span class="history-thumb history-thumb-empty"></span>'}
+      ${h.image ? `<img class="history-thumb" src="${esc(h.image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<span class="history-thumb history-thumb-empty"></span>'}
       <span class="history-text">
-        <span class="history-name">${h.name || "Producto"}</span>
-        <span class="history-meta">${h.brand ? h.brand + " · " : ""}${h.barcode}</span>
+        <span class="history-name">${esc(h.name) || "Producto"}</span>
+        <span class="history-meta">${h.brand ? esc(h.brand) + " · " : ""}${h.barcode}</span>
       </span>
     </button>
   `).join("");
@@ -242,7 +242,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(location.search);
   const bc = params.get('barcode');
   if (bc) analyzeBarcode(bc.trim());
-  else if (params.get('scan')) toggleCamera();
+  else if (params.get('scan')) {
+    if (!dm || localStorage.getItem(DISCLAIMER_KEY)) {
+      toggleCamera();
+    } else {
+      document.getElementById('disclaimer-accept').addEventListener('click', toggleCamera, { once: true });
+    }
+  }
 });
 
 function isDesktopSplit() {
@@ -316,11 +322,10 @@ function setupEventListeners() {
 
 // Camera Scanner Logic
 async function listCameras() {
-  const tmp = await navigator.mediaDevices.getUserMedia({ video: true });
   const all = await navigator.mediaDevices.enumerateDevices();
-  tmp.getTracks().forEach(t => t.stop());
   return all.filter(d => d.kind === 'videoinput').map(d => ({ id: d.deviceId, label: d.label }));
 }
+// ponytail: removed getUserMedia from listCameras — enumerateDevices works without an active stream on modern browsers. If device labels are empty (no permission yet), startScanningNative's getUserMedia will trigger the permission prompt.
 
 async function toggleCamera() {
   if (isScanning) {
@@ -371,6 +376,7 @@ async function toggleCamera() {
   } catch (error) {
     console.error("Error al iniciar cámara:", error);
     renderError("No se pudo acceder a la cámara", "Permiso de cámara denegado o dispositivo ocupado. Revisa los permisos de cámara en tu navegador, o ingresa el código de barras manualmente más abajo.");
+    const mi = document.getElementById("manual-input-section"); if (mi) mi.classList.remove("hidden"); // ponytail: show manual input on mobile when camera fails
     resetCameraButton();
   }
 }
@@ -870,7 +876,11 @@ async function analyzeBarcode(barcode) {
     renderProductData(product, barcode);
     showReportCardIfNeeded();
   } catch (error) {
-    renderNotFound(barcode);
+    if (!navigator.onLine || error.name === 'TypeError') {
+      renderError("Sin conexión", "No hay internet. Los resultados de productos ya escaneados están disponibles sin conexión.");
+    } else {
+      renderNotFound(barcode);
+    }
   }
 }
 

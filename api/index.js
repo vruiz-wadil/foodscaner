@@ -38,7 +38,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json({ limit: '5mb' }));
 
-const limiter = rateLimit({ windowMs: 60000, max: 30, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
+const limiter = rateLimit({ windowMs: 60000, max: 60, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
 app.use('/api/', limiter);
 
 // --- Queue for Groq to avoid rate limiting ---

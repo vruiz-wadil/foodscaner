@@ -22,7 +22,7 @@ function badgeHtml(rating) {
 
 function imgHtml(item) {
   if (item.image) {
-    return `<img class="product-card-img" src="${item.image}" alt="" onerror="this.onerror=null;this.src='${placeholderSvg()}'">`;
+    return `<img class="product-card-img" src="${escHtml(item.image)}" alt="" onerror="this.onerror=null;this.src='${placeholderSvg()}'">`;
   }
   return `<div class="product-card-img-placeholder">
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0d3d35" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
