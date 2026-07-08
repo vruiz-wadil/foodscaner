@@ -1854,7 +1854,7 @@ function renderProductData(product, barcode) {
         } else {
           div.classList.add("safe");
         }
-        div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span><span class="state-text">${ALLERGEN_TITLE_LABEL[allergenState]}</span>${allergenStateBadge(allergenState)}`;
+        div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="state-text">${ALLERGEN_TITLE_LABEL[allergenState]}</span><span class="label">${item.label}</span>${allergenStateBadge(allergenState)}`;
         setAllergenAriaLabel(div, item.label, allergenState);
         gridEl.appendChild(div);
       });
