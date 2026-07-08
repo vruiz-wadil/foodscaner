@@ -882,9 +882,10 @@ function isGlutenRelated(label) {
 
 function extractDietaryFromLabels(labelsTags) {
   const lt = (labelsTags || []).map(t => t.toLowerCase());
-  const d = { vegan: null, vegetarian: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null };
+  const d = { vegan: null, vegetarian: null, keto: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null };
   if (lt.some(t => t === 'en:vegan')) { d.vegan = true; }
   if (lt.some(t => t === 'en:vegetarian')) { d.vegetarian = true; }
+  if (lt.some(t => t === 'en:keto')) { d.keto = true; }
   if (lt.some(t => t.includes('kosher'))) { d.kosher = true; }
   if (lt.some(t => t === 'en:halal')) { d.halal = true; }
   const organicTag = lt.find(t => ['en:organic','en:eu-organic','en:usda-organic','en:bio','en:ab-agriculture-biologique'].includes(t) || t.includes('organic'));
@@ -910,7 +911,7 @@ function renderDietaryBadges(product) {
 
   // Asegurar que dietary exista extrayendo desde labels del OFF si es necesario
   if (!product.dietary) {
-    product.dietary = product.labelsTags ? extractDietaryFromLabels(product.labelsTags) : { vegan: null, vegetarian: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null };
+    product.dietary = product.labelsTags ? extractDietaryFromLabels(product.labelsTags) : { vegan: null, vegetarian: null, keto: null, kosher: null, halal: null, organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null };
   } else if (product.labelsTags && !product.labelsTagsMerged) {
     const fromLabels = extractDietaryFromLabels(product.labelsTags);
     product.labelsTagsMerged = true;
@@ -973,6 +974,7 @@ function renderDietaryBadges(product) {
     { emoji: "🌿", yes: "Orgánico",      no: "No orgánico",      noun: "Orgánico",     state: stateFor(d.organic, d.organicSource),          detail: buildDetailText(stateFor(d.organic, d.organicSource), "orgánico", d.organicDetail || "") },
     { emoji: "🥦", yes: "Vegetariano",   no: "No vegetariano",   noun: "Vegetariano",  state: stateFor(d.vegetarian, d.vegetarianSource),    detail: buildDetailText(stateFor(d.vegetarian, d.vegetarianSource), "vegetariano", d.vegetarianDetail || "") },
     { emoji: "🌱", yes: "Vegano",        no: "No vegano",        noun: "Vegano",       state: stateFor(d.vegan, d.veganSource),              detail: buildDetailText(stateFor(d.vegan, d.veganSource), "vegano", d.veganDetail || "") },
+    { emoji: "🥑", yes: "Keto",          no: "No keto",          noun: "Keto",         state: stateFor(d.keto, d.ketoSource),                detail: buildDetailText(stateFor(d.keto, d.ketoSource), "keto", d.ketoDetail || "") },
     { emoji: "🏷️", yes: "Kosher",        no: "No kosher",        noun: "Kosher",       state: stateFor(d.kosher, d.kosherSource),            detail: buildDetailText(stateFor(d.kosher, d.kosherSource), "kosher", d.kosherDetail || "") },
     { emoji: "📛", yes: "Halal",         no: "No halal",         noun: "Halal",        state: stateFor(d.halal, d.halalSource),              detail: buildDetailText(stateFor(d.halal, d.halalSource), "halal", d.halalDetail || "") },
     { emoji: "🧬", yes: "Sin OGM",       no: "Con OGM",          noun: "Libre de OGM",          state: stateFor(d.nonGmo, d.nonGmoSource),            detail: buildDetailText(stateFor(d.nonGmo, d.nonGmoSource), "libre de OGM", d.nonGmoDetail || "") },
@@ -2063,7 +2065,7 @@ function runAICheck(product, barcode) {
 
     // Merge AI dietary data with OFF data
     if (data.dietary && product.dietary) {
-      const fields = ['vegan','vegetarian','halal','organic','nonGmo','noAdditives','palmOilFree','fairTrade','caseinFree'];
+      const fields = ['vegan','vegetarian','keto','halal','organic','nonGmo','noAdditives','palmOilFree','fairTrade','caseinFree'];
       fields.forEach(f => {
         if (product.dietary[f] == null && data.dietary[f] !== undefined) {
           product.dietary[f] = data.dietary[f];
