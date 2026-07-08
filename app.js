@@ -95,6 +95,13 @@ function setAllergenAriaLabel(div, label, state) {
   div.setAttribute("aria-label", `${label}: ${ALLERGEN_STATUS_LABEL[state] || state}`);
 }
 
+// Redundant glyph so state isn't conveyed by color/opacity alone (helps low-vision/older users
+// distinguish "safe" from "detected" without relying on the grayscale-vs-tint contrast).
+const ALLERGEN_STATE_GLYPH = { safe: "✓", detected: "⚠", traces: "~" };
+function allergenStateBadge(state) {
+  return `<span class="state-badge state-badge-${state}">${ALLERGEN_STATE_GLYPH[state]}</span>`;
+}
+
 const EXTRA_ALLERGEN_ICONS = {
   "mostaza": "🫙", "mustard": "🫙",
   "sésamo": "🌱", "sesamo": "🌱", "sesame": "🌱",
@@ -1846,7 +1853,7 @@ function renderProductData(product, barcode) {
         } else {
           div.classList.add("safe");
         }
-        div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>`;
+        div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>${allergenStateBadge(allergenState)}`;
         setAllergenAriaLabel(div, item.label, allergenState);
         gridEl.appendChild(div);
       });
@@ -1864,6 +1871,7 @@ function renderProductData(product, barcode) {
                   div.classList.remove("safe");
                   div.classList.add("ai-suggested");
                   setAllergenAriaLabel(div, label.textContent, "ai-suggested");
+                  div.querySelector(".state-badge")?.remove();
                   const badge = document.createElement("span");
                   badge.className = "ai-badge";
                   badge.textContent = "🤖";
@@ -2111,7 +2119,7 @@ function runAICheck(product, barcode) {
             COMMON_ALLERGENS.forEach(item => {
               const div = document.createElement("div");
               div.className = "allergen-grid-item safe";
-              div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>`;
+              div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.label}</span>${allergenStateBadge("safe")}`;
               setAllergenAriaLabel(div, item.label, "safe");
               gridEl.appendChild(div);
             });
@@ -2130,6 +2138,7 @@ function runAICheck(product, barcode) {
                     div.classList.remove("safe");
                     div.classList.add("ai-suggested");
                     setAllergenAriaLabel(div, label.textContent, "ai-suggested");
+                    div.querySelector(".state-badge")?.remove();
                     const badge = document.createElement("span");
                     badge.className = "ai-badge";
                     badge.textContent = "🤖";

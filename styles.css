@@ -1234,20 +1234,39 @@ body {
   background: var(--paper);
   border: 1.5px solid var(--border);
   transition: var(--transition);
+  position: relative;
 }
 
 .allergen-grid-item .emoji { font-size: 1.5rem; line-height: 1; }
 .allergen-grid-item .label { font-size: 0.65rem; font-weight: 600; text-align: center; line-height: 1.1; }
 
+/* State glyph — redundant to color/opacity so status isn't conveyed by color alone
+   (older/low-vision users struggle to discriminate the grayscale-vs-tint contrast). */
+.state-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  line-height: 15px;
+  text-align: center;
+  font-weight: 700;
+}
+.state-badge-safe      { background: var(--ink-3); color: #fff; }
+.state-badge-detected  { background: #fff; color: var(--chile); }
+.state-badge-traces    { background: #fff; color: #836404; }
+
 .allergen-grid-item.safe { color: var(--ink-3); border-color: var(--surface-2); background: var(--surface); }
 .allergen-grid-item.safe .emoji  { filter: grayscale(1); opacity: 0.4; }
 .allergen-grid-item.safe .label  { color: var(--ink-3); }
 
-/* Text darker than --chile/--amber: at this chip's small label size, the base
-   tokens on their own tint backgrounds fail WCAG AA (4.01:1 / measured low);
-   these pass 4.5:1+ (same fix already applied to the verdict banner). */
-.allergen-grid-item.detected { color: #ac1e1e; border-color: var(--chile-border); background: var(--chile-light); }
-.allergen-grid-item.detected .label { color: #ac1e1e; }
+/* Solid fill (not a light tint) — this is the safety-critical state, it should read
+   as visually heaviest on the screen, at least as bold as a same-shaped but lower-stakes
+   dietary "no" chip (.dietary-grid-item.db-no uses the same solid-fill treatment). */
+.allergen-grid-item.detected { color: #fff; border-color: var(--chile); background: var(--chile); }
+.allergen-grid-item.detected .label { color: #fff; }
 
 .allergen-grid-item.traces { color: #836404; border-color: var(--amber-border); background: var(--amber-light); }
 .allergen-grid-item.traces .label { color: #836404; }
