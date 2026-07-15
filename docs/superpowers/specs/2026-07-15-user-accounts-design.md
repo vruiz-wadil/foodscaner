@@ -33,7 +33,25 @@ Fuera de alcance de este diseño: el checkout/billing en sí (Stripe/Mercado Pag
 
   "billing": {                 // placeholder — no se usa hasta implementar checkout
     "stripeCustomerId": null, "subscriptionId": null,
-    "subscriptionStatus": null, "currentPeriodEnd": null
+    "subscriptionStatus": null, "currentPeriodEnd": null,
+    "isFounderPricing": false  // precio fundador ($19/mes o $189/año) es
+                                 // perpetuo MIENTRAS la suscripción siga activa
+                                 // (docs/business §3) — placeholder, la lógica
+                                 // real de "se cae si cancela" se define con billing
+  },
+
+  // usage: contador de cuotas diarias free — MVP, no fase 2. Es la razón de
+  // negocio explícita por la que existen las cuentas (docs/business/2026-07-propuesta-modelo-negocio.md
+  // §2, "Prerequisito bloqueante para todo el premium"): OCR 5 fotos/día free
+  // vs ilimitado premium, refresco de caché 1/producto/día free vs ilimitado
+  // premium. Se embebe en el mismo doc (no subcolección aparte) porque el
+  // middleware que decide "plan" y el que decide "cuota" leen el mismo doc en
+  // la misma request — una subcolección duplicaría el read sin necesidad.
+  "usage": {
+    "date": "2026-07-15",       // YYYY-MM-DD, se resetea a hoy + counts en 0
+                                  // la primera vez que se lee y date !== hoy
+    "ocrCount": 0,
+    "cacheRefreshCount": 0
   },
 
   // preferences: AUSENTE del doc si plan === "free" (no objeto vacío — la
@@ -68,6 +86,15 @@ Decisiones:
 - `dietary`/`allergens`/`healthConditions` como arrays, no objeto de booleanos ni subcolección — baratos de escribir/leer, se leen siempre juntos con el resto del perfil, intersectan directo contra las constantes que ya existen en `app.js` sin tabla de traducción.
 - Sin índices compuestos necesarios — `preferences` solo se lee por `uid` (get directo).
 - **Extensibilidad para plan familiar (no se construye ahora):** cuando exista, la extensión natural es una subcolección `users/{uid}/familyProfiles/{profileId}` con la misma forma que `preferences`. Cero migración al campo actual.
+- **`usage` embebido, no subcolección:** el middleware que verifica `plan` (free/premium) y el que verifica cuota leen el mismo doc en la misma request — separar en subcolección duplicaría el read por nada.
+
+### Historial de escaneos — `users/{uid}/history/{scanId}` (subcolección, MVP)
+
+Free: historial local (localStorage, 5 escaneos, sin cambio — ya funciona así). Premium: historial ilimitado en la nube. Requiere una subcolección (no el doc principal) porque es una lista que crece sin tope — cada escaneo premium hace `POST` de un doc `{barcode, productName, verdict, scannedAt}`. Solo se escribe si `plan === "premium"`; free no toca esta subcolección (evita costo de escritura innecesario y mantiene el paywall simple: "tu historial se llenó" es literal en free, no aplica en premium).
+
+### Nota de flujo (no es cambio de schema, es UX a considerar en el plan de implementación)
+
+El documento de negocio especifica que el trial de 7 días (plan anual) requiere **perfil alérgico configurado antes de iniciarlo**. Esto implica que el flujo de "activar trial" debe forzar/ofrecer completar `preferences` como parte del onboarding, no dejarlo opcional post-pago. Se resuelve en el plan de implementación, no cambia el modelo de datos de arriba.
 
 ## Personalización del veredicto
 
