@@ -4362,23 +4362,44 @@ git commit -m "feat(account): wire nav Perfil to account hub (identity, dietary 
 ### Task 19: Banner de suscripción en Home (trigger por señal de uso, no permanente)
 
 **Files:**
-- Modify: `app.js` (nueva lógica de trigger + render, cerca de `renderPersonalizedDisclaimer` de Task 14)
+- Modify: `home.js` (nueva lógica de trigger + render, junto al `DOMContentLoaded` existente)
 - Modify: `index.html` (contenedor del banner entre la sección hero y el grid de productos recientes)
-- Test: `tests/app.test.js` (nuevo `describe`)
+- Test: `tests/home.test.js` (nuevo archivo — `home.js` no tenía tests hasta ahora; mismo patrón `new Function(homeCode + ...)` que usa `tests/app.test.js` para `app.js`)
 
 **Interfaces:**
-- Consumes: `window.authClient.getCachedProfile()` (Task 12); `localStorage` (dismiss tracking).
+- Consumes: `window.authClient.getCachedProfile()`, `window.authClient.syncUserProfile()` (Task 12); `localStorage` (dismiss tracking).
 - Produces: `shouldShowHomeUpsell(profile)`, `renderHomeUpsellBanner()`. Diseño (equipo Growth Hacker + UX Researcher): NO banner permanente — dispara solo por señal de intención real (tope de cuota OCR alcanzado), con reglas de descarte/reaparición para no generar ceguera de banner.
 
-**Corrección (hallazgo de la 4a ronda de revisión — Code Reviewer, 2 problemas):**
-1. **Trigger A eliminado.** El borrador original tenía un "Trigger A" (usuario free que ya declaró preferencias + escaneó ≥2 veces desde entonces). Es lógicamente inalcanzable: `PUT /api/me/preferences` (Task 6) responde `403 premium_required` para plan `free` — un usuario free JAMÁS puede tener `preferences` guardadas en primer lugar. Y aunque las tuviera (ej. por haber sido premium antes y cancelado), `GET /api/me` (Task 5) nunca regresa `preferences` para un perfil no-premium — el fixture de test del borrador (`{plan:'free', preferences:{...}}`) no puede ocurrir con las respuestas reales del backend. Se elimina el trigger en vez de inventar una arquitectura de señal nueva (ej. un flag booleano no-sensible en Task 5 para detectar "ex-premium con preferencias guardadas") que nadie pidió — si se quiere ese caso de win-back más adelante, es una decisión de producto aparte. Queda solo Trigger B (tope de OCR), que SÍ es una señal real disponible para cualquier free.
-2. **`renderHomeUpsellBanner()` nunca se invocaba** — código muerto, el banner jamás aparecía en pantalla. Se agrega su invocación al `DOMContentLoaded` ya existente en `app.js` (línea ~226) y junto al incremento del contador de escaneos, para reflejar el estado más reciente tras cada scan.
+**Correcciones (hallazgos posteriores a la 4a ronda, encontrados al ejecutar Tasks 10-15 reales — no en el análisis de escritorio):**
+1. **Trigger A eliminado** (ya corregido en la 4a ronda). El borrador original tenía un "Trigger A" (usuario free que ya declaró preferencias + escaneó ≥2 veces desde entonces). Es lógicamente inalcanzable: `PUT /api/me/preferences` (Task 6) responde `403 premium_required` para plan `free` — un usuario free JAMÁS puede tener `preferences` guardadas en primer lugar. Se elimina el trigger; queda solo Trigger B (tope de OCR), la única señal real disponible para cualquier free.
+2. **Ubicación corregida: `home.js`, no `app.js`.** El borrador original (incluida la corrección de la 4a ronda) ponía `shouldShowHomeUpsell`/`renderHomeUpsellBanner` en `app.js` y los invocaba desde el `DOMContentLoaded` de `app.js`. Eso era incorrecto: en el repo real, `index.html` (la página Home, con el contenedor `#home-upsell-banner`) carga `home.js` — NUNCA carga `app.js`. `app.js` solo corre en `scan.html` (la página de escaneo/resultado, sin contenedor de banner). Poner la lógica del banner en `app.js` la vuelve código muerto de nuevo, por la razón opuesta a por la que se corrigió en la 4a ronda: ahí SÍ se llamaba, pero en la página equivocada. Fix: la lógica y su invocación viven en `home.js`, que es lo que de verdad se ejecuta en `index.html` junto a `firebase-init.js`/`authClient.js` (Task 10).
+3. **Se agrega `await window.authClient.syncUserProfile()` antes de renderizar el banner** en el `DOMContentLoaded` de `home.js` (mismo motivo que la corrección de `preferences-ui.js` en Task 15: el auto-sync de `authClient.js` puede no haber resuelto todavía cuando el banner intenta leer `getCachedProfile()`).
 
 - [ ] **Step 1: Escribe el test que falla**
 
-Agregar `shouldShowHomeUpsell` al `let`/`return` del `beforeAll` en `tests/app.test.js` (mismo patrón de Tasks 13/14/17), y nuevo `describe`:
+Nuevo archivo `tests/home.test.js` (mismo patrón `new Function(homeCode + '\nreturn {...}')` que usa `tests/app.test.js` para `app.js`, ver líneas 1-24 de ese archivo):
 
 ```js
+// tests/home.test.js
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const homeCode = fs.readFileSync(path.join(__dirname, '..', 'home.js'), 'utf8')
+
+let shouldShowHomeUpsell
+
+beforeAll(() => {
+  const fn = new Function(homeCode + '\nreturn { shouldShowHomeUpsell }')
+  const exports = fn()
+  shouldShowHomeUpsell = exports.shouldShowHomeUpsell
+})
+
 describe('shouldShowHomeUpsell', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -4427,12 +4448,12 @@ describe('shouldShowHomeUpsell', () => {
 
 - [ ] **Step 2: Corre el test, verifica que falla**
 
-Run: `npx vitest run tests/app.test.js`
-Expected: `shouldShowHomeUpsell is not a function`
+Run: `npx vitest run tests/home.test.js`
+Expected: `Cannot find module` o `shouldShowHomeUpsell is not a function` (el archivo de test es nuevo)
 
 - [ ] **Step 3: Implementación mínima**
 
-Agregar en `app.js`, junto a `renderPersonalizedDisclaimer` (Task 14):
+Agregar en `home.js`, junto a `goScan()` (antes del `DOMContentLoaded` existente):
 
 ```js
 const HOME_UPSELL_DISMISS_KEY = 'yomiUpsellDismiss';
@@ -4486,32 +4507,33 @@ En `index.html`, entre la sección hero y el grid de productos recientes:
 <div id="home-upsell-banner" class="about-card hidden"></div>
 ```
 
-**Invocar `renderHomeUpsellBanner()` (hallazgo de la 4a ronda — Code Reviewer: código muerto, nunca se llamaba).** Dos puntos de llamada: al cargar Home, y de nuevo tras cada scan (porque el tope de OCR de hoy pudo cambiar justo con ese scan).
-
-Dentro del `DOMContentLoaded` YA EXISTENTE en `app.js` (línea ~226) — agregar la llamada, no reemplazar el listener:
+**Invocar `renderHomeUpsellBanner()` dentro del `DOMContentLoaded` YA EXISTENTE en `home.js`** (el único punto de carga de Home — no hay un segundo punto tras cada scan porque `home.js` no corre en `scan.html`; cada vez que el usuario vuelve a Home, `index.html` se recarga completo y este listener corre de nuevo, así que el estado siempre se refleja igual de fresco):
 
 ```js
-document.addEventListener("DOMContentLoaded", () => {
-  // ... código existente sin cambios ...
+document.addEventListener('DOMContentLoaded', async () => {
+  renderGrid();
+
+  document.getElementById('btn-scan').addEventListener('click', goScan);
+  document.getElementById('nav-scan').addEventListener('click', goScan);
+
+  // ... resto del listener existente sin cambios ...
+
+  // await explícito (mismo motivo que preferences-ui.js, Task 15): no depender
+  // de que el auto-sync de authClient.js ya haya resuelto para este frame.
+  if (window.authClient) await window.authClient.syncUserProfile();
   renderHomeUpsellBanner();
 });
 ```
 
-Y junto a la línea de Task 17 (después de `logScanToCloudHistory(...)`, mismo bloque de `app.js:1640`):
-
-```js
-  renderHomeUpsellBanner();
-```
-
 - [ ] **Step 4: Corre el test, verifica que pasa**
 
-Run: `npx vitest run tests/app.test.js`
+Run: `npx vitest run tests/home.test.js`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app.js index.html tests/app.test.js
-git commit -m "feat(upsell): add signal-triggered Home banner (OCR limit hit) with dismiss/reappear rules, wire up render calls"
+git add home.js index.html tests/home.test.js
+git commit -m "feat(upsell): add signal-triggered Home banner (OCR limit hit) in home.js, with dismiss/reappear rules"
 ```
 
 ---
