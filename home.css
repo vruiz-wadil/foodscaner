@@ -552,6 +552,12 @@ body {
   height: auto;
   max-width: 640px;
   margin: 0 auto;
+  /* .bottom-nav es position:fixed (styles.css) pinneado al fondo del
+     viewport — patrón correcto para estas páginas con scroll de documento,
+     pero sin esto el nav queda flotando ENCIMA del contenido final (ej. el
+     checkbox de consentimiento/botón Guardar quedaban parcialmente tapados,
+     hallazgo visual tras agregar el nav en estas 4 páginas). */
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
 }
 
 /* .app-shell normalmente fija height:100dvh + overflow:hidden (necesario
