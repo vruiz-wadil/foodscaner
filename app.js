@@ -1747,6 +1747,24 @@ async function logScanToCloudHistory(barcode, productName, verdict) {
   }
 }
 
+// Incrementa el contador de escaneos totales — a diferencia de
+// logScanToCloudHistory (premium-only), corre para CUALQUIER usuario
+// logueado: el stat "Escaneos" de account.html debe reflejar el uso real
+// del usuario sin importar su plan. Fire-and-forget, mismo motivo que la
+// función anterior.
+async function incrementScanCounter() {
+  if (typeof window === 'undefined' || !window.authClient) return;
+  try {
+    const token = await window.authClient.getIdToken();
+    await fetch('/api/me/scan', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch (e) {
+    console.warn('[usage] no se pudo incrementar el contador de escaneos:', e.message);
+  }
+}
+
 // Render dynamic results onto success screen
 function renderProductData(product, barcode) {
   if (!product.isFood) {
@@ -1764,6 +1782,7 @@ function renderProductData(product, barcode) {
   const verdict = computeVerdict(product, userPreferences);
   renderPersonalizedDisclaimer(userPreferences);
   logScanToCloudHistory(barcode, product.name, verdict);
+  incrementScanCounter();
   const verdictBanner = document.getElementById('verdict-banner');
   if (verdictBanner) {
     const verdictText = hasNoRealData(product)

@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -26,6 +26,7 @@ beforeAll(() => {
   getUserPreferencesForVerdict = exports.getUserPreferencesForVerdict
   renderPersonalizedDisclaimer = exports.renderPersonalizedDisclaimer
   logScanToCloudHistory = exports.logScanToCloudHistory
+  incrementScanCounter = exports.incrementScanCounter
 })
 
 // ─── isGlutenRelated ───────────────────────────────────────
@@ -664,5 +665,41 @@ describe('logScanToCloudHistory', () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
     window.authClient = { getCachedProfile: () => ({ plan: 'premium' }), getIdToken: vi.fn().mockResolvedValue('tok') }
     await expect(logScanToCloudHistory('111', 'Producto A', 'sano')).resolves.not.toThrow()
+  })
+})
+
+// ─── incrementScanCounter (contador real de escaneos, cualquier plan) ───
+
+describe('incrementScanCounter', () => {
+  let originalFetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    delete window.authClient
+  })
+
+  it('no llama a fetch si no hay sesión (window.authClient no existe)', async () => {
+    await incrementScanCounter()
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('POSTea a /api/me/scan con Bearer token para CUALQUIER plan (a diferencia de logScanToCloudHistory, no filtra por premium)', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok-free') }
+    await incrementScanCounter()
+    expect(global.fetch).toHaveBeenCalledWith('/api/me/scan', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-free' }
+    })
+  })
+
+  it('no lanza si fetch falla (fire-and-forget)', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok') }
+    await expect(incrementScanCounter()).resolves.not.toThrow()
   })
 })
