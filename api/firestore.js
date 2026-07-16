@@ -541,11 +541,76 @@ async function firePatchUserFields(uid, fieldPaths, data) {
   return true;
 }
 
+async function fireGetUserRaw(uid) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(docPath('users', uid), {
+    headers: { Authorization: 'Bearer ' + token },
+    signal: AbortSignal.timeout(5000)
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`Firestore get user failed: ${resp.status}`);
+  const data = await resp.json();
+  return { fields: fromFirestoreFields(data.fields || {}), updateTime: data.updateTime };
+}
+
+async function firePatchUserFieldsWithPrecondition(uid, fieldPaths, data, updateTime) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const mask = fieldPaths.map(fp => `updateMask.fieldPaths=${encodeURIComponent(fp)}`).join('&');
+  const fields = toFirestoreFields(data);
+  return fetch(docPath('users', uid) + '?' + mask, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields, currentDocument: { updateTime } }),
+    signal: AbortSignal.timeout(5000)
+  });
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Concurrencia optimista: GET captura updateTime, PATCH con precondición
+// currentDocument.updateTime, reintento 2-3 veces con backoff 10-50ms si 409.
+// Reset a 0 si usage.date !== hoy (UTC) — cubre doble-tap / 2 tabs sin perder ni duplicar conteo.
+async function fireIncrementUsageCounter(uid, field) {
+  if (!['ocrCount', 'cacheRefreshCount'].includes(field)) {
+    throw new Error('Campo de uso inválido: ' + field);
+  }
+  const today = new Date().toISOString().slice(0, 10); // UTC, a propósito (ver spec)
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const doc = await fireGetUserRaw(uid);
+    if (!doc) throw new Error('Usuario no encontrado: ' + uid);
+
+    const currentUsage = doc.fields.usage || { date: today, ocrCount: 0, cacheRefreshCount: 0 };
+    const isNewDay = currentUsage.date !== today;
+    const newUsage = {
+      date: today,
+      ocrCount: isNewDay ? (field === 'ocrCount' ? 1 : 0) : currentUsage.ocrCount + (field === 'ocrCount' ? 1 : 0),
+      cacheRefreshCount: isNewDay ? (field === 'cacheRefreshCount' ? 1 : 0) : currentUsage.cacheRefreshCount + (field === 'cacheRefreshCount' ? 1 : 0)
+    };
+
+    const resp = await firePatchUserFieldsWithPrecondition(uid, ['usage'], { usage: newUsage }, doc.updateTime);
+    if (resp.ok) return newUsage;
+    if (resp.status === 409) {
+      const backoffMs = 10 + Math.floor(Math.random() * 40); // 10-50ms
+      await sleep(backoffMs);
+      continue;
+    }
+    throw new Error(`Firestore increment usage failed: ${resp.status}`);
+  }
+  throw new Error('No se pudo incrementar usage tras reintentos por conflictos de concurrencia');
+}
+
 module.exports = {
   getAccessToken,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
   fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
-  fireGetUser, fireUpsertUser, firePatchUserFields
+  fireGetUser, fireUpsertUser, firePatchUserFields,
+  fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter
 };
