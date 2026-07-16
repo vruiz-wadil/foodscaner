@@ -5,7 +5,7 @@
   "main": "api/index.js",
   "scripts": {
     "start": "node api/index.js",
-    "vercel-build": "echo 'Static build complete'",
+    "vercel-build": "node scripts/inject-firebase-config.js && echo 'Static build complete'",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -15,8 +15,11 @@
     "express-rate-limit": "^8.5.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "jsdom": "^29.1.1",
+    "serve": "^14.2.6",
     "sharp": "^0.35.2",
+    "vercel": "^54.21.1",
     "vitest": "^4.1.9"
   }
 }
