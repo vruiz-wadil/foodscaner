@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -25,6 +25,7 @@ beforeAll(() => {
   hasNoRealData = exports.hasNoRealData
   getUserPreferencesForVerdict = exports.getUserPreferencesForVerdict
   renderPersonalizedDisclaimer = exports.renderPersonalizedDisclaimer
+  logScanToCloudHistory = exports.logScanToCloudHistory
 })
 
 // ─── isGlutenRelated ───────────────────────────────────────
@@ -618,5 +619,50 @@ describe('renderPersonalizedDisclaimer', () => {
   it('no muestra nada cuando no hubo personalización (usuario free o sin preferences)', () => {
     renderPersonalizedDisclaimer(null)
     expect(document.getElementById('personalized-disclaimer').classList.contains('hidden')).toBe(true)
+  })
+})
+
+// ─── logScanToCloudHistory (wiring de historial en la nube) ───
+
+describe('logScanToCloudHistory', () => {
+  let originalFetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, id: 'x' }) })
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    delete window.authClient
+  })
+
+  it('no llama a fetch si el usuario no está logueado o no es premium', async () => {
+    window.authClient = { getCachedProfile: () => null, getIdToken: vi.fn() }
+    await logScanToCloudHistory('111', 'Producto A', 'sano')
+    expect(global.fetch).not.toHaveBeenCalled()
+
+    window.authClient = { getCachedProfile: () => ({ plan: 'free' }), getIdToken: vi.fn() }
+    await logScanToCloudHistory('111', 'Producto A', 'sano')
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('POSTea a /api/me/history con Bearer token para un usuario premium', async () => {
+    window.authClient = {
+      getCachedProfile: () => ({ plan: 'premium' }),
+      getIdToken: vi.fn().mockResolvedValue('tok-789')
+    }
+    await logScanToCloudHistory('111', 'Producto A', 'sano')
+    expect(global.fetch).toHaveBeenCalledWith('/api/me/history', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-789', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcode: '111', productName: 'Producto A', verdict: 'sano' })
+    })
+  })
+
+  it('no lanza si fetch falla (fire-and-forget)', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+    window.authClient = { getCachedProfile: () => ({ plan: 'premium' }), getIdToken: vi.fn().mockResolvedValue('tok') }
+    await expect(logScanToCloudHistory('111', 'Producto A', 'sano')).resolves.not.toThrow()
   })
 })
