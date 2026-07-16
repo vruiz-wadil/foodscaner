@@ -618,6 +618,36 @@ describe('users/{uid} data layer', () => {
     expect(capturedUrl).toContain('updateMask.fieldPaths=preferences')
     expect(capturedBody.fields).toEqual({})
   })
+
+  // Cobertura de conversión de tipos (hallazgo de cobertura de la 4a ronda —
+  // Test Results Analyzer): doubleValue y objetos anidados a 2 niveles solo
+  // se ejercitaban indirectamente antes; se agregan casos explícitos.
+  it('fireGetUser convierte doubleValue y objetos anidados a 2 niveles correctamente', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    vi.stubGlobal('fetch', buildFetchMock(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ fields: {
+        billing: { mapValue: { fields: {
+          currentPeriodEnd: { nullValue: null },
+          isFounderPricing: { booleanValue: false },
+          trialScore: { doubleValue: 4.5 }
+        } } }
+      } })
+    })))
+    const result = await fireGetUser('uid-decimal')
+    expect(result).toEqual({ billing: { currentPeriodEnd: null, isFounderPricing: false, trialScore: 4.5 } })
+  })
+
+  it('firePatchUserFields envía un arreglo vacío explícito tal cual (ej. borrar todos los allergens)', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    let capturedBody
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      capturedBody = JSON.parse(options.body)
+      return { ok: true, status: 200 }
+    }))
+    await firePatchUserFields('uid-1', ['allergens'], { allergens: [] })
+    expect(capturedBody.fields.allergens).toEqual({ arrayValue: { values: [] } })
+  })
 })
 ```
 
@@ -780,7 +810,7 @@ module.exports = {
 - [ ] **Step 4: Corre el test, verifica que pasa**
 
 Run: `npx vitest run tests/firestore-users.test.js`
-Expected: `Test Files 1 passed (1)`, `Tests 6 passed (6)`
+Expected: `Test Files 1 passed (1)`, `Tests 8 passed (8)`
 
 - [ ] **Step 5: Commit**
 
@@ -1693,6 +1723,10 @@ git commit -m "feat(quota): add optimistic-concurrency usage counter with UTC da
 
 **Nota de producto (decisión provisional, no silenciosa):** hoy `/api/ocr/process` es 100% anónimo. Este task NO fuerza login para usar OCR — usuarios sin sesión pasan sin medir cuota (comportamiento actual sin cambios). Solo cuando SÍ hay sesión se aplica el límite. Esto es una interpretación provisional para no romper la UX free actual; si el negocio decide que OCR debe requerir login siempre para que la cuota "5/día" sea real (evitar que alguien simplemente no mande el token para saltarse el límite), es una decisión de producto explícita a tomar aparte, no algo que este plan resuelva en silencio.
 
+**Decisión explícita (hallazgo de la 4a ronda de revisión — Test Results Analyzer):** el borrador original bloqueaba por `email_not_verified` ANTES de revisar el plan, así que un premium con correo sin verificar también se quedaba sin OCR. Eso no tiene sentido: el chequeo de email existe únicamente para evitar que alguien cree cuentas gratis desechables sin verificar y se salte el límite de 5/día — un premium ya pagó, no tiene cuota que saltarse. Decisión: el chequeo de `emailVerified` solo aplica cuando el plan NO es premium (se resuelve el plan primero, ver Step 3). Un premium con email sin verificar procesa OCR normal.
+
+**Nota de performance (hallazgo de la 4a ronda — Performance Benchmarker, no bloqueante):** este handler hace 2 lecturas a Firestore para un usuario free bajo cuota (`fireGetUser` aquí + otra lectura interna dentro de `fireIncrementUsageCounter` para tomar el `updateTime` de la precondición optimista) — ~100-300ms extra. No se optimiza en este plan; si se vuelve un problema real, la lectura de `fireGetUser` podría compartirse con `fireIncrementUsageCounter` pasándole el doc ya leído.
+
 - [ ] **Step 1: Escribe el test que falla**
 
 ```js
@@ -1770,11 +1804,15 @@ describe('ocrProcessHandler — enforcement de cuota', () => {
     expect(res.body.status).toBe('ok')
   })
 
-  it('usuario logueado con email no verificado → 403, no llama a Groq', async () => {
+  it('usuario free con email no verificado → 403, no llama a Groq', async () => {
     const token = signRS256({ email_verified: false }, privateKey)
     let groqCalled = false
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
+      if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
+      if (url.includes('firestore.googleapis.com')) {
+        return { ok: true, status: 200, json: async () => ({ fields: toFields({ plan: 'free', usage: { date: '2026-07-15', ocrCount: 1 } }), updateTime: 't' }) }
+      }
       if (url.includes('api.groq.com')) { groqCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'x' } }] }) } }
       return { ok: true, status: 200 }
     }))
@@ -1784,6 +1822,24 @@ describe('ocrProcessHandler — enforcement de cuota', () => {
     expect(res.statusCode).toBe(403)
     expect(res.body).toEqual({ error: 'email_not_verified' })
     expect(groqCalled).toBe(false)
+  })
+
+  it('usuario premium con email no verificado → procesa normal (el chequeo de email solo protege la cuota free)', async () => {
+    const token = signRS256({ email_verified: false }, privateKey)
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
+      if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
+      if (url.includes('firestore.googleapis.com')) {
+        if (options.method === 'PATCH') return { ok: true, status: 200 }
+        return { ok: true, status: 200, json: async () => ({ fields: toFields({ plan: 'premium', usage: { date: '2026-07-15', ocrCount: 40 } }), updateTime: 't' }) }
+      }
+      if (url.includes('api.groq.com')) return { ok: true, json: async () => ({ choices: [{ message: { content: 'ingredientes: harina' } }] }) }
+      return { ok: true, status: 200 }
+    }))
+    const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
+    const res = makeRes()
+    await ocrProcessHandler(req, res)
+    expect(res.body.status).toBe('ok')
   })
 
   it('usuario free bajo cuota (2/5) → procesa, responde ok, e incrementa el contador', async () => {
@@ -1898,9 +1954,6 @@ async function ocrProcessHandler(req, res) {
     let shouldCountUsage = false;
 
     if (req.user) {
-      if (!req.user.emailVerified) {
-        return res.status(403).json({ error: 'email_not_verified' });
-      }
       // Fail-closed (hallazgo de revisión de seguridad): si el perfil todavía no
       // se sincronizó (fireGetUser === null, ej. authSyncHandler falló o no corrió
       // aún), se trata como plan free con 0 fotos usadas — NUNCA se salta el
@@ -1908,6 +1961,16 @@ async function ocrProcessHandler(req, res) {
       // pasar sin medir cuando profile era null (fail-open).
       const profile = await fireGetUser(req.user.uid);
       const plan = profile ? profile.plan : 'free';
+
+      // El chequeo de email verificado solo protege la cuota FREE (evita cuentas
+      // desechables sin verificar para saltarse el límite de 5/día) — se resuelve
+      // el plan primero (hallazgo de la 4a ronda de revisión, ver nota de producto
+      // arriba). Un premium con email no verificado ya pagó, no tiene cuota que
+      // saltarse, y bloquearlo solo le niega servicio sin ganar seguridad real.
+      if (plan !== 'premium' && !req.user.emailVerified) {
+        return res.status(403).json({ error: 'email_not_verified' });
+      }
+
       if (plan !== 'premium') {
         const today = new Date().toISOString().slice(0, 10);
         const usage = profile && profile.usage;
@@ -1962,7 +2025,7 @@ module.exports.ocrProcessHandler = ocrProcessHandler;
 - [ ] **Step 4: Corre el test, verifica que pasa**
 
 Run: `npx vitest run tests/ocrQuota.test.js`
-Expected: `Test Files 1 passed (1)`, `Tests 5 passed (5)`
+Expected: `Test Files 1 passed (1)`, `Tests 6 passed (6)`
 
 - [ ] **Step 5: Commit**
 
@@ -2615,6 +2678,8 @@ git commit -m "feat(auth): add email/password + Google sign-in UI"
 - Consumes: `firebaseAuth`, `onAuthStateChanged` desde `./firebase-init.js` (Task 10); backend `POST /api/auth/sync` (Task 4) y `GET /api/me` (Task 5), ambos con header `Authorization: Bearer <idToken>`.
 - Produces: `authClient.js` exporta (ESM) `getIdToken(forceRefresh?)`, `onAuthChange(callback)`, `syncUserProfile()`, `getCachedProfile()` — y expone `window.authClient = { getIdToken, onAuthChange, syncUserProfile, getCachedProfile }` para que `app.js` (script clásico) los consuma en Task 14. `getCachedProfile()` regresa el objeto cacheado de `GET /api/me` (o `null`) — Task 14 lo usa para decidir si pasar `preferences` a `computeVerdict`, Task 15 lo usa para precargar el formulario de preferencias.
 
+**Corrección crítica (hallazgo de la 4a ronda de revisión — Code Reviewer, el más severo de toda la ronda):** el borrador original solo definía `syncUserProfile()` — nadie la llamaba salvo `account-ui.js` (Task 18) en su propio `DOMContentLoaded`. Resultado: en cualquier otra pantalla (`index.html`, la real pantalla de escaneo) `getCachedProfile()` regresaba `null` para siempre, apagando en silencio la personalización de Task 13/14, el registro de historial de Task 17 y el banner de Task 19 para todo usuario que no hubiera visitado antes `/account.html`. Fix: `authClient.js` ahora se auto-sincroniza al detectar sesión, vía `onAuthChange` en su propio módulo — así cualquier página que cargue `firebase-init.js` + `authClient.js` (que es TODAS, ver Task 10 wiring en `index.html`) obtiene el perfil cacheado sin que cada pantalla tenga que acordarse de pedirlo.
+
 - [ ] **Step 1: Escribe el test que falla**
 
 ```js
@@ -2717,6 +2782,34 @@ describe('window.authClient', () => {
     expect(window.authClient.getCachedProfile).toBe(getCachedProfile)
   })
 })
+
+// ─── Auto-sync al detectar sesión (hallazgo crítico, 4a ronda) ──────────
+// Sin esto, getCachedProfile() regresa null en cualquier pantalla que no sea
+// account.html — apagando personalización/historial/banner en silencio.
+describe('auto-sync on auth state change', () => {
+  it('llama syncUserProfile automáticamente cuando el auth state cambia a un usuario logueado', async () => {
+    mockAuth.currentUser = { getIdToken: vi.fn().mockResolvedValue('tok-auto') }
+    global.fetch
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ plan: 'free' }) })
+
+    // El primer registro de onAuthStateChanged es el que hace el propio módulo
+    // al cargar (no uno hecho manualmente por un consumidor vía onAuthChange).
+    const internalCallback = onAuthStateChanged.mock.calls[0][1]
+    await internalCallback({ uid: 'u1' })
+
+    expect(global.fetch).toHaveBeenNthCalledWith(1, '/api/auth/sync', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-auto' }
+    })
+  })
+
+  it('no llama a fetch cuando el auth state cambia a null (cierre de sesión)', async () => {
+    const internalCallback = onAuthStateChanged.mock.calls[0][1]
+    await internalCallback(null)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
 ```
 
 - [ ] **Step 2: Corre el test, verifica que falla**
@@ -2770,6 +2863,18 @@ export async function syncUserProfile() {
 export function getCachedProfile() {
   return cachedProfile;
 }
+
+// Auto-sync al detectar sesión (hallazgo crítico de revisión, 4a ronda): sin
+// esto, getCachedProfile() regresa null en cualquier pantalla que no llame
+// syncUserProfile() explícitamente por su cuenta — que era el caso de todas
+// menos account.html. Esto cubre el caso general; pantallas que necesitan el
+// perfil listo DE INMEDIATO al cargar (preferences.html, account.html) además
+// hacen su propio `await syncUserProfile()` explícito antes de renderizar,
+// porque este callback depende de cuándo Firebase resuelve el auth state y
+// no hay garantía de que ya haya corrido en su DOMContentLoaded.
+onAuthChange((user) => {
+  if (user) syncUserProfile();
+});
 
 window.authClient = { getIdToken, onAuthChange, syncUserProfile, getCachedProfile };
 ```
@@ -2907,6 +3012,21 @@ describe('computeVerdict — con userPreferences', () => {
       dietary: ['vegan'],
       healthConditions: []
     }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  // Cross-pairs adicionales (hallazgo de cobertura de la 4a ronda — Test
+  // Results Analyzer: solo Regla 1 vs 3 estaba cubierta; el if-chain es
+  // secuencial así que el riesgo es bajo, pero cerrar el resto de pares.
+  it('precedencia: Regla 2 (condición de salud) gana sobre Regla 4 (alérgeno mild) si ambas aplican', () => {
+    const product = { sellos: [], notRecommended: [{ grupo: 'Diabéticos', razon: 'Alto en azúcares', certain: true }], allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: [], healthConditions: ['diabet'] }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  it('precedencia: Regla 3 (dieta violada) gana sobre Regla 4 (alérgeno mild) si ambas aplican', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { vegan: false }, allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: ['vegan'], healthConditions: [] }
     expect(computeVerdict(product, prefs)).toBe('evitar')
   })
 })
@@ -3180,8 +3300,10 @@ git commit -m "feat(verdict): wire cached premium user preferences into computeV
 - Test: `tests/preferences-ui.test.js`
 
 **Interfaces:**
-- Consumes: `getIdToken()`, `getCachedProfile()` (Task 12, `authClient.js`); backend `PUT /api/me/preferences` (Task 6) y `DELETE /api/me/preferences` (Task 7).
+- Consumes: `getIdToken()`, `getCachedProfile()`, `syncUserProfile()` (Task 12, `authClient.js`); backend `PUT /api/me/preferences` (Task 6) y `DELETE /api/me/preferences` (Task 7).
 - Produces: `preferences-ui.js` exporta `loadPreferencesIntoForm()`, `savePreferences(formData)`, `deletePreferences()`. Cierra el hueco que ninguno de los 2 subsistemas cubrió: sin esta pantalla, `preferences` nunca se llena y la personalización de Task 13/14 nunca se activa en la práctica.
+
+**Corrección (hallazgo de la 4a ronda de revisión — Performance Benchmarker, bug funcional real, no solo de performance):** el borrador original llamaba `loadPreferencesIntoForm()` directo en `DOMContentLoaded` sin esperar a que el perfil se sincronizara primero. Como esta es una MPA (recarga completa de página, no SPA), `getCachedProfile()` casi siempre regresa `null` en una navegación directa a `preferences.html` — el form nunca se precarga con las preferencias ya guardadas. Fix: `DOMContentLoaded` ahora hace `await syncUserProfile()` antes de precargar el form.
 
 - [ ] **Step 1: Escribe el test que falla**
 
@@ -3194,8 +3316,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const getIdToken = vi.fn()
 const getCachedProfile = vi.fn()
+const syncUserProfile = vi.fn()
 
-vi.mock('../authClient.js', () => ({ getIdToken, getCachedProfile }))
+vi.mock('../authClient.js', () => ({ getIdToken, getCachedProfile, syncUserProfile }))
 
 let loadPreferencesIntoForm, savePreferences, deletePreferences
 
@@ -3408,7 +3531,7 @@ Expected: `Cannot find module '../preferences-ui.js'`
 
 ```js
 // preferences-ui.js
-import { getIdToken, getCachedProfile } from './authClient.js';
+import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 
 const ALLERGEN_CODES = ['cacahuate', 'lacteos'];
 const CONSENT_NOTICE_VERSION = 'v1';
@@ -3536,7 +3659,12 @@ export async function deletePreferences() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // await explícito (hallazgo de revisión, ver nota arriba): esta pantalla
+  // necesita el perfil listo YA al cargar, no puede depender de que el
+  // auto-sync de authClient.js (disparado por onAuthChange) haya corrido a
+  // tiempo — de lo contrario el form casi siempre carga vacío.
+  await syncUserProfile();
   loadPreferencesIntoForm();
   const form = document.getElementById('preferences-form');
   const btnDelete = document.getElementById('btn-delete-preferences');
@@ -3572,8 +3700,10 @@ git commit -m "feat(preferences): add premium preferences UI with explicit LFPDP
 - Test: `tests/firestore-history.test.js`, `tests/meHistory.test.js`
 
 **Interfaces:**
-- Consumes: `getAccessToken()`, `toFirestoreFields`/`fromFirestoreFields` (Task 3); `requireUser`, `fireGetUser` (Tasks 2, 3).
+- Consumes: `getAccessToken()`, `docPath(col, id)`, `getProjectId()`, `toFirestoreFields`/`fromFirestoreFields` (Task 3); `requireUser`, `fireGetUser` (Tasks 2, 3).
 - Produces: `fireLogUserHistory(uid, entry): Promise<{id}>` (subcolección `users/{uid}/history`), `fireListUserHistory(uid, limit): Promise<entry[]>` (orden descendente por `scannedAt`); `postHistoryHandler(req, res)` en `POST /api/me/history` (premium only, 403 si free), `getHistoryHandler(req, res)` en `GET /api/me/history` (premium only). Consumido por Task 17.
+
+**Nota de consistencia (hallazgo menor de la 4a ronda — Code Reviewer):** el borrador original construía la URL a mano con `BASE`/`getProjectId()` en vez de reutilizar `docPath(col, id)` (ya usado por Tasks 3/8 para `users/{uid}`), y no los declaraba en Consumes. Corregido abajo: `fireLogUserHistory` reutiliza `docPath('users', uid)` como base del path de la subcolección; `fireListUserHistory` sigue necesitando `BASE`/`getProjectId()` directo porque `runQuery` no es un doc-path simple (necesita `parent` + `documents:runQuery`, que `docPath` no modela) — eso sí queda declarado explícitamente en Consumes.
 
 - [ ] **Step 1: Escribe el test que falla**
 
@@ -3738,7 +3868,7 @@ async function fireLogUserHistory(uid, entry) {
   const token = await getAccessToken();
   if (!token) throw new Error('No Firestore access token');
   const fields = toFirestoreFields(entry);
-  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents/users/${encodeURIComponent(uid)}/history`, {
+  const resp = await fetch(`${docPath('users', uid)}/history`, {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields }),
@@ -3882,6 +4012,8 @@ git commit -m "feat(history): add unlimited cloud scan history for premium users
 
 **Nota de alcance:** esta tarea cierra el "write path" (que el escaneo SÍ se guarde). La pantalla para que el usuario VEA su historial en la nube (`history.html` con `GET /api/me/history`) es una pantalla de presentación separada, no incluida en este plan — el dato ya queda disponible vía el endpoint de Task 16 para cuando se construya esa vista.
 
+**Corrección crítica (hallazgo de la 4a ronda de revisión — Code Reviewer):** el borrador original instruía reemplazar `app.js:1640` con un bloque de 2 líneas que BORRABA silenciosamente la línea `renderPersonalizedDisclaimer(userPreferences)` que Task 14 ya había dejado ahí — una regresión del disclaimer médico exigido por la revisión legal. Corregido abajo: el cambio en `app.js:1640` ahora EXTIENDE el bloque de 3 líneas de Task 14 (no lo reemplaza), agregando `logScanToCloudHistory` como una 4ta línea.
+
 - [ ] **Step 1: Escribe el test que falla**
 
 Nuevo bloque `describe` al final de `tests/app.test.js` (agregar `logScanToCloudHistory` al `let`/`return` del `beforeAll`, mismo patrón de Tasks 13/14):
@@ -3962,10 +4094,12 @@ async function logScanToCloudHistory(barcode, productName, verdict) {
 }
 ```
 
-Cambiar `app.js:1640` (justo después de calcular `verdict`, agregar la llamada fire-and-forget):
+Cambiar `app.js:1640` — EXTIENDE el bloque de 3 líneas que dejó Task 14, no lo reemplaza (la línea del disclaimer médico debe seguir ahí):
 
 ```js
-  const verdict = computeVerdict(product, getUserPreferencesForVerdict());
+  const userPreferences = getUserPreferencesForVerdict();
+  const verdict = computeVerdict(product, userPreferences);
+  renderPersonalizedDisclaimer(userPreferences);
   logScanToCloudHistory(barcode, product.name, verdict);
 ```
 
@@ -3994,6 +4128,8 @@ git commit -m "feat(history): log premium scans to cloud history at render time 
 **Interfaces:**
 - Consumes: `getCachedProfile()`, `syncUserProfile()` (Task 12, `authClient.js`); `firebaseAuth`, `signOut` (Task 10 extendido).
 - Produces: `account-ui.js` exporta `renderAccountHub()`, `handleLogout()`. Diseño (equipo Product Manager + UX Researcher, sesión de revisión): identidad arriba, perfil dietético/alérgico ya calculado (prueba de valor gratis) ANTES de la sección premium, sin candados/iconos de restricción — la sección premium se enmarca como extensión natural ("Activa alertas cuando un producto no es apto para tu perfil"), nunca aislada con precio en grande.
+
+**Corrección (hallazgo de la 4a ronda de revisión — Code Reviewer):** agregar `signOut` al import de `firebase-init.js` (Step 3, abajo) rompe el mock del test de Task 10 (`tests/firebase-init.test.js`), que declara `vi.mock(AUTH_URL, () => ({ ... }))` sin `signOut` — un import nombrado que el mock no provee falla al resolver el módulo. Este task también actualiza ese mock (mismo patrón que Tasks 4-9 extendiendo un destructure ya committeado).
 
 - [ ] **Step 1: Escribe el test que falla**
 
@@ -4098,6 +4234,22 @@ import {
 ```
 y en el bloque `export { ... }` del mismo archivo, agregar `signOut`.
 
+En `tests/firebase-init.test.js` (Task 10) — agregar `signOut: vi.fn()` al mock de `AUTH_URL` para que no rompa al resolver el nuevo import nombrado:
+
+```js
+const signOut = vi.fn()
+// ...
+vi.mock(AUTH_URL, () => ({
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  GoogleAuthProvider
+}))
+```
+
 En `index.html:109-112`, reemplazar:
 
 ```html
@@ -4201,7 +4353,7 @@ Run: `npx vitest run tests/account-ui.test.js`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add firebase-init.js index.html home.js account.html account-ui.js tests/account-ui.test.js
+git add firebase-init.js index.html home.js account.html account-ui.js tests/account-ui.test.js tests/firebase-init.test.js
 git commit -m "feat(account): wire nav Perfil to account hub (identity, dietary summary, framed upsell, logout)"
 ```
 
@@ -4215,8 +4367,12 @@ git commit -m "feat(account): wire nav Perfil to account hub (identity, dietary 
 - Test: `tests/app.test.js` (nuevo `describe`)
 
 **Interfaces:**
-- Consumes: `window.authClient.getCachedProfile()` (Task 12); `localStorage` (dismiss tracking, contador de escaneos desde que se guardaron preferencias).
-- Produces: `shouldShowHomeUpsell(profile)`, `renderHomeUpsellBanner()`. Diseño (equipo Growth Hacker + UX Researcher): NO banner permanente — dispara solo por señal de intención real (perfil con preferencias declaradas + uso activo, o tope de cuota OCR), con reglas de descarte/reaparición para no generar ceguera de banner.
+- Consumes: `window.authClient.getCachedProfile()` (Task 12); `localStorage` (dismiss tracking).
+- Produces: `shouldShowHomeUpsell(profile)`, `renderHomeUpsellBanner()`. Diseño (equipo Growth Hacker + UX Researcher): NO banner permanente — dispara solo por señal de intención real (tope de cuota OCR alcanzado), con reglas de descarte/reaparición para no generar ceguera de banner.
+
+**Corrección (hallazgo de la 4a ronda de revisión — Code Reviewer, 2 problemas):**
+1. **Trigger A eliminado.** El borrador original tenía un "Trigger A" (usuario free que ya declaró preferencias + escaneó ≥2 veces desde entonces). Es lógicamente inalcanzable: `PUT /api/me/preferences` (Task 6) responde `403 premium_required` para plan `free` — un usuario free JAMÁS puede tener `preferences` guardadas en primer lugar. Y aunque las tuviera (ej. por haber sido premium antes y cancelado), `GET /api/me` (Task 5) nunca regresa `preferences` para un perfil no-premium — el fixture de test del borrador (`{plan:'free', preferences:{...}}`) no puede ocurrir con las respuestas reales del backend. Se elimina el trigger en vez de inventar una arquitectura de señal nueva (ej. un flag booleano no-sensible en Task 5 para detectar "ex-premium con preferencias guardadas") que nadie pidió — si se quiere ese caso de win-back más adelante, es una decisión de producto aparte. Queda solo Trigger B (tope de OCR), que SÍ es una señal real disponible para cualquier free.
+2. **`renderHomeUpsellBanner()` nunca se invocaba** — código muerto, el banner jamás aparecía en pantalla. Se agrega su invocación al `DOMContentLoaded` ya existente en `app.js` (línea ~226) y junto al incremento del contador de escaneos, para reflejar el estado más reciente tras cada scan.
 
 - [ ] **Step 1: Escribe el test que falla**
 
@@ -4239,19 +4395,12 @@ describe('shouldShowHomeUpsell', () => {
     expect(shouldShowHomeUpsell(null)).toBe(false)
   })
 
-  it('Trigger A: se muestra si el usuario free ya declaró preferencias y escaneó ≥2 veces desde entonces', () => {
-    localStorage.setItem('yomiScansSincePrefsSaved', '2')
-    const profile = { plan: 'free', preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] } }
-    expect(shouldShowHomeUpsell(profile)).toBe(true)
-  })
-
-  it('Trigger A no aplica con <2 escaneos desde que se guardaron preferencias', () => {
-    localStorage.setItem('yomiScansSincePrefsSaved', '1')
-    const profile = { plan: 'free', preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] } }
+  it('caso base: usuario free normal, sin tope de OCR, sin descartes previos → no se muestra (el estado más común, hallazgo de cobertura de la 4a ronda)', () => {
+    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 1 } }
     expect(shouldShowHomeUpsell(profile)).toBe(false)
   })
 
-  it('Trigger B: se muestra si ya usó 5/5 OCR hoy, sin importar si tiene preferencias', () => {
+  it('Trigger (único, tras eliminar el "Trigger A" inalcanzable — ver nota arriba): se muestra si ya usó 5/5 OCR hoy', () => {
     const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
     expect(shouldShowHomeUpsell(profile)).toBe(true)
   })
@@ -4287,13 +4436,14 @@ Agregar en `app.js`, junto a `renderPersonalizedDisclaimer` (Task 14):
 
 ```js
 const HOME_UPSELL_DISMISS_KEY = 'yomiUpsellDismiss';
-const SCANS_SINCE_PREFS_KEY = 'yomiScansSincePrefsSaved';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Trigger de intención real (equipo Growth+UX): NO es un banner permanente.
-// Trigger A = ya declaró preferencias Y las usó activamente (≥2 escaneos desde
-// que las guardó) — segmento de alto intent. Trigger B = tocó el límite de
-// OCR gratis hoy — momento de fricción real, no venta genérica.
+// Dispara solo cuando tocó el límite de OCR gratis hoy — momento de fricción
+// real, no venta genérica. (Un "Trigger A" basado en preferencias declaradas
+// se eliminó del diseño original: es lógicamente inalcanzable para un usuario
+// free — PUT /api/me/preferences es premium-only y GET /api/me nunca regresa
+// `preferences` para un plan no-premium, ver nota de la 4a ronda de revisión.)
 function shouldShowHomeUpsell(profile) {
   if (!profile || profile.plan === 'premium') return false;
 
@@ -4302,16 +4452,9 @@ function shouldShowHomeUpsell(profile) {
   if (dismiss.count >= 2 && now - dismiss.lastAt < 30 * DAY_MS) return false;
   if (dismiss.lastAt && now - dismiss.lastAt < 3 * DAY_MS) return false;
 
-  const prefs = profile.preferences;
-  const hasPrefs = prefs && ((prefs.dietary || []).length || (prefs.allergens || []).length || (prefs.healthConditions || []).length);
-  const scansSincePrefs = parseInt(localStorage.getItem(SCANS_SINCE_PREFS_KEY) || '0', 10);
-  const triggerA = hasPrefs && scansSincePrefs >= 2;
-
   const today = new Date().toISOString().slice(0, 10);
   const usage = profile.usage;
-  const triggerB = !!(usage && usage.date === today && usage.ocrCount >= 5);
-
-  return triggerA || triggerB;
+  return !!(usage && usage.date === today && usage.ocrCount >= 5);
 }
 
 // Copy y trigger definidos por el equipo Growth Hacker en la sesión de revisión.
@@ -4343,17 +4486,21 @@ En `index.html`, entre la sección hero y el grid de productos recientes:
 <div id="home-upsell-banner" class="about-card hidden"></div>
 ```
 
-Incrementar el contador de escaneos-desde-preferencias en cada render exitoso (junto a la línea de Task 17, `app.js`):
+**Invocar `renderHomeUpsellBanner()` (hallazgo de la 4a ronda — Code Reviewer: código muerto, nunca se llamaba).** Dos puntos de llamada: al cargar Home, y de nuevo tras cada scan (porque el tope de OCR de hoy pudo cambiar justo con ese scan).
+
+Dentro del `DOMContentLoaded` YA EXISTENTE en `app.js` (línea ~226) — agregar la llamada, no reemplazar el listener:
 
 ```js
-  localStorage.setItem('yomiScansSincePrefsSaved', String(parseInt(localStorage.getItem('yomiScansSincePrefsSaved') || '0', 10) + 1));
+document.addEventListener("DOMContentLoaded", () => {
+  // ... código existente sin cambios ...
+  renderHomeUpsellBanner();
+});
 ```
 
-Y resetearlo a `0` en `preferences-ui.js` (Task 15) cuando `savePreferences()` tiene éxito — agregar dentro del `withLoadingState` callback, justo después de `return res.json();` no, antes del `return`:
+Y junto a la línea de Task 17 (después de `logScanToCloudHistory(...)`, mismo bloque de `app.js:1640`):
 
 ```js
-    localStorage.setItem('yomiScansSincePrefsSaved', '0');
-    return res.json();
+  renderHomeUpsellBanner();
 ```
 
 - [ ] **Step 4: Corre el test, verifica que pasa**
@@ -4363,8 +4510,8 @@ Run: `npx vitest run tests/app.test.js`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app.js index.html preferences-ui.js tests/app.test.js
-git commit -m "feat(upsell): add signal-triggered Home banner (declared prefs + active use, or OCR limit hit) with dismiss/reappear rules"
+git add app.js index.html tests/app.test.js
+git commit -m "feat(upsell): add signal-triggered Home banner (OCR limit hit) with dismiss/reappear rules, wire up render calls"
 ```
 
 ---
@@ -4590,3 +4737,13 @@ git commit -m "feat(history): enable nav Análisis — local history + locked up
   - Task 19: banner de upsell en Home — NO permanente, dispara solo por señal de intención real (preferencias declaradas + uso activo, o tope de cuota OCR), con reglas de descarte/reaparición (3 días / 30 días tras 2 descartes) para evitar ceguera de banner.
   - Task 20: nav "Análisis" habilitado → `history.html` = historial en la nube (no comparador, ese queda para T2). Usuario free ve su historial LOCAL real sin blur + bloque de upsell bloqueado debajo; premium ve la lista completa de `GET /api/me/history`. Nunca se blurrea el veredicto SANO/EVITAR — ocultar eso se lee como esconder info de seguridad.
   - Métrica de apagado obligatoria (Growth Hacker): si el banner de Home reduce escaneos/sesión o retención D1/D7 en A/B vs. control, se apaga aunque el CTR se vea bien — el core loop gratis es innegociable.
+- **Cuarta ronda: análisis final del plan completo** (equipo Code Reviewer + Performance Benchmarker + Test Results Analyzer, sobre las 20 tareas ya escritas) — todos los hallazgos aplicados directamente al plan:
+  - **Crítico (Code Reviewer):** `syncUserProfile()` nunca se invocaba fuera de `account-ui.js` — `getCachedProfile()` regresaba `null` en la pantalla real de escaneo, apagando en silencio personalización (13/14), historial (17) y banner (19) para cualquiera que no hubiera visitado antes `/account.html`. Fix: `authClient.js` (Task 12) ahora se auto-sincroniza vía `onAuthChange` al cargar cualquier página que lo importe; `preferences-ui.js` (Task 15) además hace `await syncUserProfile()` explícito porque necesita el perfil listo de inmediato.
+  - **Crítico (Code Reviewer):** el cambio de Task 17 en `app.js:1640` borraba silenciosamente la línea `renderPersonalizedDisclaimer(userPreferences)` de Task 14 (regresión del disclaimer médico legal). Fix: Task 17 ahora EXTIENDE el bloque de Task 14 en vez de reemplazarlo.
+  - **Medio (Code Reviewer):** Task 18 agregaba `signOut` a `firebase-init.js` sin actualizar el mock de `tests/firebase-init.test.js` (Task 10), rompiéndolo. Fix: Task 18 ahora también extiende ese mock.
+  - **Medio (Code Reviewer):** `renderHomeUpsellBanner()` (Task 19) nunca se invocaba — código muerto, el banner jamás aparecía. Fix: se agregan las 2 llamadas (Home `DOMContentLoaded` + tras cada scan).
+  - **Medio (Code Reviewer):** el "Trigger A" de Task 19 (preferencias declaradas + uso activo) era lógicamente inalcanzable para un usuario free — `PUT /api/me/preferences` es premium-only y `GET /api/me` nunca regresa `preferences` para un plan no-premium. Fix: se elimina Trigger A; el banner dispara solo por Trigger B (tope de OCR gratis), la única señal real disponible para un free.
+  - **Menor (Code Reviewer):** Task 16 construía URLs a mano con `BASE`/`getProjectId()` en vez de reutilizar `docPath()` (patrón de Tasks 3/8). Fix: `fireLogUserHistory` ahora reutiliza `docPath('users', uid)`.
+  - **Producto/seguridad (Test Results Analyzer):** Task 9 bloqueaba por `email_not_verified` ANTES de revisar el plan, así que un premium sin verificar también se quedaba sin OCR — sin beneficio de seguridad real (el chequeo existe para proteger la cuota free, un premium no tiene cuota que saltarse). Fix: el chequeo de email ahora solo aplica cuando el plan no es premium.
+  - **Performance, no bloqueante (Performance Benchmarker):** Task 9 hace 2 lecturas a Firestore por request bajo cuota (~100-300ms extra) — documentado como optimización futura opcional, no aplicado ahora.
+  - **Cobertura de tests (Test Results Analyzer, bajo impacto, agregados):** 2 pares de precedencia adicionales en `computeVerdict` (Task 13: Regla 2 vs 4, Regla 3 vs 4); caso base negativo + el trigger único en `shouldShowHomeUpsell` (Task 19); `doubleValue`/objetos anidados y arreglo vacío explícito en los helpers de conversión de Firestore (Task 3).
