@@ -7,11 +7,20 @@
   <title>Yomi — Mi cuenta</title>
   <link rel="stylesheet" href="home.css?v=15">
   <link rel="stylesheet" href="styles.css?v=15">
-  <style>.hidden{display:none!important} .account-plan-badge{padding:2px 10px;border-radius:12px;font-size:12px} .account-plan-free{background:#eee;color:#555} .account-plan-premium{background:#e0f5ee;color:#0d3d35}</style>
+  <style>
+    .hidden{display:none!important}
+    .account-plan-badge{padding:2px 10px;border-radius:12px;font-size:12px}
+    .account-plan-free{background:#eee;color:#555}
+    .account-plan-premium{background:#e0f5ee;color:#0d3d35}
+    #account-root{display:flex;flex-direction:column;gap:12px;padding:0 20px}
+    #account-root .about-card{flex-direction:column;align-items:stretch}
+    #account-root .about-card-body{gap:10px}
+    #btn-logout{margin-top:4px}
+  </style>
 </head>
 <body>
   <div class="app-shell">
-    <header class="app-header"><h1>Mi cuenta</h1></header>
+    <header class="app-header"><h1 class="page-title">Mi cuenta</h1></header>
     <main class="app-main" id="account-root"></main>
   </div>
   <script type="module" src="firebase-init.js"></script>

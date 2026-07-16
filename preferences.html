@@ -18,12 +18,18 @@
        adentro, tocar el select puede disparar el toggle del checkbox en algunos
        navegadores móviles. Tap targets con padding >= 44px. */
     .allergen-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; min-height: 44px; }
+    fieldset { border: none; padding: 0; margin: 0 0 20px; }
+    legend { font-family: var(--font-display); font-size: 0.9rem; font-weight: 600; color: var(--ink); padding: 0; margin-bottom: 8px; }
+    #preferences-form label { display: block; font-size: 0.85rem; color: var(--ink-2); padding: 4px 0; }
+    #preferences-form .btn { margin-top: 10px; }
+    #btn-delete-preferences { margin: 4px 20px 0; width: calc(100% - 40px); }
   </style>
 </head>
 <body>
   <div class="app-shell">
-    <header class="app-header"><h1>Mis preferencias</h1></header>
+    <header class="app-header"><h1 class="page-title">Mis preferencias</h1></header>
     <main class="app-main">
+      <div class="content-card">
       <p class="medical-disclaimer">
         Este resultado es una guía informativa basada en tus preferencias y no
         sustituye el consejo de un profesional de la salud. Ante cualquier
@@ -66,9 +72,10 @@
           </label>
           <p id="consent-error" class="hidden" role="alert"></p>
         </div>
-        <button type="submit" id="btn-save-preferences">Guardar</button>
+        <button type="submit" id="btn-save-preferences" class="btn btn-primary">Guardar</button>
       </form>
-      <button id="btn-delete-preferences">Borrar mis preferencias</button>
+      </div>
+      <button id="btn-delete-preferences" class="btn btn-secondary">Borrar mis preferencias</button>
       <p id="preferences-error" class="hidden" role="alert"></p>
     </main>
   </div>

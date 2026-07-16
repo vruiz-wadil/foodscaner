@@ -9,13 +9,18 @@
   <link rel="stylesheet" href="styles.css?v=15">
   <style>
     .hidden{display:none!important}
-    .history-locked-block{position:relative;padding:20px;border-radius:8px;background:#f2f2f2;filter:blur(2px);opacity:.6;margin-top:12px}
-    .history-locked-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;filter:none;background:rgba(255,255,255,.7)}
+    /* Card teaser simple, sin blur (hallazgo visual: un filter:blur en el
+       padre no se puede "cancelar" con filter:none en el hijo — el CTA de
+       adentro salía ilegible. No hay datos reales que ocultar aquí, solo un
+       mensaje de upsell, así que una card plana normal es lo correcto). */
+    .history-locked-block{padding:20px;border-radius:12px;background:var(--paper);border:1.5px solid var(--border);margin-top:12px;text-align:center}
+    .history-locked-overlay{display:flex;flex-direction:column;align-items:center;gap:10px}
+    #history-root{display:flex;flex-direction:column;gap:12px;padding:0 20px}
   </style>
 </head>
 <body>
   <div class="app-shell">
-    <header class="app-header"><h1>Análisis</h1></header>
+    <header class="app-header"><h1 class="page-title">Análisis</h1></header>
     <main class="app-main" id="history-root"></main>
   </div>
   <script src="app.js?v=74"></script>

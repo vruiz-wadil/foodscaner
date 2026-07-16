@@ -466,3 +466,67 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ── Content pages (auth, preferences, account, historial) ───────── */
+/* Estas pantallas solo usaban home.css/styles.css como si ya trajeran
+   estilos de formulario — no existían (el resto de la app no tiene forms
+   de texto, solo escáner/selects). Sin esto se veían como HTML sin marca. */
+.app-header { justify-content: space-between; }
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--ink);
+  margin: 0;
+}
+
+.content-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 0 20px 16px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.form-input {
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--card);
+  width: 100%;
+  transition: var(--transition);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+.btn-google {
+  background: #fff;
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.btn-google:hover {
+  background: var(--surface);
+}
+
+.account-email { font-weight: 600; color: var(--ink); margin: 0; }
+.account-summary, .account-empty { font-size: 0.85rem; color: var(--ink-3); margin: 0; }

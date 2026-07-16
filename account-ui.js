@@ -21,19 +21,25 @@ export function renderAccountHub() {
 
   root.innerHTML = `
     <div class="about-card">
-      <p class="account-email">${profile.email || ''}</p>
-      <span class="account-plan-badge account-plan-${profile.plan}">${isPremium ? 'Premium' : 'Free'}</span>
+      <div class="about-card-body">
+        <p class="account-email">${profile.email || ''}</p>
+        <span class="account-plan-badge account-plan-${profile.plan}">${isPremium ? 'Premium' : 'Free'}</span>
+      </div>
     </div>
     <div class="about-card">
-      ${summaryHtml}
-      ${isPremium ? '<a href="preferences.html" class="btn-primary">Editar preferencias</a>' : ''}
+      <div class="about-card-body">
+        ${summaryHtml}
+        ${isPremium ? '<a href="preferences.html" class="btn btn-secondary">Editar preferencias</a>' : ''}
+      </div>
     </div>
     ${!isPremium ? `
       <div class="about-card account-upsell">
-        <p>Activa alertas cuando un producto no es apto para tu perfil.</p>
-        <a href="preferences.html" class="btn-primary">Hazte Premium</a>
+        <div class="about-card-body">
+          <p class="about-text">Activa alertas cuando un producto no es apto para tu perfil.</p>
+          <a href="preferences.html" class="btn btn-primary">Hazte Premium</a>
+        </div>
       </div>` : ''}
-    <button type="button" id="btn-logout">Cerrar sesión</button>
+    <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
   `;
 
   document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
