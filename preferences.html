@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://*.firebaseapp.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Mis preferencias</title>
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>
+    .hidden { display: none !important; }
+    /* Jerarquía visual distinta al resto del form (hallazgo UX) — el
+       consentimiento de datos de salud no debe pesar igual que un checkbox
+       de dieta, o se skimea sin leerse. */
+    .consent-block { border: 1px solid #c8ddd6; border-radius: 8px; padding: 14px; margin: 16px 0; background: #f4faf8; }
+    .medical-disclaimer { font-size: 13px; color: #6b6b6b; margin: 8px 0 16px; }
+    /* Select fuera del <label> del checkbox (hallazgo UX/accesibilidad): anidado
+       adentro, tocar el select puede disparar el toggle del checkbox en algunos
+       navegadores móviles. Tap targets con padding >= 44px. */
+    .allergen-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; min-height: 44px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header"><h1>Mis preferencias</h1></header>
+    <main class="app-main">
+      <p class="medical-disclaimer">
+        Este resultado es una guía informativa basada en tus preferencias y no
+        sustituye el consejo de un profesional de la salud. Ante cualquier
+        duda médica, consulta a tu médico.
+      </p>
+      <form id="preferences-form">
+        <fieldset>
+          <legend>Dietas</legend>
+          <label><input type="checkbox" name="dietary" value="vegan"> Vegano</label>
+          <label><input type="checkbox" name="dietary" value="vegetarian"> Vegetariano</label>
+          <label><input type="checkbox" name="dietary" value="keto"> Keto</label>
+          <label><input type="checkbox" name="dietary" value="glutenFree"> Sin gluten</label>
+        </fieldset>
+        <fieldset>
+          <legend>Alergias</legend>
+          <div class="allergen-row">
+            <input type="checkbox" id="allergen-cacahuate" name="allergen" value="cacahuate">
+            <label for="allergen-cacahuate">Cacahuate</label>
+            <select id="severity-cacahuate"><option value="mild">Aviso</option><option value="severe">Estricto</option></select>
+          </div>
+          <div class="allergen-row">
+            <input type="checkbox" id="allergen-lacteos" name="allergen" value="lacteos">
+            <label for="allergen-lacteos">Lácteos</label>
+            <select id="severity-lacteos"><option value="mild">Aviso</option><option value="severe">Estricto</option></select>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Condiciones de salud</legend>
+          <label><input type="checkbox" name="healthConditions" value="diabet"> Diabetes</label>
+          <label><input type="checkbox" name="healthConditions" value="celiac"> Celiaquía</label>
+          <label><input type="checkbox" name="healthConditions" value="hipert"> Hipertensión</label>
+          <label><input type="checkbox" name="healthConditions" value="ninos"> También compro para niños en casa</label>
+        </fieldset>
+        <div class="consent-block">
+          <label>
+            <input type="checkbox" id="consent-checkbox" required>
+            Doy mi consentimiento expreso para que Yomi guarde y use estos datos de salud
+            únicamente para personalizar mis resultados de escaneo, según el
+            <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de Privacidad</a>.
+          </label>
+          <p id="consent-error" class="hidden" role="alert"></p>
+        </div>
+        <button type="submit" id="btn-save-preferences">Guardar</button>
+      </form>
+      <button id="btn-delete-preferences">Borrar mis preferencias</button>
+      <p id="preferences-error" class="hidden" role="alert"></p>
+    </main>
+  </div>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="authClient.js"></script>
+  <script type="module" src="preferences-ui.js"></script>
+</body>
+</html>
