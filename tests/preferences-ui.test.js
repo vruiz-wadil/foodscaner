@@ -17,9 +17,13 @@ beforeEach(async () => {
   global.fetch = vi.fn()
   document.body.innerHTML = `
     <form id="preferences-form">
-      <input type="checkbox" name="dietary" value="vegan">
-      <input type="checkbox" name="dietary" value="glutenFree">
-      <input type="checkbox" name="healthConditions" value="diabet">
+      <div id="dietary-tiles">
+        <button type="button" data-dietary="vegan">Vegano</button>
+        <button type="button" data-dietary="glutenFree">Sin gluten</button>
+      </div>
+      <div id="health-tiles">
+        <button type="button" data-health="diabet">Diabetes</button>
+      </div>
       <input type="checkbox" id="allergen-cacahuate" name="allergen" value="cacahuate">
       <select id="severity-cacahuate"><option value="mild">Leve</option><option value="severe">Severa</option></select>
       <div class="consent-block">
@@ -39,15 +43,15 @@ beforeEach(async () => {
 })
 
 describe('loadPreferencesIntoForm', () => {
-  it('marca los checkboxes según el perfil cacheado', () => {
+  it('marca los tiles de dietary/healthConditions con .chosen según el perfil cacheado', () => {
     getCachedProfile.mockReturnValue({
       plan: 'premium',
       preferences: { dietary: ['vegan'], allergens: [{ code: 'cacahuate', severity: 'severe' }], healthConditions: ['diabet'] }
     })
     loadPreferencesIntoForm()
-    expect(document.querySelector('[name="dietary"][value="vegan"]').checked).toBe(true)
-    expect(document.querySelector('[name="dietary"][value="glutenFree"]').checked).toBe(false)
-    expect(document.querySelector('[name="healthConditions"][value="diabet"]').checked).toBe(true)
+    expect(document.querySelector('[data-dietary="vegan"]').classList.contains('chosen')).toBe(true)
+    expect(document.querySelector('[data-dietary="glutenFree"]').classList.contains('chosen')).toBe(false)
+    expect(document.querySelector('[data-health="diabet"]').classList.contains('chosen')).toBe(true)
     expect(document.getElementById('allergen-cacahuate').checked).toBe(true)
     expect(document.getElementById('severity-cacahuate').value).toBe('severe')
   })
@@ -55,7 +59,7 @@ describe('loadPreferencesIntoForm', () => {
   it('no marca nada si no hay preferences aún (usuario premium sin configurar)', () => {
     getCachedProfile.mockReturnValue({ plan: 'premium' })
     loadPreferencesIntoForm()
-    expect(document.querySelector('[name="dietary"][value="vegan"]').checked).toBe(false)
+    expect(document.querySelector('[data-dietary="vegan"]').classList.contains('chosen')).toBe(false)
   })
 })
 
@@ -69,10 +73,10 @@ describe('savePreferences', () => {
 
   it('llama PUT /api/me/preferences con Bearer token, consent:true y el body construido del form, si hay consentimiento (hallazgo legal/seguridad: el servidor ahora exige consent explícito, no solo el cliente)', async () => {
     document.getElementById('consent-checkbox').checked = true
-    document.querySelector('[name="dietary"][value="vegan"]').checked = true
+    document.querySelector('[data-dietary="vegan"]').classList.add('chosen')
     document.getElementById('allergen-cacahuate').checked = true
     document.getElementById('severity-cacahuate').value = 'severe'
-    document.querySelector('[name="healthConditions"][value="diabet"]').checked = true
+    document.querySelector('[data-health="diabet"]').classList.add('chosen')
     getIdToken.mockResolvedValue('tok-123')
     global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
 

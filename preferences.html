@@ -20,8 +20,8 @@
     .allergen-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; min-height: 44px; }
     fieldset { border: none; padding: 0; margin: 0 0 20px; }
     legend { font-family: var(--font-display); font-size: 0.9rem; font-weight: 600; color: var(--ink); padding: 0; margin-bottom: 8px; }
-    #preferences-form label { display: block; font-size: 0.85rem; color: var(--ink-2); padding: 4px 0; }
     #preferences-form .btn { margin-top: 10px; }
+    #dietary-tiles, #health-tiles { margin-bottom: 4px; }
     #btn-delete-preferences { margin: 4px 20px 0; width: calc(100% - 40px); }
     /* hallazgo UX #5: el 403 de free-plan en Guardar era invisible — sin
        estilos, #preferences-error/#consent-error solo eran texto plano que
@@ -60,10 +60,12 @@
       <form id="preferences-form">
         <fieldset>
           <legend>Dietas</legend>
-          <label><input type="checkbox" name="dietary" value="vegan"> Vegano</label>
-          <label><input type="checkbox" name="dietary" value="vegetarian"> Vegetariano</label>
-          <label><input type="checkbox" name="dietary" value="keto"> Keto</label>
-          <label><input type="checkbox" name="dietary" value="glutenFree"> Sin gluten</label>
+          <div class="dietary-icon-grid" id="dietary-tiles">
+            <button type="button" class="dietary-grid-item" data-dietary="vegan" aria-pressed="false"><span class="emoji">🌱</span><span class="label">Vegano</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="vegetarian" aria-pressed="false"><span class="emoji">🥦</span><span class="label">Vegetariano</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="keto" aria-pressed="false"><span class="emoji">🥑</span><span class="label">Keto</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="glutenFree" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Sin gluten</span></button>
+          </div>
         </fieldset>
         <fieldset>
           <legend>Alergias</legend>
@@ -80,10 +82,12 @@
         </fieldset>
         <fieldset>
           <legend>Condiciones de salud</legend>
-          <label><input type="checkbox" name="healthConditions" value="diabet"> Diabetes</label>
-          <label><input type="checkbox" name="healthConditions" value="celiac"> Celiaquía</label>
-          <label><input type="checkbox" name="healthConditions" value="hipert"> Hipertensión</label>
-          <label><input type="checkbox" name="healthConditions" value="ninos"> También compro para niños en casa</label>
+          <div class="dietary-icon-grid" id="health-tiles">
+            <button type="button" class="dietary-grid-item" data-health="diabet" aria-pressed="false"><span class="emoji">🩸</span><span class="label">Diabetes</span></button>
+            <button type="button" class="dietary-grid-item" data-health="celiac" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Celiaquía</span></button>
+            <button type="button" class="dietary-grid-item" data-health="hipert" aria-pressed="false"><span class="emoji">❤️</span><span class="label">Hipertensión</span></button>
+            <button type="button" class="dietary-grid-item" data-health="ninos" aria-pressed="false"><span class="emoji">👶</span><span class="label">Niños en casa</span></button>
+          </div>
         </fieldset>
         <div class="consent-block">
           <label>

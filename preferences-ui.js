@@ -66,12 +66,12 @@ export function loadPreferencesIntoForm() {
   if (!prefs) return;
 
   (prefs.dietary || []).forEach(key => {
-    const el = document.querySelector(`[name="dietary"][value="${key}"]`);
-    if (el) el.checked = true;
+    const el = document.querySelector(`#dietary-tiles [data-dietary="${key}"]`);
+    if (el) { el.classList.add('chosen'); el.setAttribute('aria-pressed', 'true'); }
   });
   (prefs.healthConditions || []).forEach(key => {
-    const el = document.querySelector(`[name="healthConditions"][value="${key}"]`);
-    if (el) el.checked = true;
+    const el = document.querySelector(`#health-tiles [data-health="${key}"]`);
+    if (el) { el.classList.add('chosen'); el.setAttribute('aria-pressed', 'true'); }
   });
   (prefs.allergens || []).forEach(({ code, severity }) => {
     const checkbox = document.getElementById(`allergen-${code}`);
@@ -82,12 +82,24 @@ export function loadPreferencesIntoForm() {
 }
 
 function buildPreferencesPayload() {
-  const dietary = Array.from(document.querySelectorAll('[name="dietary"]:checked')).map(el => el.value);
-  const healthConditions = Array.from(document.querySelectorAll('[name="healthConditions"]:checked')).map(el => el.value);
+  const dietary = Array.from(document.querySelectorAll('#dietary-tiles [data-dietary].chosen')).map(el => el.dataset.dietary);
+  const healthConditions = Array.from(document.querySelectorAll('#health-tiles [data-health].chosen')).map(el => el.dataset.health);
   const allergens = ALLERGEN_CODES
     .filter(code => document.getElementById(`allergen-${code}`)?.checked)
     .map(code => ({ code, severity: document.getElementById(`severity-${code}`).value }));
   return { dietary, allergens, healthConditions };
+}
+
+// Wiring de click para los tiles de toggle simple (dietas/condiciones de
+// salud) — cada click alterna .chosen y aria-pressed. Alergias tiene su
+// propio wiring en Task 7 (necesita mostrar/ocultar el toggle de severidad).
+function setupPreferenceTiles() {
+  document.querySelectorAll('#dietary-tiles [data-dietary], #health-tiles [data-health]').forEach(tile => {
+    tile.addEventListener('click', () => {
+      const chosen = tile.classList.toggle('chosen');
+      tile.setAttribute('aria-pressed', String(chosen));
+    });
+  });
 }
 
 export async function savePreferences() {
@@ -170,6 +182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
   loadPreferencesIntoForm();
+  setupPreferenceTiles();
   const form = document.getElementById('preferences-form');
   const btnDelete = document.getElementById('btn-delete-preferences');
   if (form) {
