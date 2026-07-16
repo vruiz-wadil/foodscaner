@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://*.firebaseapp.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Iniciar sesión</title>
+  <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2DBC9E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- home.css NO define estilos de input/botón (viven en styles.css) — hallazgo
+       de revisión UX: sin este link el formulario se ve roto/sin marca. -->
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>
+    /* home.css solo scopea .hidden a selectores específicos — regla genérica
+       para #auth-error, necesaria para que se oculte correctamente (hallazgo UX). */
+    .hidden { display: none !important; }
+    .auth-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: #6b6b6b; font-size: 14px; }
+    .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
+    .password-field-wrap { position: relative; }
+    .btn-toggle-password { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 13px; }
+    .consent-block { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; background: #fafafa; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+    </header>
+    <main class="app-main">
+      <section class="section-heading">
+        <h1 class="heading-title">Inicia sesión</h1>
+        <p class="heading-sub">Guarda tu historial y personaliza tus resultados.</p>
+      </section>
+
+      <!-- Google primero (hallazgo UX: es la opción de menor fricción, un toque
+           sin escribir nada) con divisor antes del formulario de email/password. -->
+      <button type="button" id="btn-google">Continuar con Google</button>
+      <div class="auth-divider">o con tu correo</div>
+
+      <form id="login-form" novalidate>
+        <label for="login-email">Correo electrónico</label>
+        <input id="login-email" type="email" required autocomplete="email" placeholder="tucorreo@ejemplo.com">
+
+        <label for="login-password">Contraseña</label>
+        <div class="password-field-wrap">
+          <input id="login-password" type="password" required minlength="6" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+          <button type="button" id="btn-toggle-password" class="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
+        </div>
+
+        <!-- Solo visibles/requeridos en modo signup — auth-ui.js los muestra vía
+             #signup-only cuando el usuario elige "Crear cuenta" (hallazgo legal:
+             sin esto no se puede facturar una suscripción sin evidencia de
+             aceptación de términos, ni verificar declaración de edad). -->
+        <div id="signup-only" class="hidden">
+          <label class="consent-block">
+            <input type="checkbox" id="terms-checkbox">
+            Acepto los <a href="/terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a>
+            y el <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de Privacidad</a>.
+          </label>
+          <label class="consent-block">
+            <input type="checkbox" id="age-checkbox">
+            Confirmo que soy mayor de 18 años.
+          </label>
+        </div>
+
+        <button type="submit" id="btn-login">Iniciar sesión</button>
+        <button type="button" id="btn-signup">Crear cuenta nueva</button>
+      </form>
+
+      <p id="auth-error" class="hidden" role="alert"></p>
+    </main>
+  </div>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="auth-ui.js"></script>
+</body>
+</html>
