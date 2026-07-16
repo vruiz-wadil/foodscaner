@@ -3982,6 +3982,596 @@ git commit -m "feat(history): log premium scans to cloud history at render time 
 
 ---
 
+### Task 18: Habilitar nav "Perfil" → hub de cuenta (`account.html`)
+
+**Files:**
+- Modify: `firebase-init.js` (Task 10) — agregar `signOut` al import/re-export desde `firebase-auth.js`
+- Modify: `index.html:109-112` (quitar `nav-disabled`/`aria-disabled`/`tabindex="-1"`, agregar `id="nav-profile"`)
+- Modify: `home.js` (wiring del click, mismo patrón que `nav-scan` en `home.js:84`)
+- Create: `account.html`, `account-ui.js`
+- Test: `tests/account-ui.test.js`
+
+**Interfaces:**
+- Consumes: `getCachedProfile()`, `syncUserProfile()` (Task 12, `authClient.js`); `firebaseAuth`, `signOut` (Task 10 extendido).
+- Produces: `account-ui.js` exporta `renderAccountHub()`, `handleLogout()`. Diseño (equipo Product Manager + UX Researcher, sesión de revisión): identidad arriba, perfil dietético/alérgico ya calculado (prueba de valor gratis) ANTES de la sección premium, sin candados/iconos de restricción — la sección premium se enmarca como extensión natural ("Activa alertas cuando un producto no es apto para tu perfil"), nunca aislada con precio en grande.
+
+- [ ] **Step 1: Escribe el test que falla**
+
+```js
+// tests/account-ui.test.js
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const signOut = vi.fn()
+const mockAuth = {}
+const getCachedProfile = vi.fn()
+const syncUserProfile = vi.fn()
+
+vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut }))
+vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile }))
+
+let renderAccountHub, handleLogout
+let originalLocation
+
+beforeEach(async () => {
+  vi.clearAllMocks()
+  vi.resetModules()
+  document.body.innerHTML = '<div id="account-root"></div>'
+  originalLocation = window.location
+  delete window.location
+  window.location = { href: '' }
+  const mod = await import('../account-ui.js')
+  renderAccountHub = mod.renderAccountHub
+  handleLogout = mod.handleLogout
+})
+
+afterEach(() => {
+  window.location = originalLocation
+})
+
+describe('renderAccountHub', () => {
+  it('redirige a auth.html si no hay perfil cacheado (sin sesión)', () => {
+    getCachedProfile.mockReturnValue(null)
+    renderAccountHub()
+    expect(window.location.href).toBe('auth.html')
+  })
+
+  it('muestra el badge "Free" y la sección de upsell premium (sin candado, enmarcada como extensión), sin botón de editar preferencias', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', plan: 'free' })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('.account-plan-free')).toBeTruthy()
+    expect(root.textContent).toMatch(/Activa alertas cuando un producto no es apto para tu perfil/)
+    expect(root.querySelector('a[href="preferences.html"]')?.textContent).not.toMatch(/[Ee]ditar/)
+  })
+
+  it('muestra el resumen del perfil dietético/alérgico ANTES de cualquier upsell, y botón editar preferencias para premium', () => {
+    getCachedProfile.mockReturnValue({
+      email: 'a@b.com', plan: 'premium',
+      preferences: { dietary: ['vegan'], allergens: [{ code: 'cacahuate', severity: 'severe' }], healthConditions: [] }
+    })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('.account-plan-premium')).toBeTruthy()
+    expect(root.textContent).toMatch(/vegan/)
+    expect(root.querySelector('a[href="preferences.html"]').textContent).toMatch(/[Ee]ditar preferencias/)
+    expect(root.querySelector('.account-upsell')).toBeNull()
+  })
+
+  it('siempre incluye el botón de cerrar sesión, sin importar el plan', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', plan: 'free' })
+    renderAccountHub()
+    expect(document.getElementById('btn-logout')).toBeTruthy()
+  })
+})
+
+describe('handleLogout', () => {
+  it('llama signOut y redirige a index.html', async () => {
+    await handleLogout()
+    expect(signOut).toHaveBeenCalledWith(mockAuth)
+    expect(window.location.href).toBe('index.html')
+  })
+})
+```
+
+- [ ] **Step 2: Corre el test, verifica que falla**
+
+Run: `npx vitest run tests/account-ui.test.js`
+Expected: `Cannot find module '../account-ui.js'`
+
+- [ ] **Step 3: Implementación mínima**
+
+En `firebase-init.js` (Task 10), agregar `signOut` al import/export existente de `firebase-auth.js`:
+
+```js
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  GoogleAuthProvider
+} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+```
+y en el bloque `export { ... }` del mismo archivo, agregar `signOut`.
+
+En `index.html:109-112`, reemplazar:
+
+```html
+<button class="nav-item" id="nav-profile" aria-label="Perfil">
+  <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
+  <span class="nav-label nav-label-muted">Perfil</span>
+</button>
+```
+
+En `home.js`, junto al wiring existente de `nav-scan` (línea ~84):
+
+```js
+document.getElementById('nav-profile').addEventListener('click', () => {
+  window.location.href = 'account.html';
+});
+```
+
+```html
+<!-- account.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://*.firebaseapp.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Mi cuenta</title>
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>.hidden{display:none!important} .account-plan-badge{padding:2px 10px;border-radius:12px;font-size:12px} .account-plan-free{background:#eee;color:#555} .account-plan-premium{background:#e0f5ee;color:#0d3d35}</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header"><h1>Mi cuenta</h1></header>
+    <main class="app-main" id="account-root"></main>
+  </div>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="authClient.js"></script>
+  <script type="module" src="account-ui.js"></script>
+</body>
+</html>
+```
+
+```js
+// account-ui.js
+import { firebaseAuth, signOut } from './firebase-init.js';
+import { getCachedProfile, syncUserProfile } from './authClient.js';
+
+export function renderAccountHub() {
+  const profile = getCachedProfile();
+  const root = document.getElementById('account-root');
+  if (!root) return;
+
+  if (!profile) {
+    window.location.href = 'auth.html';
+    return;
+  }
+
+  const isPremium = profile.plan === 'premium';
+  const prefs = profile.preferences;
+  const hasPrefs = prefs && ((prefs.dietary || []).length || (prefs.allergens || []).length || (prefs.healthConditions || []).length);
+
+  const summaryHtml = hasPrefs
+    ? `<p class="account-summary">Tu perfil: ${[...(prefs.dietary || []), ...(prefs.allergens || []).map(a => a.code), ...(prefs.healthConditions || [])].join(', ')}</p>`
+    : '<p class="account-empty">Aún no configuraste tus preferencias.</p>';
+
+  root.innerHTML = `
+    <div class="about-card">
+      <p class="account-email">${profile.email || ''}</p>
+      <span class="account-plan-badge account-plan-${profile.plan}">${isPremium ? 'Premium' : 'Free'}</span>
+    </div>
+    <div class="about-card">
+      ${summaryHtml}
+      ${isPremium ? '<a href="preferences.html" class="btn-primary">Editar preferencias</a>' : ''}
+    </div>
+    ${!isPremium ? `
+      <div class="about-card account-upsell">
+        <p>Activa alertas cuando un producto no es apto para tu perfil.</p>
+        <a href="preferences.html" class="btn-primary">Hazte Premium</a>
+      </div>` : ''}
+    <button type="button" id="btn-logout">Cerrar sesión</button>
+  `;
+
+  document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
+}
+
+export async function handleLogout() {
+  await signOut(firebaseAuth);
+  window.location.href = 'index.html';
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await syncUserProfile();
+  renderAccountHub();
+});
+```
+
+- [ ] **Step 4: Corre el test, verifica que pasa**
+
+Run: `npx vitest run tests/account-ui.test.js`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add firebase-init.js index.html home.js account.html account-ui.js tests/account-ui.test.js
+git commit -m "feat(account): wire nav Perfil to account hub (identity, dietary summary, framed upsell, logout)"
+```
+
+---
+
+### Task 19: Banner de suscripción en Home (trigger por señal de uso, no permanente)
+
+**Files:**
+- Modify: `app.js` (nueva lógica de trigger + render, cerca de `renderPersonalizedDisclaimer` de Task 14)
+- Modify: `index.html` (contenedor del banner entre la sección hero y el grid de productos recientes)
+- Test: `tests/app.test.js` (nuevo `describe`)
+
+**Interfaces:**
+- Consumes: `window.authClient.getCachedProfile()` (Task 12); `localStorage` (dismiss tracking, contador de escaneos desde que se guardaron preferencias).
+- Produces: `shouldShowHomeUpsell(profile)`, `renderHomeUpsellBanner()`. Diseño (equipo Growth Hacker + UX Researcher): NO banner permanente — dispara solo por señal de intención real (perfil con preferencias declaradas + uso activo, o tope de cuota OCR), con reglas de descarte/reaparición para no generar ceguera de banner.
+
+- [ ] **Step 1: Escribe el test que falla**
+
+Agregar `shouldShowHomeUpsell` al `let`/`return` del `beforeAll` en `tests/app.test.js` (mismo patrón de Tasks 13/14/17), y nuevo `describe`:
+
+```js
+describe('shouldShowHomeUpsell', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('nunca se muestra para plan premium', () => {
+    expect(shouldShowHomeUpsell({ plan: 'premium', preferences: { dietary: ['vegan'] } })).toBe(false)
+  })
+
+  it('nunca se muestra sin perfil (no logueado)', () => {
+    expect(shouldShowHomeUpsell(null)).toBe(false)
+  })
+
+  it('Trigger A: se muestra si el usuario free ya declaró preferencias y escaneó ≥2 veces desde entonces', () => {
+    localStorage.setItem('yomiScansSincePrefsSaved', '2')
+    const profile = { plan: 'free', preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] } }
+    expect(shouldShowHomeUpsell(profile)).toBe(true)
+  })
+
+  it('Trigger A no aplica con <2 escaneos desde que se guardaron preferencias', () => {
+    localStorage.setItem('yomiScansSincePrefsSaved', '1')
+    const profile = { plan: 'free', preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] } }
+    expect(shouldShowHomeUpsell(profile)).toBe(false)
+  })
+
+  it('Trigger B: se muestra si ya usó 5/5 OCR hoy, sin importar si tiene preferencias', () => {
+    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
+    expect(shouldShowHomeUpsell(profile)).toBe(true)
+  })
+
+  it('se oculta si fue descartado hace menos de 3 días', () => {
+    localStorage.setItem('yomiUpsellDismiss', JSON.stringify({ count: 1, lastAt: Date.now() - 1 * 24 * 60 * 60 * 1000 }))
+    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
+    expect(shouldShowHomeUpsell(profile)).toBe(false)
+  })
+
+  it('reaparece después de 3 días de un solo descarte', () => {
+    localStorage.setItem('yomiUpsellDismiss', JSON.stringify({ count: 1, lastAt: Date.now() - 4 * 24 * 60 * 60 * 1000 }))
+    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
+    expect(shouldShowHomeUpsell(profile)).toBe(true)
+  })
+
+  it('se oculta 30 días tras 2 descartes', () => {
+    localStorage.setItem('yomiUpsellDismiss', JSON.stringify({ count: 2, lastAt: Date.now() - 10 * 24 * 60 * 60 * 1000 }))
+    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
+    expect(shouldShowHomeUpsell(profile)).toBe(false)
+  })
+})
+```
+
+- [ ] **Step 2: Corre el test, verifica que falla**
+
+Run: `npx vitest run tests/app.test.js`
+Expected: `shouldShowHomeUpsell is not a function`
+
+- [ ] **Step 3: Implementación mínima**
+
+Agregar en `app.js`, junto a `renderPersonalizedDisclaimer` (Task 14):
+
+```js
+const HOME_UPSELL_DISMISS_KEY = 'yomiUpsellDismiss';
+const SCANS_SINCE_PREFS_KEY = 'yomiScansSincePrefsSaved';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Trigger de intención real (equipo Growth+UX): NO es un banner permanente.
+// Trigger A = ya declaró preferencias Y las usó activamente (≥2 escaneos desde
+// que las guardó) — segmento de alto intent. Trigger B = tocó el límite de
+// OCR gratis hoy — momento de fricción real, no venta genérica.
+function shouldShowHomeUpsell(profile) {
+  if (!profile || profile.plan === 'premium') return false;
+
+  const dismiss = JSON.parse(localStorage.getItem(HOME_UPSELL_DISMISS_KEY) || '{}');
+  const now = Date.now();
+  if (dismiss.count >= 2 && now - dismiss.lastAt < 30 * DAY_MS) return false;
+  if (dismiss.lastAt && now - dismiss.lastAt < 3 * DAY_MS) return false;
+
+  const prefs = profile.preferences;
+  const hasPrefs = prefs && ((prefs.dietary || []).length || (prefs.allergens || []).length || (prefs.healthConditions || []).length);
+  const scansSincePrefs = parseInt(localStorage.getItem(SCANS_SINCE_PREFS_KEY) || '0', 10);
+  const triggerA = hasPrefs && scansSincePrefs >= 2;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = profile.usage;
+  const triggerB = !!(usage && usage.date === today && usage.ocrCount >= 5);
+
+  return triggerA || triggerB;
+}
+
+// Copy y trigger definidos por el equipo Growth Hacker en la sesión de revisión.
+function renderHomeUpsellBanner() {
+  const el = document.getElementById('home-upsell-banner');
+  if (!el) return;
+  const profile = (typeof window !== 'undefined' && window.authClient) ? window.authClient.getCachedProfile() : null;
+  if (!shouldShowHomeUpsell(profile)) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.innerHTML = `
+    <p>¿Esto es seguro para ti o para tu hijo? Actívalo con tu perfil.</p>
+    <a href="preferences.html" class="btn-primary">Activar mis alertas</a>
+    <button type="button" id="btn-dismiss-upsell" aria-label="Cerrar">✕</button>
+  `;
+  el.classList.remove('hidden');
+  document.getElementById('btn-dismiss-upsell')?.addEventListener('click', () => {
+    const dismiss = JSON.parse(localStorage.getItem(HOME_UPSELL_DISMISS_KEY) || '{}');
+    localStorage.setItem(HOME_UPSELL_DISMISS_KEY, JSON.stringify({ count: (dismiss.count || 0) + 1, lastAt: Date.now() }));
+    el.classList.add('hidden');
+  });
+}
+```
+
+En `index.html`, entre la sección hero y el grid de productos recientes:
+
+```html
+<div id="home-upsell-banner" class="about-card hidden"></div>
+```
+
+Incrementar el contador de escaneos-desde-preferencias en cada render exitoso (junto a la línea de Task 17, `app.js`):
+
+```js
+  localStorage.setItem('yomiScansSincePrefsSaved', String(parseInt(localStorage.getItem('yomiScansSincePrefsSaved') || '0', 10) + 1));
+```
+
+Y resetearlo a `0` en `preferences-ui.js` (Task 15) cuando `savePreferences()` tiene éxito — agregar dentro del `withLoadingState` callback, justo después de `return res.json();` no, antes del `return`:
+
+```js
+    localStorage.setItem('yomiScansSincePrefsSaved', '0');
+    return res.json();
+```
+
+- [ ] **Step 4: Corre el test, verifica que pasa**
+
+Run: `npx vitest run tests/app.test.js`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app.js index.html preferences-ui.js tests/app.test.js
+git commit -m "feat(upsell): add signal-triggered Home banner (declared prefs + active use, or OCR limit hit) with dismiss/reappear rules"
+```
+
+---
+
+### Task 20: Habilitar nav "Análisis" → historial (`history.html`) con preview + paywall para free
+
+**Files:**
+- Modify: `index.html:105-108` (habilitar botón, `id="nav-history"`)
+- Modify: `home.js` (wiring)
+- Create: `history.html`, `history-ui.js`
+- Test: `tests/history-ui.test.js`
+
+**Interfaces:**
+- Consumes: `getHistory()` (ya existente en `app.js:184`, historial local de 5 escaneos — se reexpone globalmente vía `window.getLocalHistory` para que `history-ui.js`, que no comparte scope con `app.js`, lo consuma sin duplicar lógica); `getIdToken()`, `getCachedProfile()` (Task 12); backend `GET /api/me/history` (Task 16).
+- Produces: `history-ui.js` exporta `renderHistoryScreen()`. Diseño (equipo Product Manager + UX Researcher): "Análisis" = historial en la nube, no comparador (ese queda para T2). Usuario free ve su historial LOCAL real (sin blur — ya es gratis) + un bloque de upsell bloqueado debajo (nunca blurrea el veredicto SANO/EVITAR, eso se lee como ocultar info de seguridad — solo bloquea el CONCEPTO de "más historial", no dato real de un producto).
+
+- [ ] **Step 1: Escribe el test que falla**
+
+En `app.js`, exponer `getHistory` globalmente para que `history-ui.js` no la duplique (agregar junto al resto de funciones, no requiere test nuevo en `tests/app.test.js` — ya está cubierta la función en sí):
+
+```js
+window.getLocalHistory = getHistory;
+```
+
+```js
+// tests/history-ui.test.js
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const getIdToken = vi.fn()
+const getCachedProfile = vi.fn()
+
+vi.mock('../authClient.js', () => ({ getIdToken, getCachedProfile }))
+
+let renderHistoryScreen
+
+beforeEach(async () => {
+  vi.clearAllMocks()
+  vi.resetModules()
+  global.fetch = vi.fn()
+  window.getLocalHistory = vi.fn().mockReturnValue([
+    { barcode: '111', name: 'Producto A', brand: 'Marca', image: '', rating: 'sano' }
+  ])
+  document.body.innerHTML = '<div id="history-root"></div>'
+  const mod = await import('../history-ui.js')
+  renderHistoryScreen = mod.renderHistoryScreen
+})
+
+describe('renderHistoryScreen — usuario free', () => {
+  it('muestra el historial local real (sin blur) + un bloque de upsell bloqueado, sin llamar al backend', async () => {
+    getCachedProfile.mockReturnValue({ plan: 'free' })
+    await renderHistoryScreen()
+    const root = document.getElementById('history-root')
+    expect(root.textContent).toMatch(/Producto A/)
+    expect(root.querySelector('.history-locked-block')).toBeTruthy()
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('renderHistoryScreen — usuario premium', () => {
+  it('pide GET /api/me/history con Bearer token y renderiza la lista completa de la nube, sin bloque de upsell', async () => {
+    getCachedProfile.mockReturnValue({ plan: 'premium' })
+    getIdToken.mockResolvedValue('tok-1')
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ history: [
+        { barcode: '111', productName: 'Producto A', verdict: 'sano', scannedAt: '2026-07-15T10:00:00.000Z' },
+        { barcode: '222', productName: 'Producto B', verdict: 'evitar', scannedAt: '2026-07-14T10:00:00.000Z' }
+      ] })
+    })
+
+    await renderHistoryScreen()
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/me/history', { headers: { Authorization: 'Bearer tok-1' } })
+    const root = document.getElementById('history-root')
+    expect(root.textContent).toMatch(/Producto A/)
+    expect(root.textContent).toMatch(/Producto B/)
+    expect(root.querySelector('.history-locked-block')).toBeNull()
+  })
+})
+```
+
+- [ ] **Step 2: Corre el test, verifica que falla**
+
+Run: `npx vitest run tests/history-ui.test.js`
+Expected: `Cannot find module '../history-ui.js'`
+
+- [ ] **Step 3: Implementación mínima**
+
+En `index.html:105-108`, reemplazar:
+
+```html
+<button class="nav-item" id="nav-history" aria-label="Análisis">
+  <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
+  <span class="nav-label nav-label-muted">Análisis</span>
+</button>
+```
+
+En `home.js`, junto al wiring de `nav-profile` (Task 18):
+
+```js
+document.getElementById('nav-history').addEventListener('click', () => {
+  window.location.href = 'history.html';
+});
+```
+
+```html
+<!-- history.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://*.firebaseapp.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Análisis</title>
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>
+    .hidden{display:none!important}
+    .history-locked-block{position:relative;padding:20px;border-radius:8px;background:#f2f2f2;filter:blur(2px);opacity:.6;margin-top:12px}
+    .history-locked-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;filter:none;background:rgba(255,255,255,.7)}
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header"><h1>Análisis</h1></header>
+    <main class="app-main" id="history-root"></main>
+  </div>
+  <script src="app.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="authClient.js"></script>
+  <script type="module" src="history-ui.js"></script>
+</body>
+</html>
+```
+
+```js
+// history-ui.js
+import { getIdToken, getCachedProfile } from './authClient.js';
+
+function renderLocalHistoryWithUpsell(root) {
+  const localHistory = window.getLocalHistory ? window.getLocalHistory() : [];
+  const itemsHtml = localHistory.map(h => `
+    <div class="about-card">
+      <p>${h.name}</p>
+      <span class="verdict-badge verdict-${h.rating}">${h.rating}</span>
+    </div>
+  `).join('');
+
+  root.innerHTML = `
+    ${itemsHtml || '<p class="account-empty">Aún no tienes escaneos.</p>'}
+    <div class="history-locked-block">
+      <div class="history-locked-overlay">
+        <p>Ya sabemos qué trae este producto. Ahora dinos qué NO puedes comer tú o tu familia,
+        y Yomi revisa cada escaneo contra tu perfil antes de que muerdas.</p>
+        <a href="preferences.html" class="btn-primary">Empezar prueba gratis de 7 días</a>
+      </div>
+    </div>
+  `;
+}
+
+async function renderCloudHistory(root) {
+  const token = await getIdToken();
+  const res = await fetch('/api/me/history', { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    root.innerHTML = '<p class="account-empty">No se pudo cargar tu historial. Intenta de nuevo.</p>';
+    return;
+  }
+  const { history } = await res.json();
+  root.innerHTML = history.map(h => `
+    <div class="about-card">
+      <p>${h.productName}</p>
+      <span class="verdict-badge verdict-${h.verdict}">${h.verdict}</span>
+    </div>
+  `).join('') || '<p class="account-empty">Aún no tienes escaneos.</p>';
+}
+
+export async function renderHistoryScreen() {
+  const root = document.getElementById('history-root');
+  if (!root) return;
+  const profile = getCachedProfile();
+
+  if (!profile || profile.plan !== 'premium') {
+    renderLocalHistoryWithUpsell(root);
+    return;
+  }
+  await renderCloudHistory(root);
+}
+
+document.addEventListener('DOMContentLoaded', renderHistoryScreen);
+```
+
+- [ ] **Step 4: Corre el test, verifica que pasa**
+
+Run: `npx vitest run tests/history-ui.test.js`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add index.html home.js history.html history-ui.js app.js tests/history-ui.test.js
+git commit -m "feat(history): enable nav Análisis — local history + locked upsell block for free, full cloud list for premium"
+```
+
+---
+
 ## Notas para quien ejecute el plan
 
 - Todas las pruebas siguen el patrón ya establecido en el repo (`await import(...)` + `vi.stubGlobal('fetch', ...)` / `vi.mock(...)`) — no se introduce ninguna dependencia nueva.
@@ -3994,3 +4584,9 @@ git commit -m "feat(history): log premium scans to cloud history at render time 
   - **Legal**: consentimiento de datos de salud ahora se exige y evidencia SERVER-SIDE (`consent:true` + `consentGivenAt`/`consentNoticeVersion` en Task 6/15, no solo el checkbox de cliente); checkbox de Términos y declaración de mayoría de edad agregados al signup (Task 11), con `termsAcceptedAt`/`ageConfirmedAt` persistidos (Task 3/4); disclaimer médico agregado en `preferences.html` y en el punto de renderizado del veredicto personalizado (Task 14).
   - **UX** (objetivo explícito: registro lo más amigable posible): `auth.html`/`preferences.html` ahora enlazan `styles.css` (antes se veían sin estilo); Google primero con divisor; mostrar/ocultar contraseña; botón de signup revela consentimiento en 2 pasos y valida el form nativamente antes de enviar; loading state en los 5 botones async (login/signup/Google/guardar/borrar); tap targets de alergias ≥44px con el `<select>` fuera del `<label>` del checkbox; error de consentimiento se muestra junto al checkbox, no solo en el error general.
   - **Pendiente, no resuelto en código** (tarea de producto/legal, señalada explícitamente): el contenido real de `terminos.html`/`privacidad.html` (ya existen en el repo) no fue auditado ni actualizado — falta confirmar que cubren tratamiento de datos de salud (LFPDPPP), política de cancelación/reembolso de suscripción, y jurisdicción aplicable dado el alcance LATAM. El signup (Task 11) ya enlaza a ambos archivos, pero su redacción queda fuera de este plan.
+  - **Actualización:** `terminos.html`/`privacidad.html` ya fueron actualizados (fuera de este plan, directo en el repo, branch `develop`) con secciones de cuentas/suscripción Premium y datos sensibles de salud, redactadas por un equipo de Legal Compliance Checker + Data Privacy Officer.
+- **Tercera ronda: integración de navegación + upsell** (equipo Product Manager + UX Researcher + Growth Hacker) — Tasks 18-20 agregadas:
+  - Task 18: nav "Perfil" habilitado → `account.html` (identidad → perfil dietético ya calculado gratis → upsell enmarcado como extensión, nunca aislado → logout). Requiere agregar `signOut` a `firebase-init.js` (Task 10).
+  - Task 19: banner de upsell en Home — NO permanente, dispara solo por señal de intención real (preferencias declaradas + uso activo, o tope de cuota OCR), con reglas de descarte/reaparición (3 días / 30 días tras 2 descartes) para evitar ceguera de banner.
+  - Task 20: nav "Análisis" habilitado → `history.html` = historial en la nube (no comparador, ese queda para T2). Usuario free ve su historial LOCAL real sin blur + bloque de upsell bloqueado debajo; premium ve la lista completa de `GET /api/me/history`. Nunca se blurrea el veredicto SANO/EVITAR — ocultar eso se lee como esconder info de seguridad.
+  - Métrica de apagado obligatoria (Growth Hacker): si el banner de Home reduce escaneos/sesión o retención D1/D7 en A/B vs. control, se apaga aunque el CTR se vea bien — el core loop gratis es innegociable.
