@@ -564,3 +564,15 @@ body {
   min-height: 100dvh;
   overflow: visible;
 }
+
+/* html,body{height:100%} de arriba deja fijos a html Y body en la altura
+   del viewport — eso por sí solo ya vuelve a atrapar el scroll dentro de
+   body (que gana overflow-y:auto por la regla de interacción de la spec de
+   CSS con el overflow-x:hidden de styles.css), sin que llegue a
+   document.scrollingElement. Se libera también aquí, comprobado con
+   Playwright: sin esto, document.documentElement.scrollHeight se queda
+   pegado al alto del viewport aunque el contenido real sea más alto. */
+html:has(.app-main.content-page),
+body:has(.app-main.content-page) {
+  height: auto;
+}

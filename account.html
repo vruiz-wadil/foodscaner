@@ -22,9 +22,32 @@
   <div class="app-shell">
     <header class="app-header"><h1 class="page-title">Mi cuenta</h1></header>
     <main class="app-main content-page" id="account-root"></main>
+
+    <!-- Bottom nav (hallazgo UX #7: sin esto no había forma de volver a Home) -->
+    <nav class="bottom-nav">
+      <button class="nav-item" aria-label="Inicio">
+        <img src="assets/redesign/icon-home.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Inicio</span>
+      </button>
+      <button class="nav-item" id="nav-scan" aria-label="Escanear">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 4H8a4 4 0 0 0-4 4v1M9 20H8a4 4 0 0 1-4-4v-1M15 4h1a4 4 0 0 1 4 4v1M15 20h1a4 4 0 0 0 4-4v-1"/>
+        </svg>
+        <span class="nav-label nav-label-muted">Escanear</span>
+      </button>
+      <button class="nav-item" id="nav-history" aria-label="Análisis">
+        <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Análisis</span>
+      </button>
+      <button class="nav-item active" id="nav-profile" aria-label="Perfil">
+        <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
+        <span class="nav-label">Perfil</span>
+      </button>
+    </nav>
   </div>
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="authClient.js"></script>
   <script type="module" src="account-ui.js"></script>
+  <script src="nav.js"></script>
 </body>
 </html>
