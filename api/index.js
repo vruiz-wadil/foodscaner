@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
@@ -60,6 +60,25 @@ async function requireUser(req, res, next) {
     // inalcanzables) resulta en 401, nunca en dejar pasar la petición.
     return res.status(401).json({ error: 'unauthorized' });
   }
+}
+
+// A diferencia de requireUser, NUNCA bloquea — usuarios sin sesión pasan con
+// req.user = null (comportamiento actual de /api/ocr/process sin cambios).
+// Solo cuando SÍ hay un token válido se adjunta req.user, incluyendo emailVerified
+// (necesario para la mitigación de bypass de cuota vía cuentas gratis ilimitadas).
+async function optionalUser(req, res, next) {
+  const authHeader = req.get('authorization') || req.get('Authorization') || '';
+  const match = /^Bearer\s+(.+)$/i.exec(authHeader);
+  if (!match) { req.user = null; return next(); }
+  try {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) { req.user = null; return next(); }
+    const { uid, email, emailVerified } = await verifyFirebaseIdToken(match[1], projectId);
+    req.user = { uid, email, emailVerified };
+  } catch {
+    req.user = null;
+  }
+  next();
 }
 
 // --- Queue for Groq to avoid rate limiting ---
@@ -1077,10 +1096,44 @@ app.post('/api/products/nutrition', async (req, res) => {
 });
 
 // Process ingredients from image using vision LLM (no Tesseract)
-app.post('/api/ocr/process', async (req, res) => {
+// Process ingredients from image using vision LLM (no Tesseract)
+const OCR_FREE_DAILY_LIMIT = 5;
+
+async function ocrProcessHandler(req, res) {
   try {
     const { imageData } = req.body;
     if (!imageData) return res.status(400).json({ error: 'Missing imageData' });
+
+    let shouldCountUsage = false;
+
+    if (req.user) {
+      // Fail-closed (hallazgo de revisión de seguridad): si el perfil todavía no
+      // se sincronizó (fireGetUser === null, ej. authSyncHandler falló o no corrió
+      // aún), se trata como plan free con 0 fotos usadas — NUNCA se salta el
+      // chequeo de cuota por falta de doc. Antes: `if (profile && ...)` dejaba
+      // pasar sin medir cuando profile era null (fail-open).
+      const profile = await fireGetUser(req.user.uid);
+      const plan = profile ? profile.plan : 'free';
+
+      // El chequeo de email verificado solo protege la cuota FREE (evita cuentas
+      // desechables sin verificar para saltarse el límite de 5/día) — se resuelve
+      // el plan primero (hallazgo de la 4a ronda de revisión, ver nota de producto
+      // arriba). Un premium con email no verificado ya pagó, no tiene cuota que
+      // saltarse, y bloquearlo solo le niega servicio sin ganar seguridad real.
+      if (plan !== 'premium' && !req.user.emailVerified) {
+        return res.status(403).json({ error: 'email_not_verified' });
+      }
+
+      if (plan !== 'premium') {
+        const today = new Date().toISOString().slice(0, 10);
+        const usage = profile && profile.usage;
+        const currentCount = (usage && usage.date === today) ? usage.ocrCount : 0;
+        if (currentCount >= OCR_FREE_DAILY_LIMIT) {
+          return res.status(429).json({ error: 'quota_exceeded', limit: OCR_FREE_DAILY_LIMIT });
+        }
+        shouldCountUsage = true;
+      }
+    }
 
     const prompt = `Extrae el texto de ingredientes de esta imagen de etiqueta alimentaria.
 Devuelve el texto tal como aparece, incluyendo ingredientes y cualquier declaración de alérgenos como "Contiene:", "Puede contener:", "Trazas de:" u otras advertencias similares.
@@ -1092,12 +1145,27 @@ Si no puedes leer los ingredientes, responde con texto vacío.`;
 
     const cleanedText = result.content.trim();
     console.log('[OCR Vision] Extracted:', cleanedText.substring(0, 100));
+
+    if (shouldCountUsage) {
+      // Await deliberado, NO fire-and-forget (hallazgo de revisión de seguridad):
+      // si esto se dispara sin esperar, requests OCR en paralelo del mismo usuario
+      // leen el mismo snapshot de ocrCount antes de que cualquiera se persista y
+      // todas pasan el chequeo de 429 — permite superar el límite de 5/día.
+      try {
+        await fireIncrementUsageCounter(req.user.uid, 'ocrCount');
+      } catch (e) {
+        console.warn('[OCR Vision] usage increment failed, uid:', req.user.uid, e.message);
+      }
+    }
+
     res.json({ status: 'ok', cleanedText });
   } catch (error) {
     console.error('[OCR Vision] Error:', error);
     res.status(500).json({ error: 'Error al procesar OCR: ' + (error?.message || error) });
   }
-});
+}
+
+app.post('/api/ocr/process', optionalUser, ocrProcessHandler);
 
 // Process nutrition from image using vision LLM (no Tesseract)
 app.post('/api/nutrition/process', async (req, res) => {
@@ -1622,6 +1690,8 @@ module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
 module.exports.deletePreferencesHandler = deletePreferencesHandler;
+module.exports.optionalUser = optionalUser;
+module.exports.ocrProcessHandler = ocrProcessHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
