@@ -409,10 +409,143 @@ async function fireDeleteDoc(col, id) {
   return resp.ok;
 }
 
+// --- Field conversion helpers: objeto JS <-> tipos nativos de Firestore ---
+// A diferencia de fireSetCache/fireSetOcrData (blob _data.stringValue), users/{uid} usa
+// campos nativos tipados para permitir updateMask.fieldPaths granular (ver PUT /preferences).
+function toFirestoreValue(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'string') return { stringValue: v };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(toFirestoreValue) } };
+  if (typeof v === 'object') return { mapValue: { fields: toFirestoreFields(v) } };
+  throw new Error(`Tipo no soportado para Firestore: ${typeof v}`);
+}
+
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (const [k, v] of Object.entries(obj)) fields[k] = toFirestoreValue(v);
+  return fields;
+}
+
+function fromFirestoreValue(v) {
+  if (!v) return null;
+  if ('nullValue' in v) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return parseInt(v.integerValue, 10);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromFirestoreValue);
+  if ('mapValue' in v) return fromFirestoreFields(v.mapValue.fields || {});
+  return null;
+}
+
+function fromFirestoreFields(fields) {
+  const obj = {};
+  for (const [k, v] of Object.entries(fields || {})) obj[k] = fromFirestoreValue(v);
+  return obj;
+}
+
+// --- users/{uid}: perfil de cuenta, campos nativos (no blob _data) ---
+async function fireGetUser(uid) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const resp = await fetch(docPath('users', uid), {
+      headers: { Authorization: 'Bearer ' + token },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (resp.status === 404) return null;
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return fromFirestoreFields(data.fields || {});
+  } catch (e) {
+    console.warn('[Firestore] getUser error, uid:', uid, e.message);
+    return null;
+  }
+}
+
+async function fireUpsertUser(uid, data) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const nowIso = new Date().toISOString();
+  const today = nowIso.slice(0, 10);
+
+  const existingResp = await fetch(docPath('users', uid), {
+    headers: { Authorization: 'Bearer ' + token },
+    signal: AbortSignal.timeout(5000)
+  });
+
+  if (existingResp.status === 404) {
+    const fields = toFirestoreFields({
+      email: data.email || null,
+      emailVerified: !!data.emailVerified,
+      displayName: data.displayName || null,
+      photoURL: data.photoURL || null,
+      providers: data.providers || [],
+      createdAt: nowIso,
+      lastLoginAt: nowIso,
+      disabled: false,
+      plan: 'free',
+      planUpdatedAt: nowIso,
+      // Evidencia de aceptación de Términos/edad (hallazgo de revisión legal —
+      // no se puede facturar una suscripción sin esto). Se capturan en el
+      // checkbox de signup (Task 11) y se registran aquí, solo en la creación,
+      // como termsAcceptedAt/ageConfirmedAt/termsVersion.
+      termsAcceptedAt: data.termsAccepted ? nowIso : null,
+      termsVersion: data.termsAccepted ? (data.termsVersion || 'v1') : null,
+      ageConfirmedAt: data.ageConfirmed ? nowIso : null,
+      billing: {
+        stripeCustomerId: null, subscriptionId: null,
+        subscriptionStatus: null, currentPeriodEnd: null,
+        isFounderPricing: false, billingCycle: null
+      },
+      usage: { date: today, ocrCount: 0, cacheRefreshCount: 0 }
+    });
+    const resp = await fetch(docPath('users', uid), {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!resp.ok) throw new Error(`Firestore create user failed: ${resp.status}`);
+    return { created: true };
+  }
+
+  if (!existingResp.ok) throw new Error(`Firestore get user failed: ${existingResp.status}`);
+
+  const mask = '?updateMask.fieldPaths=lastLoginAt&updateMask.fieldPaths=providers';
+  const fields = toFirestoreFields({ lastLoginAt: nowIso, providers: data.providers || [] });
+  const resp = await fetch(docPath('users', uid) + mask, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore update user failed: ${resp.status}`);
+  return { created: false };
+}
+
+async function firePatchUserFields(uid, fieldPaths, data) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const mask = fieldPaths.map(fp => `updateMask.fieldPaths=${encodeURIComponent(fp)}`).join('&');
+  const fields = toFirestoreFields(data);
+  const resp = await fetch(docPath('users', uid) + '?' + mask, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore patch user fields failed: ${resp.status}`);
+  return true;
+}
+
 module.exports = {
   getAccessToken,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
-  fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS
+  fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
+  fireGetUser, fireUpsertUser, firePatchUserFields
 };
