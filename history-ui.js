@@ -15,7 +15,7 @@ function renderLocalHistoryWithUpsell(root) {
       <div class="history-locked-overlay">
         <p>Ya sabemos qué trae este producto. Ahora dinos qué NO puedes comer tú o tu familia,
         y Yomi revisa cada escaneo contra tu perfil antes de que muerdas.</p>
-        <a href="preferences.html" class="btn btn-primary">Empezar prueba gratis de 7 días</a>
+        <a href="preferences.html" class="btn btn-primary">Configurar mis preferencias</a>
       </div>
     </div>
   `;

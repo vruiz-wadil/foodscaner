@@ -36,7 +36,7 @@ export function renderAccountHub() {
       <div class="about-card account-upsell">
         <div class="about-card-body">
           <p class="about-text">Activa alertas cuando un producto no es apto para tu perfil.</p>
-          <a href="preferences.html" class="btn btn-primary">Hazte Premium</a>
+          <a href="preferences.html" class="btn btn-primary">Configurar mis preferencias</a>
         </div>
       </div>` : ''}
     <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>

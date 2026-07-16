@@ -271,6 +271,11 @@ body {
   color: var(--ink-muted);
 }
 
+/* hallazgo UX #8: home.css no tenía una regla genérica .hidden (solo las
+   scopeadas de abajo) — index.html no carga styles.css (que sí trae una),
+   así que #home-upsell-banner.classList.add('hidden') no ocultaba nada. */
+.hidden { display: none !important; }
+
 .products-empty.hidden { display: none; }
 
 .activation-hint {
