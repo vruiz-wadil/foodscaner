@@ -1690,6 +1690,34 @@ function renderNotRecommended(product) {
   cardNotRec.classList.remove("hidden");
 }
 
+// Preferencias del usuario logueado+premium para personalizar computeVerdict.
+// null si: no está logueado (window.authClient no existe o no hay perfil
+// cacheado todavía), si es plan "free", o si es premium pero aún no configuró
+// preferences (requiere consentimiento expreso — ver spec de privacidad).
+function getUserPreferencesForVerdict() {
+  if (typeof window === 'undefined' || !window.authClient || typeof window.authClient.getCachedProfile !== 'function') {
+    return null;
+  }
+  const profile = window.authClient.getCachedProfile();
+  if (!profile || profile.plan !== 'premium' || !profile.preferences) return null;
+  return profile.preferences;
+}
+
+// Disclaimer médico (hallazgo de revisión legal): un veredicto personalizado
+// por condiciones de salud (diabetes/celiaquía/etc.) puede leerse como consejo
+// médico automatizado. Se muestra SOLO cuando la personalización se aplicó de
+// verdad (userPreferences no nulo) — no le agrega ruido a la experiencia free.
+function renderPersonalizedDisclaimer(userPreferences) {
+  const el = document.getElementById('personalized-disclaimer');
+  if (!el) return;
+  if (!userPreferences) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.textContent = 'Este resultado considera tus preferencias guardadas y no sustituye el consejo de un profesional de la salud.';
+  el.classList.remove('hidden');
+}
+
 // Render dynamic results onto success screen
 function renderProductData(product, barcode) {
   if (!product.isFood) {
@@ -1703,7 +1731,9 @@ function renderProductData(product, barcode) {
   const reportAck = document.getElementById('report-ack');
   if (reportAck) reportAck.classList.toggle('hidden', !hasReportedBarcode(barcode));
 
-  const verdict = computeVerdict(product);
+  const userPreferences = getUserPreferencesForVerdict();
+  const verdict = computeVerdict(product, userPreferences);
+  renderPersonalizedDisclaimer(userPreferences);
   const verdictBanner = document.getElementById('verdict-banner');
   if (verdictBanner) {
     const verdictText = hasNoRealData(product)

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -23,6 +23,8 @@ beforeAll(() => {
   validateBarcode = exports.validateBarcode
   computeVerdict = exports.computeVerdict
   hasNoRealData = exports.hasNoRealData
+  getUserPreferencesForVerdict = exports.getUserPreferencesForVerdict
+  renderPersonalizedDisclaimer = exports.renderPersonalizedDisclaimer
 })
 
 // ─── isGlutenRelated ───────────────────────────────────────
@@ -562,5 +564,59 @@ describe('computeVerdict — con userPreferences', () => {
     const product = { sellos: [], notRecommended: [], dietary: { vegan: false }, allergens: ['Lácteos'] }
     const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: ['vegan'], healthConditions: [] }
     expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+})
+
+// ─── getUserPreferencesForVerdict (wiring con authClient) ───
+
+describe('getUserPreferencesForVerdict', () => {
+  afterEach(() => {
+    delete window.authClient
+  })
+
+  it('regresa null cuando window.authClient no existe (usuario no logueado, authClient.js no cargó)', () => {
+    delete window.authClient
+    expect(getUserPreferencesForVerdict()).toBeNull()
+  })
+
+  it('regresa null cuando no hay perfil cacheado todavía', () => {
+    window.authClient = { getCachedProfile: () => null }
+    expect(getUserPreferencesForVerdict()).toBeNull()
+  })
+
+  it('regresa null cuando el usuario es "free" (aunque tenga preferences)', () => {
+    window.authClient = { getCachedProfile: () => ({ plan: 'free', preferences: { dietary: ['vegan'] } }) }
+    expect(getUserPreferencesForVerdict()).toBeNull()
+  })
+
+  it('regresa preferences cuando el usuario es "premium" y tiene preferences', () => {
+    const prefs = { dietary: ['vegan'], allergens: [], healthConditions: [] }
+    window.authClient = { getCachedProfile: () => ({ plan: 'premium', preferences: prefs }) }
+    expect(getUserPreferencesForVerdict()).toEqual(prefs)
+  })
+
+  it('regresa null cuando el usuario es "premium" pero preferences está ausente (sin consentimiento aún)', () => {
+    window.authClient = { getCachedProfile: () => ({ plan: 'premium' }) }
+    expect(getUserPreferencesForVerdict()).toBeNull()
+  })
+})
+
+// ─── Disclaimer médico (hallazgo de revisión legal) ─────────
+
+describe('renderPersonalizedDisclaimer', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="verdict-banner"></div><p id="personalized-disclaimer" class="hidden"></p>'
+  })
+
+  it('muestra el disclaimer cuando el veredicto SÍ fue personalizado (userPreferences no nulo)', () => {
+    renderPersonalizedDisclaimer({ dietary: ['vegan'], allergens: [], healthConditions: [] })
+    const el = document.getElementById('personalized-disclaimer')
+    expect(el.classList.contains('hidden')).toBe(false)
+    expect(el.textContent).toMatch(/no sustituye el consejo/i)
+  })
+
+  it('no muestra nada cuando no hubo personalización (usuario free o sin preferences)', () => {
+    renderPersonalizedDisclaimer(null)
+    expect(document.getElementById('personalized-disclaimer').classList.contains('hidden')).toBe(true)
   })
 })
