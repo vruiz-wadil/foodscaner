@@ -1497,6 +1497,21 @@ async function getHistoryHandler(req, res) {
 app.post('/api/me/history', requireUser, postHistoryHandler);
 app.get('/api/me/history', requireUser, getHistoryHandler);
 
+// Contador de escaneos totales — a diferencia de /api/me/history, SIN gate
+// premium: el stat "Escaneos" de account.html debe reflejar el total real
+// para cualquier plan, no solo premium.
+async function postScanHandler(req, res) {
+  try {
+    await fireIncrementUsageCounter(req.user.uid, 'totalScans');
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[POST /api/me/scan] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/scan', requireUser, postScanHandler);
+
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const ADMIN_COOKIE = 'admin_session';
@@ -1746,6 +1761,7 @@ module.exports.optionalUser = optionalUser;
 module.exports.ocrProcessHandler = ocrProcessHandler;
 module.exports.postHistoryHandler = postHistoryHandler;
 module.exports.getHistoryHandler = getHistoryHandler;
+module.exports.postScanHandler = postScanHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
