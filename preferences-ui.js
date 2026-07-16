@@ -93,7 +93,7 @@ function buildPreferencesPayload() {
 // Wiring de click para los tiles de toggle simple (dietas/condiciones de
 // salud) — cada click alterna .chosen y aria-pressed. Alergias tiene su
 // propio wiring en Task 7 (necesita mostrar/ocultar el toggle de severidad).
-function setupPreferenceTiles() {
+export function setupPreferenceTiles() {
   document.querySelectorAll('#dietary-tiles [data-dietary], #health-tiles [data-health]').forEach(tile => {
     tile.addEventListener('click', () => {
       const chosen = tile.classList.toggle('chosen');

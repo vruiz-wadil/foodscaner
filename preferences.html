@@ -20,6 +20,13 @@
     .allergen-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; min-height: 44px; }
     fieldset { border: none; padding: 0; margin: 0 0 20px; }
     legend { font-family: var(--font-display); font-size: 0.9rem; font-weight: 600; color: var(--ink); padding: 0; margin-bottom: 8px; }
+    /* Re-agregado tras hallazgo de revisión (commit 52d57a1 lo quitó por
+       completo): sigue aplicando a los <label> de Alergias (allergen-cacahuate,
+       allergen-lacteos) y al <label> del consent-block, que NO se convirtieron
+       a <button> en ese commit. Los tiles de dietary/healthConditions ahora son
+       <button class="dietary-grid-item">, no <label>, así que esta regla no los
+       afecta — es seguro re-agregarla verbatim. */
+    #preferences-form label { display: block; font-size: 0.85rem; color: var(--ink-2); padding: 4px 0; }
     #preferences-form .btn { margin-top: 10px; }
     #dietary-tiles, #health-tiles { margin-bottom: 4px; }
     #btn-delete-preferences { margin: 4px 20px 0; width: calc(100% - 40px); }

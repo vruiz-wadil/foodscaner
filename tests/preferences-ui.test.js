@@ -9,7 +9,7 @@ const syncUserProfile = vi.fn()
 
 vi.mock('../authClient.js', () => ({ getIdToken, getCachedProfile, syncUserProfile }))
 
-let loadPreferencesIntoForm, savePreferences, deletePreferences
+let loadPreferencesIntoForm, savePreferences, deletePreferences, setupPreferenceTiles
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -40,6 +40,7 @@ beforeEach(async () => {
   loadPreferencesIntoForm = mod.loadPreferencesIntoForm
   savePreferences = mod.savePreferences
   deletePreferences = mod.deletePreferences
+  setupPreferenceTiles = mod.setupPreferenceTiles
 })
 
 describe('loadPreferencesIntoForm', () => {
@@ -139,5 +140,57 @@ describe('deletePreferences', () => {
     window.confirm = vi.fn().mockReturnValue(false)
     await deletePreferences()
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+// hallazgo de revisión (commit 52d57a1): ningún test ejercía el click real de
+// los tiles — los tests existentes solo pre-seteaban .chosen con classList.add
+// antes de llamar a otras funciones. setupPreferenceTiles() es la única
+// función genuinamente nueva de este task (wiring de click), así que se
+// ejercita aquí llamándola directamente y disparando un .click() real sobre
+// un tile del fixture.
+//
+// Nota: NO se usa document.dispatchEvent(new Event('DOMContentLoaded')) (el
+// patrón de auth-ui.test.js) porque, en este archivo, cada test reimporta el
+// módulo vía vi.resetModules() dentro de beforeEach, y cada import vuelve a
+// registrar un listener 'DOMContentLoaded' en el `document` compartido de
+// jsdom (nunca se remueve entre tests). Verificado empíricamente: para cuando
+// un test al final del archivo dispara ese evento, TODOS los listeners
+// acumulados de los tests anteriores se disparan también, no solo el del
+// import actual. Como setupPreferenceTiles() usa classList.toggle (no
+// idempotente), el resultado del test terminaba dependiendo de si el número
+// de listeners acumulados era par o impar — con los 8 tests previos de este
+// archivo salía "bien" por coincidencia (9 es impar), pero corriendo el mismo
+// test filtrado junto a solo 1 test previo (2 imports acumulados) el toggle
+// se cancelaba y el test fallaba. Llamar a setupPreferenceTiles() directamente
+// evita ese acoplamiento y ejercita la misma lógica de producción de forma
+// determinística.
+describe('setupPreferenceTiles (click wiring)', () => {
+  it('alterna .chosen y aria-pressed en un tile de dietary al hacer click, y lo revierte en un segundo click', () => {
+    setupPreferenceTiles()
+    const tile = document.querySelector('[data-dietary="vegan"]')
+    expect(tile.classList.contains('chosen')).toBe(false)
+
+    tile.click()
+    expect(tile.classList.contains('chosen')).toBe(true)
+    expect(tile.getAttribute('aria-pressed')).toBe('true')
+
+    tile.click()
+    expect(tile.classList.contains('chosen')).toBe(false)
+    expect(tile.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('también alterna .chosen y aria-pressed en un tile de healthConditions al hacer click', () => {
+    setupPreferenceTiles()
+    const tile = document.querySelector('[data-health="diabet"]')
+    expect(tile.classList.contains('chosen')).toBe(false)
+
+    tile.click()
+    expect(tile.classList.contains('chosen')).toBe(true)
+    expect(tile.getAttribute('aria-pressed')).toBe('true')
+
+    tile.click()
+    expect(tile.classList.contains('chosen')).toBe(false)
+    expect(tile.getAttribute('aria-pressed')).toBe('false')
   })
 })
