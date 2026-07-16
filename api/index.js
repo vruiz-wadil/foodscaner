@@ -1363,6 +1363,20 @@ async function putPreferencesHandler(req, res) {
 
 app.put('/api/me/preferences', requireUser, putPreferencesHandler);
 
+async function deletePreferencesHandler(req, res) {
+  try {
+    // Borra el campo preferences completo (derechos ARCO sobre datos de salud),
+    // independiente de borrar la cuenta completa. Disponible sin importar el plan.
+    await firePatchUserFields(req.user.uid, ['preferences'], {});
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[DELETE /api/me/preferences] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.delete('/api/me/preferences', requireUser, deletePreferencesHandler);
+
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const ADMIN_COOKIE = 'admin_session';
@@ -1607,6 +1621,7 @@ module.exports.requireUser = requireUser;
 module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
+module.exports.deletePreferencesHandler = deletePreferencesHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
