@@ -530,3 +530,15 @@ body {
 
 .account-email { font-weight: 600; color: var(--ink); margin: 0; }
 .account-summary, .account-empty { font-size: 0.85rem; color: var(--ink-3); margin: 0; }
+
+/* auth/preferences/account/history reusan .app-main pero NO son la pantalla
+   Home de 2 columnas — sin este reset, la media query de abajo (pensada solo
+   para .home-left/.home-right) parte su contenido en un grid de 380px+resto
+   en desktop, sea cual sea su estructura real (hallazgo visual). */
+@media (min-width: 768px) and (min-height: 600px) {
+  .app-main.content-page {
+    display: block;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
