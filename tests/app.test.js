@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -21,6 +21,8 @@ beforeAll(() => {
   eanChecksum = exports.eanChecksum
   expandUpcE = exports.expandUpcE
   validateBarcode = exports.validateBarcode
+  computeVerdict = exports.computeVerdict
+  hasNoRealData = exports.hasNoRealData
 })
 
 // ─── isGlutenRelated ───────────────────────────────────────
@@ -66,7 +68,7 @@ describe('extractDietaryFromLabels', () => {
   it('returns all null for empty tags', () => {
     const result = extractDietaryFromLabels([])
     expect(result).toEqual({
-      vegan: null, vegetarian: null, kosher: null, halal: null,
+      vegan: null, vegetarian: null, keto: null, kosher: null, halal: null,
       organic: null, nonGmo: null, noAdditives: null, palmOilFree: null, fairTrade: null, caseinFree: null
     })
   })
@@ -455,5 +457,110 @@ describe('validateBarcode', () => {
   })
   it('rejects non-digit characters', () => {
     expect(validateBarcode('ABCDEFGHIJKLM').valid).toBe(false)
+  })
+})
+
+// ─── computeVerdict (personalización premium) ──────────────
+
+describe('computeVerdict — sin userPreferences (retrocompatibilidad)', () => {
+  it('regresa "regular" cuando no hay datos reales', () => {
+    const product = { isFromFallback: true, sellos: [], notRecommended: [] }
+    expect(computeVerdict(product)).toBe('regular')
+  })
+
+  it('regresa "sano" sin sellos ni notRecommended', () => {
+    const product = { sellos: [], notRecommended: [] }
+    expect(computeVerdict(product)).toBe('sano')
+  })
+
+  it('regresa "evitar" con 3+ sellos', () => {
+    const product = { sellos: ['a', 'b', 'c'], notRecommended: [] }
+    expect(computeVerdict(product)).toBe('evitar')
+  })
+
+  it('undefined como segundo argumento se comporta igual que sin argumento', () => {
+    const product = { sellos: ['a'], notRecommended: [] }
+    expect(computeVerdict(product, undefined)).toBe(computeVerdict(product))
+  })
+})
+
+describe('computeVerdict — con userPreferences', () => {
+  it('Regla 1: alérgeno severity "severe" detectado → evitar, incluso si el producto sería "sano"', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'] }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  it('Regla 1: no aplica si el alérgeno severo no está en product.allergens', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Huevo'] }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('sano')
+  })
+
+  it('Regla 2: healthCondition matchea un grupo certain:true en notRecommended → evitar', () => {
+    const product = { sellos: [], notRecommended: [{ grupo: 'Diabéticos', razon: 'Alto en azúcares', certain: true }] }
+    const prefs = { allergens: [], dietary: [], healthConditions: ['diabet'] }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  it('Regla 2: no aplica si el grupo notRecommended no es certain:true', () => {
+    const product = { sellos: [], notRecommended: [{ grupo: 'Diabéticos', razon: 'Posible', certain: false }] }
+    const prefs = { allergens: [], dietary: [], healthConditions: ['diabet'] }
+    expect(computeVerdict(product, prefs)).toBe('sano')
+  })
+
+  it('Regla 3: dieta violada explícitamente (dietary.vegan === false) → evitar', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { vegan: false } }
+    const prefs = { allergens: [], dietary: ['vegan'], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  it('Regla 3: no aplica si dietary[key] es null/undefined (sin datos, no violación)', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { vegan: null } }
+    const prefs = { allergens: [], dietary: ['vegan'], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('sano')
+  })
+
+  it('Regla 4: alérgeno mild detectado topa "sano" a "regular"', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: [], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('regular')
+  })
+
+  it('Regla 4: no sube el verdict si ya era "regular" o "evitar" por otras causas', () => {
+    const product = { sellos: ['a'], notRecommended: [], allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: [], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('regular')
+  })
+
+  it('Regla 5: sin conflictos, comportamiento normal', () => {
+    const product = { sellos: [], notRecommended: [], allergens: [], dietary: {} }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: ['vegan'], healthConditions: ['diabet'] }
+    expect(computeVerdict(product, prefs)).toBe('sano')
+  })
+
+  it('precedencia: Regla 1 (severe) gana sobre Regla 3 (dieta) si ambas aplican', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'], dietary: { vegan: false } }
+    const prefs = {
+      allergens: [{ code: 'cacahuate', severity: 'severe' }],
+      dietary: ['vegan'],
+      healthConditions: []
+    }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  // Cross-pairs adicionales (hallazgo de cobertura de la 4a ronda — Test
+  // Results Analyzer: solo Regla 1 vs 3 estaba cubierta; el if-chain es
+  // secuencial así que el riesgo es bajo, pero cerrar el resto de pares.
+  it('precedencia: Regla 2 (condición de salud) gana sobre Regla 4 (alérgeno mild) si ambas aplican', () => {
+    const product = { sellos: [], notRecommended: [{ grupo: 'Diabéticos', razon: 'Alto en azúcares', certain: true }], allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: [], healthConditions: ['diabet'] }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  it('precedencia: Regla 3 (dieta violada) gana sobre Regla 4 (alérgeno mild) si ambas aplican', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { vegan: false }, allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: ['vegan'], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
   })
 })

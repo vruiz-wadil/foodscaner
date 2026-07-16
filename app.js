@@ -617,6 +617,7 @@ async function startScanningNative(cameraId) {
     invalidAttempts = 0;
     scanTimeoutId = setInterval(() => {
       if (!isScanning) { clearInterval(scanTimeoutId); return; }
+      const scanHintEl = document.getElementById('scan-coaching');
       const elapsed = Date.now() - scanStartTime;
       if (elapsed > 15000 && scanHintEl) {
         scanHintEl.textContent = '¿No funciona? Ingresa el código manualmente ↑';
@@ -791,9 +792,8 @@ function showState(stateElement) {
     if (manualInput) manualInput.classList.remove("hidden");
     if (resultsPanel) resultsPanel.classList.add("hidden");
   } else {
-    if (!isDesktop) controlPanel.classList.add("hidden");
-    // Rejected/not-found has no sidebar retry action, so keep the manual search reachable on desktop
-    if (isDesktop && manualInput) manualInput.classList.toggle("hidden", stateElement !== resultRejected);
+    if (!isDesktop) controlPanel.classList.toggle("hidden", stateElement !== resultRejected);
+    if (manualInput) manualInput.classList.toggle("hidden", stateElement !== resultRejected);
     if (resultsPanel) resultsPanel.classList.remove("hidden");
     const target = stateElement.closest(".results-panel") || stateElement;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1592,17 +1592,83 @@ function hasNoRealData(product) {
   return !!(product.isFromFallback && !product._enrichedFrom && !product.ingredientsText && !product._from_nutrition_ocr);
 }
 
-// Derive a top-line SANO/REGULAR/EVITAR verdict from data already computed
-// by parseApiProduct (NOM-051 sellos + notRecommended groups) — no new data needed.
+// Normalizador de grupos de salud — misma lógica que el normalizador inline
+// usado al mergear notRecommended de IA (ver línea ~2094): colapsa variantes
+// de texto ("Diabéticos", "Diabetes") a una clave estable ("diabet") para
+// poder compararla 1:1 contra userPreferences.healthConditions.
+function grupoClaveVerdict(s) {
+  const n = String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (n.includes('diabet')) return 'diabet';
+  if (n.includes('hipert')) return 'hipert';
+  if (n.includes('lact')) return 'lactos';
+  if (n.includes('fenilc')) return 'fenilc';
+  if (n.includes('celiac') || n.includes('celiaq')) return 'celiac';
+  if (n.includes('gluten')) return 'gluten';
+  if (n.includes('nino') || n.includes('ninos') || n.includes('menor')) return 'ninos';
+  return n;
+}
+
+// True cuando product.allergens (labels detectados, ej. "Lácteos", "Cacahuate")
+// incluye el alérgeno identificado por `code` (ej. "leche", "cacahuate") —
+// usa COMMON_ALLERGENS para traducir entre el code canónico de userPreferences
+// y el label que ya usa el pipeline de parseApiProduct.
+function isAllergenDetected(product, code) {
+  if (!product.allergens || !Array.isArray(product.allergens)) return false;
+  const codeLower = String(code).toLowerCase();
+  const entry = COMMON_ALLERGENS.find(ca =>
+    ca.match.some(m => m.toLowerCase() === codeLower) || ca.label.toLowerCase() === codeLower
+  );
+  const namesToMatch = entry
+    ? [entry.label.toLowerCase(), ...entry.match.map(m => m.toLowerCase())]
+    : [codeLower];
+  return product.allergens.some(a => namesToMatch.includes(String(a).toLowerCase()));
+}
+
+// Verdict base SANO/REGULAR/EVITAR — misma lógica de siempre (NOM-051 sellos +
+// notRecommended groups), sin conocimiento de preferencias de usuario.
 // Never returns 'sano' when there's no real data to base that on — absence of
 // seals/risk flags on an empty fallback record is not evidence of safety.
-function computeVerdict(product) {
+function computeBaseVerdict(product) {
   if (hasNoRealData(product)) return 'regular';
   const sellos = (product.sellos || []).length;
   const critical = (product.notRecommended || []).some(n => n.certain !== false);
   if (sellos >= 3 || (critical && sellos >= 2)) return 'evitar';
   if (sellos >= 1 || critical) return 'regular';
   return 'sano';
+}
+
+// Deriva el verdict SANO/REGULAR/EVITAR. `userPreferences` es opcional — si es
+// null/undefined (usuario free o no logueado), el comportamiento es idéntico
+// al de computeBaseVerdict (retrocompatible). Cuando se pasa, aplica 5 reglas
+// de precedencia en orden — la primera que aplique gana:
+//   1. Alérgeno severity:"severe" detectado en el producto → evitar.
+//   2. healthCondition que matchea un grupo certain:true en notRecommended → evitar.
+//   3. Dieta declarada explícitamente violada (product.dietary[key] === false) → evitar.
+//   4. Alérgeno severity:"mild" detectado → tope "regular" (no sube a "sano").
+//   5. Sin conflictos → verdict base normal.
+function computeVerdict(product, userPreferences) {
+  const base = computeBaseVerdict(product);
+  if (!userPreferences) return base;
+
+  const allergens = userPreferences.allergens || [];
+  const healthConditions = userPreferences.healthConditions || [];
+  const dietary = userPreferences.dietary || [];
+
+  const severeHit = allergens.some(a => a && a.severity === 'severe' && isAllergenDetected(product, a.code));
+  if (severeHit) return 'evitar';
+
+  const conditionHit = healthConditions.some(cond =>
+    (product.notRecommended || []).some(n => n.certain === true && grupoClaveVerdict(n.grupo) === cond)
+  );
+  if (conditionHit) return 'evitar';
+
+  const dietHit = dietary.some(key => product.dietary && product.dietary[key] === false);
+  if (dietHit) return 'evitar';
+
+  const mildHit = allergens.some(a => a && a.severity === 'mild' && isAllergenDetected(product, a.code));
+  if (mildHit && base === 'sano') return 'regular';
+
+  return base;
 }
 
 function renderNotRecommended(product) {
