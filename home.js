@@ -129,6 +129,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('nav-profile').addEventListener('click', () => {
     window.location.href = 'account.html';
   });
+  document.getElementById('nav-history').addEventListener('click', () => {
+    window.location.href = 'history.html';
+  });
 
   // Product card click → scan that barcode
   document.getElementById('products-grid').addEventListener('click', e => {

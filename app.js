@@ -185,6 +185,11 @@ function getHistory() {
   try { return JSON.parse(localStorage.getItem("yomi_history")) || []; } catch { return []; }
 }
 
+// Reexpuesto globalmente para que history-ui.js (Task 20, otro scope — script
+// separado en history.html) reutilice el mismo historial local en vez de
+// duplicar la lógica de lectura/parseo de localStorage.
+window.getLocalHistory = getHistory;
+
 // Tracks barcodes this device reported a problem on, so a later re-scan can
 // acknowledge it. Deliberately doesn't claim the issue was fixed — we have no
 // reliable signal for that — just that we remembered the report.
@@ -266,10 +271,14 @@ function resetToScan() {
 
 function setupEventListeners() {
   // Toggle camera scanner
-  btnToggleCamera.addEventListener("click", toggleCamera);
+  // Guarded (like the other optional elements below): app.js also loads on
+  // history.html (Task 20, window.getLocalHistory reuse) which has no
+  // scanner DOM, so these lookups return null there.
+  if (btnToggleCamera) btnToggleCamera.addEventListener("click", toggleCamera);
 
   // New scan button (single-column layout)
-  document.getElementById("btn-new-scan").addEventListener("click", resetToScan);
+  const btnNewScan = document.getElementById("btn-new-scan");
+  if (btnNewScan) btnNewScan.addEventListener("click", resetToScan);
 
   // New scan button (desktop sidebar)
   const btnNewScanSidebar = document.getElementById("btn-new-scan-sidebar");
@@ -293,10 +302,10 @@ function setupEventListeners() {
   renderHistory();
 
   // Camera selection change
-  cameraSelect.addEventListener("change", restartCameraWithSelectedDevice);
+  if (cameraSelect) cameraSelect.addEventListener("change", restartCameraWithSelectedDevice);
 
   // Manual barcode submission
-  barcodeForm.addEventListener("submit", (e) => {
+  if (barcodeForm) barcodeForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const barcode = barcodeInput.value.trim();
     if (barcode) {
