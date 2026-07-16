@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
@@ -1248,6 +1248,46 @@ app.post('/api/report', async (req, res) => {
   res.json({ ok: true });
 });
 
+// --- User Accounts API ---
+const MAX_DISPLAY_NAME_LEN = 100;
+
+// Hallazgo de revisión de seguridad: displayName/photoURL venían de req.body sin
+// límite ni validación — riesgo de XSS almacenado si una vista futura los
+// renderiza vía innerHTML, y de abuso de almacenamiento con strings arbitrarios.
+function sanitizeDisplayName(name) {
+  if (typeof name !== 'string') return null;
+  return name.slice(0, MAX_DISPLAY_NAME_LEN);
+}
+
+function sanitizePhotoURL(url) {
+  if (typeof url !== 'string' || !url.startsWith('https://')) return null;
+  return url.slice(0, 500);
+}
+
+async function authSyncHandler(req, res) {
+  try {
+    await fireUpsertUser(req.user.uid, {
+      email: req.user.email,
+      providers: Array.isArray(req.body?.providers) ? req.body.providers : [],
+      displayName: sanitizeDisplayName(req.body?.displayName),
+      photoURL: sanitizePhotoURL(req.body?.photoURL),
+      // Solo relevantes en la creación (fireUpsertUser los ignora si el doc ya existe) —
+      // vienen del checkbox de Términos/edad en el signup (Task 11).
+      termsAccepted: req.body?.termsAccepted === true,
+      termsVersion: req.body?.termsVersion,
+      ageConfirmed: req.body?.ageConfirmed === true
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    // No bloquea el login: Firebase Auth ya autenticó del lado del cliente; el doc
+    // se reintenta en el próximo sync. Loguear SOLO el uid, nunca el doc (datos de salud).
+    console.warn('[auth/sync] Firestore error, uid:', req.user?.uid, e.message);
+    res.json({ ok: true, warning: 'sync_deferred' });
+  }
+}
+
+app.post('/api/auth/sync', requireUser, authSyncHandler);
+
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const ADMIN_COOKIE = 'admin_session';
@@ -1489,6 +1529,7 @@ module.exports.computeEnergyLevel = computeEnergyLevel;
 module.exports.detectGluten = detectGluten;
 module.exports.detectCasein = detectCasein;
 module.exports.requireUser = requireUser;
+module.exports.authSyncHandler = authSyncHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
