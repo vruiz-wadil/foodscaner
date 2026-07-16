@@ -48,7 +48,7 @@ describe('fireIncrementUsageCounter', () => {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-14' }, ocrCount: { integerValue: '5' }, cacheRefreshCount: { integerValue: '1' }
+              date: { stringValue: '2026-07-14' }, ocrCount: { integerValue: '5' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
             } } } },
             updateTime: '2026-07-14T23:00:00.000000Z'
           })
@@ -60,7 +60,7 @@ describe('fireIncrementUsageCounter', () => {
 
     const result = await fireIncrementUsageCounter('uid-1', 'ocrCount')
 
-    expect(result).toEqual({ date: '2026-07-15', ocrCount: 1, cacheRefreshCount: 0 })
+    expect(result).toEqual({ date: '2026-07-15', ocrCount: 1, cacheRefreshCount: 0, totalScans: 20 })
     expect(patchBody.currentDocument.updateTime).toBe('2026-07-14T23:00:00.000000Z')
   })
 
@@ -71,7 +71,7 @@ describe('fireIncrementUsageCounter', () => {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-15' }, ocrCount: { integerValue: '2' }, cacheRefreshCount: { integerValue: '0' }
+              date: { stringValue: '2026-07-15' }, ocrCount: { integerValue: '2' }, cacheRefreshCount: { integerValue: '0' }, totalScans: { integerValue: '20' }
             } } } },
             updateTime: '2026-07-15T10:00:00.000000Z'
           })
@@ -82,7 +82,7 @@ describe('fireIncrementUsageCounter', () => {
 
     const result = await fireIncrementUsageCounter('uid-1', 'ocrCount')
 
-    expect(result).toEqual({ date: '2026-07-15', ocrCount: 3, cacheRefreshCount: 0 })
+    expect(result).toEqual({ date: '2026-07-15', ocrCount: 3, cacheRefreshCount: 0, totalScans: 20 })
   })
 
   it('retries with backoff on a 409 conflict and succeeds on the next attempt', async () => {
@@ -138,5 +138,47 @@ describe('fireIncrementUsageCounter', () => {
     }))
 
     await expect(fireIncrementUsageCounter('uid-missing', 'ocrCount')).rejects.toThrow()
+  })
+
+  it('incrementa totalScans sin resetearlo aunque usage.date no sea hoy (a diferencia de ocrCount/cacheRefreshCount, es de por vida)', async () => {
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-14' }, ocrCount: { integerValue: '5' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
+            } } } },
+            updateTime: '2026-07-14T23:00:00.000000Z'
+          })
+        }
+      }
+      return { ok: true, status: 200 }
+    }))
+
+    const result = await fireIncrementUsageCounter('uid-1', 'totalScans')
+
+    expect(result).toEqual({ date: '2026-07-15', ocrCount: 0, cacheRefreshCount: 0, totalScans: 21 })
+  })
+
+  it('trata totalScans ausente como 0 (perfil creado antes de este campo)', async () => {
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-15' }, ocrCount: { integerValue: '0' }, cacheRefreshCount: { integerValue: '0' }
+            } } } },
+            updateTime: '2026-07-15T10:00:00.000000Z'
+          })
+        }
+      }
+      return { ok: true, status: 200 }
+    }))
+
+    const result = await fireIncrementUsageCounter('uid-1', 'totalScans')
+
+    expect(result).toEqual({ date: '2026-07-15', ocrCount: 0, cacheRefreshCount: 0, totalScans: 1 })
   })
 })

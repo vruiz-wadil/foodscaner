@@ -500,7 +500,7 @@ async function fireUpsertUser(uid, data) {
         subscriptionStatus: null, currentPeriodEnd: null,
         isFounderPricing: false, billingCycle: null
       },
-      usage: { date: today, ocrCount: 0, cacheRefreshCount: 0 }
+      usage: { date: today, ocrCount: 0, cacheRefreshCount: 0, totalScans: 0 }
     });
     const resp = await fetch(docPath('users', uid), {
       method: 'PATCH',
@@ -575,7 +575,7 @@ function sleep(ms) {
 // currentDocument.updateTime, reintento 2-3 veces con backoff 10-50ms si 409.
 // Reset a 0 si usage.date !== hoy (UTC) — cubre doble-tap / 2 tabs sin perder ni duplicar conteo.
 async function fireIncrementUsageCounter(uid, field) {
-  if (!['ocrCount', 'cacheRefreshCount'].includes(field)) {
+  if (!['ocrCount', 'cacheRefreshCount', 'totalScans'].includes(field)) {
     throw new Error('Campo de uso inválido: ' + field);
   }
   const today = new Date().toISOString().slice(0, 10); // UTC, a propósito (ver spec)
@@ -585,12 +585,15 @@ async function fireIncrementUsageCounter(uid, field) {
     const doc = await fireGetUserRaw(uid);
     if (!doc) throw new Error('Usuario no encontrado: ' + uid);
 
-    const currentUsage = doc.fields.usage || { date: today, ocrCount: 0, cacheRefreshCount: 0 };
+    const currentUsage = doc.fields.usage || { date: today, ocrCount: 0, cacheRefreshCount: 0, totalScans: 0 };
     const isNewDay = currentUsage.date !== today;
     const newUsage = {
       date: today,
       ocrCount: isNewDay ? (field === 'ocrCount' ? 1 : 0) : currentUsage.ocrCount + (field === 'ocrCount' ? 1 : 0),
-      cacheRefreshCount: isNewDay ? (field === 'cacheRefreshCount' ? 1 : 0) : currentUsage.cacheRefreshCount + (field === 'cacheRefreshCount' ? 1 : 0)
+      cacheRefreshCount: isNewDay ? (field === 'cacheRefreshCount' ? 1 : 0) : currentUsage.cacheRefreshCount + (field === 'cacheRefreshCount' ? 1 : 0),
+      // totalScans NUNCA se resetea por cambio de día (a diferencia de los otros
+      // 2 campos) — es un contador de por vida, no una cuota diaria.
+      totalScans: (currentUsage.totalScans || 0) + (field === 'totalScans' ? 1 : 0)
     };
 
     const resp = await firePatchUserFieldsWithPrecondition(uid, ['usage'], { usage: newUsage }, doc.updateTime);
