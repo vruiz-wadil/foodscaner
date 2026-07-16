@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireLogUserHistory, fireListUserHistory } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
@@ -1445,6 +1445,58 @@ async function deletePreferencesHandler(req, res) {
 
 app.delete('/api/me/preferences', requireUser, deletePreferencesHandler);
 
+// Mismos 3 valores que devuelve computeVerdict (Task 13) — validado como enum
+// (no string libre) para evitar guardar XSS almacenado que un futuro history.html
+// renderizaría sin escapar (hallazgo de revisión de seguridad).
+const ALLOWED_VERDICTS = ['sano', 'regular', 'evitar'];
+const MAX_BARCODE_LEN = 32;
+const MAX_PRODUCT_NAME_LEN = 200;
+
+async function postHistoryHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (user.plan !== 'premium') return res.status(403).json({ error: 'premium_required' });
+
+    const { barcode, productName, verdict } = req.body || {};
+    if (!barcode || !productName || !verdict) return res.status(400).json({ error: 'invalid_history_entry' });
+    if (typeof barcode !== 'string' || barcode.length > MAX_BARCODE_LEN) {
+      return res.status(400).json({ error: 'invalid_barcode' });
+    }
+    if (typeof productName !== 'string' || productName.length > MAX_PRODUCT_NAME_LEN) {
+      return res.status(400).json({ error: 'invalid_product_name' });
+    }
+    if (!ALLOWED_VERDICTS.includes(verdict)) {
+      return res.status(400).json({ error: 'invalid_verdict' });
+    }
+
+    const { id } = await fireLogUserHistory(req.user.uid, {
+      barcode, productName: productName.slice(0, MAX_PRODUCT_NAME_LEN), verdict, scannedAt: new Date().toISOString()
+    });
+    res.json({ ok: true, id });
+  } catch (e) {
+    console.warn('[POST /api/me/history] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function getHistoryHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (user.plan !== 'premium') return res.status(403).json({ error: 'premium_required' });
+
+    const history = await fireListUserHistory(req.user.uid, 50);
+    res.json({ history });
+  } catch (e) {
+    console.warn('[GET /api/me/history] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/history', requireUser, postHistoryHandler);
+app.get('/api/me/history', requireUser, getHistoryHandler);
+
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const ADMIN_COOKIE = 'admin_session';
@@ -1692,6 +1744,8 @@ module.exports.putPreferencesHandler = putPreferencesHandler;
 module.exports.deletePreferencesHandler = deletePreferencesHandler;
 module.exports.optionalUser = optionalUser;
 module.exports.ocrProcessHandler = ocrProcessHandler;
+module.exports.postHistoryHandler = postHistoryHandler;
+module.exports.getHistoryHandler = getHistoryHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;

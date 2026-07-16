@@ -605,6 +605,43 @@ async function fireIncrementUsageCounter(uid, field) {
   throw new Error('No se pudo incrementar usage tras reintentos por conflictos de concurrencia');
 }
 
+async function fireLogUserHistory(uid, entry) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const fields = toFirestoreFields(entry);
+  const resp = await fetch(`${docPath('users', uid)}/history`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore log history failed: ${resp.status}`);
+  const data = await resp.json();
+  const id = data.name.split('/').pop();
+  return { id };
+}
+
+async function fireListUserHistory(uid, limit = 50) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'history' }],
+        orderBy: [{ field: { fieldPath: 'scannedAt' }, direction: 'DESCENDING' }],
+        limit
+      },
+      parent: `projects/${getProjectId()}/databases/(default)/documents/users/${encodeURIComponent(uid)}`
+    }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore list history failed: ${resp.status}`);
+  const rows = await resp.json();
+  return rows.filter(r => r.document).map(r => fromFirestoreFields(r.document.fields || {}));
+}
+
 module.exports = {
   getAccessToken,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
@@ -612,5 +649,6 @@ module.exports = {
   fireGetNutritionOcr, fireSetNutritionOcr,
   fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
   fireGetUser, fireUpsertUser, firePatchUserFields,
-  fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter
+  fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter,
+  fireLogUserHistory, fireListUserHistory
 };
