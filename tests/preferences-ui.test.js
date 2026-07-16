@@ -24,8 +24,13 @@ beforeEach(async () => {
       <div id="health-tiles">
         <button type="button" data-health="diabet">Diabetes</button>
       </div>
-      <input type="checkbox" id="allergen-cacahuate" name="allergen" value="cacahuate">
-      <select id="severity-cacahuate"><option value="mild">Leve</option><option value="severe">Severa</option></select>
+      <div id="allergen-tiles">
+        <button type="button" id="allergen-cacahuate" data-allergen="cacahuate">Cacahuate</button>
+      </div>
+      <div class="severity-toggle hidden" id="severity-cacahuate">
+        <button type="button" data-severity="mild">Aviso</button>
+        <button type="button" data-severity="severe">Estricto</button>
+      </div>
       <div class="consent-block">
         <input type="checkbox" id="consent-checkbox" required>
         <p id="consent-error" class="hidden" role="alert"></p>
@@ -44,7 +49,7 @@ beforeEach(async () => {
 })
 
 describe('loadPreferencesIntoForm', () => {
-  it('marca los tiles de dietary/healthConditions con .chosen según el perfil cacheado', () => {
+  it('marca los tiles de dietary/healthConditions/allergens con .chosen y activa la severidad correcta según el perfil cacheado', () => {
     getCachedProfile.mockReturnValue({
       plan: 'premium',
       preferences: { dietary: ['vegan'], allergens: [{ code: 'cacahuate', severity: 'severe' }], healthConditions: ['diabet'] }
@@ -53,8 +58,11 @@ describe('loadPreferencesIntoForm', () => {
     expect(document.querySelector('[data-dietary="vegan"]').classList.contains('chosen')).toBe(true)
     expect(document.querySelector('[data-dietary="glutenFree"]').classList.contains('chosen')).toBe(false)
     expect(document.querySelector('[data-health="diabet"]').classList.contains('chosen')).toBe(true)
-    expect(document.getElementById('allergen-cacahuate').checked).toBe(true)
-    expect(document.getElementById('severity-cacahuate').value).toBe('severe')
+    expect(document.getElementById('allergen-cacahuate').classList.contains('chosen')).toBe(true)
+    const toggle = document.getElementById('severity-cacahuate')
+    expect(toggle.classList.contains('hidden')).toBe(false)
+    expect(toggle.querySelector('[data-severity="severe"]').classList.contains('active')).toBe(true)
+    expect(toggle.querySelector('[data-severity="mild"]').classList.contains('active')).toBe(false)
   })
 
   it('no marca nada si no hay preferences aún (usuario premium sin configurar)', () => {
@@ -75,8 +83,8 @@ describe('savePreferences', () => {
   it('llama PUT /api/me/preferences con Bearer token, consent:true y el body construido del form, si hay consentimiento (hallazgo legal/seguridad: el servidor ahora exige consent explícito, no solo el cliente)', async () => {
     document.getElementById('consent-checkbox').checked = true
     document.querySelector('[data-dietary="vegan"]').classList.add('chosen')
-    document.getElementById('allergen-cacahuate').checked = true
-    document.getElementById('severity-cacahuate').value = 'severe'
+    document.getElementById('allergen-cacahuate').classList.add('chosen')
+    document.getElementById('severity-cacahuate').querySelector('[data-severity="severe"]').classList.add('active')
     document.querySelector('[data-health="diabet"]').classList.add('chosen')
     getIdToken.mockResolvedValue('tok-123')
     global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
@@ -192,5 +200,62 @@ describe('setupPreferenceTiles (click wiring)', () => {
     tile.click()
     expect(tile.classList.contains('chosen')).toBe(false)
     expect(tile.getAttribute('aria-pressed')).toBe('false')
+  })
+})
+
+// Mismo razonamiento que el describe anterior: se llama setupPreferenceTiles()
+// directamente en vez de disparar DOMContentLoaded a mano, para no depender
+// de listeners acumulados de imports previos del módulo (no determinístico,
+// ver nota arriba) y para no pasar además por el gate de getCachedProfile()
+// del listener real (que redirige a auth.html si no hay perfil cacheado).
+describe('setupPreferenceTiles — interacción de alergias', () => {
+  it('togglear un tile de alergeno muestra/oculta su toggle de severidad, con "Aviso" activo por default', () => {
+    setupPreferenceTiles()
+    const tile = document.getElementById('allergen-cacahuate')
+    const toggle = document.getElementById('severity-cacahuate')
+
+    tile.click()
+    expect(tile.classList.contains('chosen')).toBe(true)
+    expect(toggle.classList.contains('hidden')).toBe(false)
+    expect(toggle.querySelector('[data-severity="mild"]').classList.contains('active')).toBe(true)
+
+    tile.click()
+    expect(tile.classList.contains('chosen')).toBe(false)
+    expect(toggle.classList.contains('hidden')).toBe(true)
+  })
+
+  it('togglear los botones de severidad activa uno exclusivamente dentro de su propio grupo', () => {
+    setupPreferenceTiles()
+    const tile = document.getElementById('allergen-cacahuate')
+    const toggle = document.getElementById('severity-cacahuate')
+    tile.click()
+
+    const mildBtn = toggle.querySelector('[data-severity="mild"]')
+    const severeBtn = toggle.querySelector('[data-severity="severe"]')
+    expect(mildBtn.classList.contains('active')).toBe(true)
+
+    severeBtn.click()
+    expect(severeBtn.classList.contains('active')).toBe(true)
+    expect(mildBtn.classList.contains('active')).toBe(false)
+
+    mildBtn.click()
+    expect(mildBtn.classList.contains('active')).toBe(true)
+    expect(severeBtn.classList.contains('active')).toBe(false)
+  })
+
+  it('no reactiva "Aviso" al re-elegir un tile de alergeno si ya había una severidad marcada (no pisa la elección previa del usuario)', () => {
+    setupPreferenceTiles()
+    const tile = document.getElementById('allergen-cacahuate')
+    const toggle = document.getElementById('severity-cacahuate')
+    const mildBtn = toggle.querySelector('[data-severity="mild"]')
+    const severeBtn = toggle.querySelector('[data-severity="severe"]')
+
+    tile.click() // elige el tile, "Aviso" activo por default
+    severeBtn.click() // el usuario cambia a "Estricto"
+    tile.click() // deselecciona el tile (oculta el toggle, no toca .active)
+    tile.click() // vuelve a elegir el tile
+
+    expect(severeBtn.classList.contains('active')).toBe(true)
+    expect(mildBtn.classList.contains('active')).toBe(false)
   })
 })

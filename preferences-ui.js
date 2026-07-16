@@ -74,10 +74,13 @@ export function loadPreferencesIntoForm() {
     if (el) { el.classList.add('chosen'); el.setAttribute('aria-pressed', 'true'); }
   });
   (prefs.allergens || []).forEach(({ code, severity }) => {
-    const checkbox = document.getElementById(`allergen-${code}`);
-    const severitySelect = document.getElementById(`severity-${code}`);
-    if (checkbox) checkbox.checked = true;
-    if (severitySelect) severitySelect.value = severity;
+    const tile = document.getElementById(`allergen-${code}`);
+    const toggle = document.getElementById(`severity-${code}`);
+    if (tile) { tile.classList.add('chosen'); tile.setAttribute('aria-pressed', 'true'); }
+    if (toggle) {
+      toggle.classList.remove('hidden');
+      toggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.severity === severity));
+    }
   });
 }
 
@@ -85,19 +88,46 @@ function buildPreferencesPayload() {
   const dietary = Array.from(document.querySelectorAll('#dietary-tiles [data-dietary].chosen')).map(el => el.dataset.dietary);
   const healthConditions = Array.from(document.querySelectorAll('#health-tiles [data-health].chosen')).map(el => el.dataset.health);
   const allergens = ALLERGEN_CODES
-    .filter(code => document.getElementById(`allergen-${code}`)?.checked)
-    .map(code => ({ code, severity: document.getElementById(`severity-${code}`).value }));
+    .filter(code => document.getElementById(`allergen-${code}`)?.classList.contains('chosen'))
+    .map(code => ({
+      code,
+      severity: document.querySelector(`#severity-${code} button.active`)?.dataset.severity || 'mild'
+    }));
   return { dietary, allergens, healthConditions };
 }
 
 // Wiring de click para los tiles de toggle simple (dietas/condiciones de
 // salud) — cada click alterna .chosen y aria-pressed. Alergias tiene su
-// propio wiring en Task 7 (necesita mostrar/ocultar el toggle de severidad).
+// propio wiring: además de alternar .chosen en el tile, muestra/oculta su
+// .severity-toggle asociado y arranca en "Aviso" activo por default cuando
+// se elige el alérgeno por primera vez (sin severidad previa marcada).
 export function setupPreferenceTiles() {
   document.querySelectorAll('#dietary-tiles [data-dietary], #health-tiles [data-health]').forEach(tile => {
     tile.addEventListener('click', () => {
       const chosen = tile.classList.toggle('chosen');
       tile.setAttribute('aria-pressed', String(chosen));
+    });
+  });
+
+  ALLERGEN_CODES.forEach(code => {
+    const tile = document.getElementById(`allergen-${code}`);
+    const toggle = document.getElementById(`severity-${code}`);
+    if (!tile || !toggle) return;
+
+    tile.addEventListener('click', () => {
+      const chosen = tile.classList.toggle('chosen');
+      tile.setAttribute('aria-pressed', String(chosen));
+      toggle.classList.toggle('hidden', !chosen);
+      if (chosen && !toggle.querySelector('button.active')) {
+        toggle.querySelector('[data-severity="mild"]').classList.add('active');
+      }
+    });
+
+    toggle.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
     });
   });
 }
