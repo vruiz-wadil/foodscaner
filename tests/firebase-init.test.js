@@ -24,6 +24,7 @@ const onAuthStateChanged = vi.fn()
 const signInWithEmailAndPassword = vi.fn()
 const createUserWithEmailAndPassword = vi.fn()
 const signInWithPopup = vi.fn()
+const signOut = vi.fn()
 class GoogleAuthProvider {}
 
 vi.mock(APP_URL, () => ({ initializeApp }))
@@ -33,6 +34,7 @@ vi.mock(AUTH_URL, () => ({
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signOut,
   GoogleAuthProvider
 }))
 

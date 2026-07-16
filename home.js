@@ -82,6 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-scan').addEventListener('click', goScan);
   document.getElementById('nav-scan').addEventListener('click', goScan);
+  document.getElementById('nav-profile').addEventListener('click', () => {
+    window.location.href = 'account.html';
+  });
 
   // Product card click → scan that barcode
   document.getElementById('products-grid').addEventListener('click', e => {
