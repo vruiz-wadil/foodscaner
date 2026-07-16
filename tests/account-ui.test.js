@@ -11,7 +11,7 @@ const syncUserProfile = vi.fn()
 vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile }))
 
-let renderAccountHub, handleLogout
+let renderAccountHub, handleLogout, computeAlertsActive
 let originalLocation
 
 beforeEach(async () => {
@@ -24,6 +24,7 @@ beforeEach(async () => {
   const mod = await import('../account-ui.js')
   renderAccountHub = mod.renderAccountHub
   handleLogout = mod.handleLogout
+  computeAlertsActive = mod.computeAlertsActive
 })
 
 afterEach(() => {
@@ -63,6 +64,33 @@ describe('renderAccountHub', () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', plan: 'free' })
     renderAccountHub()
     expect(document.getElementById('btn-logout')).toBeTruthy()
+  })
+
+  it('muestra el total de escaneos y alertas activas reales del perfil cacheado', () => {
+    getCachedProfile.mockReturnValue({
+      email: 'a@b.com', plan: 'premium',
+      usage: { date: '2026-07-16', ocrCount: 1, cacheRefreshCount: 0, totalScans: 12 },
+      preferences: { dietary: ['vegan'], allergens: [{ code: 'cacahuate', severity: 'severe' }], healthConditions: [] }
+    })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    const nums = Array.from(root.querySelectorAll('.stat-num')).map(el => el.textContent)
+    expect(nums).toEqual(['12', '2'])
+  })
+
+  it('el total de escaneos y alertas activas es 0 si el perfil no tiene usage/preferences todavía (recién creado)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', plan: 'free' })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    const nums = Array.from(root.querySelectorAll('.stat-num')).map(el => el.textContent)
+    expect(nums).toEqual(['0', '0'])
+  })
+
+  it('envuelve todo el contenido en un único .content-card, no en cards sueltas (hallazgo de reskin visual)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', plan: 'free' })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelectorAll(':scope > .content-card').length).toBe(1)
   })
 })
 
