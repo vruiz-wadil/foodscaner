@@ -582,3 +582,84 @@ html:has(.app-main.content-page),
 body:has(.app-main.content-page) {
   height: auto;
 }
+
+/* ── Reskin de páginas de cuenta (auth/preferences/account/history) ──────
+   Reusa vocabulario visual existente: un panel único (.content-card, ya
+   definido arriba) envuelve todo el contenido; adentro, filas sin card
+   propia (.row-card, divisor sutil) en vez de cards flotando sueltas. El
+   estado "elegido" persistente sobre los tiles de scan.html (.dietary-
+   grid-item/.allergen-grid-item, definidos en styles.css) es .chosen —
+   DISTINTO de .selected (ahí es "detalle expandido momentáneamente", no se
+   usa en estas páginas nuevas, sin conflicto). */
+.row-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.row-card:first-child { border-top: none; padding-top: 0; }
+
+.icon-wrap {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(126,189,172,0.2);
+}
+
+.hero-card-dark {
+  background: var(--ink);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.hero-card-dark .icon-wrap { background: rgba(75,197,171,0.2); }
+.hero-card-dark .account-email { color: #fff; margin: 0; font-weight: 600; font-size: 0.9rem; }
+
+.stat-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.stat-tile {
+  flex: 1;
+  text-align: center;
+  background: #f4faf8;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 6px;
+}
+.stat-tile .stat-num { font-size: 20px; font-weight: 800; color: var(--ink); }
+.stat-tile .stat-label { font-size: 10px; color: var(--ink-3); }
+
+/* Estado "elegido" persistente (dietas/condiciones/alergias en preferences.html) */
+.dietary-grid-item.chosen,
+.allergen-grid-item.chosen {
+  background: #117f3a;
+  border-color: #117f3a;
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.dietary-grid-item.chosen .label,
+.allergen-grid-item.chosen .label { color: #fff; }
+
+.severity-toggle { display: flex; gap: 4px; margin: -4px 0 14px; }
+.severity-toggle button {
+  flex: 1;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.severity-toggle button.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
