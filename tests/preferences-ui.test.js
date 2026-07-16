@@ -30,6 +30,7 @@ beforeEach(async () => {
     </form>
     <button id="btn-delete-preferences">Borrar mis preferencias</button>
     <p id="preferences-error" class="hidden" role="alert"></p>
+    <p id="preferences-success" class="hidden" role="status"></p>
   `
   const mod = await import('../preferences-ui.js')
   loadPreferencesIntoForm = mod.loadPreferencesIntoForm
@@ -114,15 +115,25 @@ describe('savePreferences', () => {
 })
 
 describe('deletePreferences', () => {
-  it('llama DELETE /api/me/preferences con Bearer token', async () => {
+  it('llama DELETE /api/me/preferences con Bearer token cuando el usuario confirma, y muestra un mensaje de éxito (hallazgo UX #11: antes no había confirmación ni feedback de éxito)', async () => {
+    window.confirm = vi.fn().mockReturnValue(true)
     getIdToken.mockResolvedValue('tok-456')
     global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
 
     await deletePreferences()
 
+    expect(window.confirm).toHaveBeenCalled()
     expect(global.fetch).toHaveBeenCalledWith('/api/me/preferences', {
       method: 'DELETE',
       headers: { Authorization: 'Bearer tok-456' }
     })
+    expect(document.getElementById('preferences-success').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('preferences-success').textContent).toMatch(/borradas/i)
+  })
+
+  it('no llama al fetch si el usuario cancela el confirm (hallazgo UX #11)', async () => {
+    window.confirm = vi.fn().mockReturnValue(false)
+    await deletePreferences()
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })

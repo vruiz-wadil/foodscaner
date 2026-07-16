@@ -23,6 +23,28 @@
     #preferences-form label { display: block; font-size: 0.85rem; color: var(--ink-2); padding: 4px 0; }
     #preferences-form .btn { margin-top: 10px; }
     #btn-delete-preferences { margin: 4px 20px 0; width: calc(100% - 40px); }
+    /* hallazgo UX #5: el 403 de free-plan en Guardar era invisible — sin
+       estilos, #preferences-error/#consent-error solo eran texto plano que
+       se perdía en la página. Tratamiento de error visible, consistente
+       entre ambos. */
+    #preferences-error, #consent-error {
+      background: #fdecec;
+      border: 1px solid #e79a9a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 12px 0 0;
+      color: #8a1f1f;
+      font-size: 0.85rem;
+    }
+    #preferences-success {
+      background: #eafaf3;
+      border: 1px solid #9edcc1;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 12px 20px 0;
+      color: #0d5c37;
+      font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>
@@ -73,10 +95,11 @@
           <p id="consent-error" class="hidden" role="alert"></p>
         </div>
         <button type="submit" id="btn-save-preferences" class="btn btn-primary">Guardar</button>
+        <p id="preferences-error" class="hidden" role="alert"></p>
       </form>
       </div>
       <button id="btn-delete-preferences" class="btn btn-secondary">Borrar mis preferencias</button>
-      <p id="preferences-error" class="hidden" role="alert"></p>
+      <p id="preferences-success" class="hidden" role="status"></p>
     </main>
   </div>
   <script type="module" src="firebase-init.js"></script>

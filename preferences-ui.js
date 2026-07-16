@@ -34,6 +34,22 @@ function clearConsentError() {
   el.classList.add('hidden');
 }
 
+// hallazgo #11: éxito de borrado no tenía ningún feedback — el form
+// simplemente se quedaba igual y el usuario no sabía si funcionó.
+function showSuccess(message) {
+  const el = document.getElementById('preferences-success');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+function clearSuccess() {
+  const el = document.getElementById('preferences-success');
+  if (!el) return;
+  el.textContent = '';
+  el.classList.add('hidden');
+}
+
 async function withLoadingState(button, loadingText, fn) {
   const originalText = button ? button.textContent : null;
   if (button) { button.disabled = true; button.textContent = loadingText; }
@@ -101,7 +117,12 @@ export async function savePreferences() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      showError(data.error === 'premium_required' ? 'Esta función es solo para cuentas premium.' : 'No se pudo guardar. Intenta de nuevo.');
+      // hallazgo #6/#10: no existe checkout/pago en la app todavía — el CTA
+      // no debe insinuar que hay una compra disponible que en realidad no
+      // existe. Segunda oración honesta en vez de un link a un flujo falso.
+      showError(data.error === 'premium_required'
+        ? 'Esta función es solo para cuentas premium. Estamos por lanzar la suscripción — te avisaremos en cuanto esté disponible.'
+        : 'No se pudo guardar. Intenta de nuevo.');
       throw new Error(data.error || 'save_failed');
     }
 
@@ -111,6 +132,13 @@ export async function savePreferences() {
 
 export async function deletePreferences() {
   clearError();
+  clearSuccess();
+  // hallazgo #11: borrar preferencias no tenía guard de confirmación — un
+  // tap accidental borraba datos de salud del usuario sin poder deshacerlo.
+  if (!window.confirm('¿Seguro que quieres borrar tus preferencias? Esta acción no se puede deshacer.')) {
+    return;
+  }
+
   const btn = document.getElementById('btn-delete-preferences');
   return withLoadingState(btn, 'Borrando…', async () => {
     const token = await getIdToken();
@@ -122,7 +150,9 @@ export async function deletePreferences() {
       showError('No se pudieron borrar tus preferencias. Intenta de nuevo.');
       throw new Error('delete_failed');
     }
-    return res.json();
+    const result = await res.json();
+    showSuccess('Tus preferencias fueron borradas.');
+    return result;
   });
 }
 
@@ -132,6 +162,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // auto-sync de authClient.js (disparado por onAuthChange) haya corrido a
   // tiempo — de lo contrario el form casi siempre carga vacío.
   await syncUserProfile();
+  // hallazgo #9: sin sesión, el form se podía llenar y "guardar" igual —
+  // el 403 del backend recién avisaba hasta el submit. Mismo patrón que ya
+  // usa account-ui.js: si no hay perfil cacheado tras el sync, no hay sesión.
+  if (!getCachedProfile()) {
+    window.location.href = 'auth.html';
+    return;
+  }
   loadPreferencesIntoForm();
   const form = document.getElementById('preferences-form');
   const btnDelete = document.getElementById('btn-delete-preferences');
