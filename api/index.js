@@ -5,6 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
+const { verifyFirebaseIdToken } = require('./auth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
 
@@ -40,6 +41,26 @@ app.use(express.json({ limit: '5mb' }));
 
 const limiter = rateLimit({ windowMs: 60000, max: 60, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
 app.use('/api/', limiter);
+
+// --- Auth Middleware (Firebase ID token, verificación manual sin firebase-admin) ---
+async function requireUser(req, res, next) {
+  try {
+    const authHeader = req.get('authorization') || req.get('Authorization') || '';
+    const match = /^Bearer\s+(.+)$/i.exec(authHeader);
+    if (!match) return res.status(401).json({ error: 'unauthorized' });
+
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) return res.status(503).json({ error: 'auth_not_configured' });
+
+    const { uid, email, emailVerified } = await verifyFirebaseIdToken(match[1], projectId);
+    req.user = { uid, email, emailVerified };
+    next();
+  } catch (e) {
+    // Fail-closed: cualquier error (token inválido, expirado, certs de Google
+    // inalcanzables) resulta en 401, nunca en dejar pasar la petición.
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+}
 
 // --- Queue for Groq to avoid rate limiting ---
 let groqQueue = [];
@@ -985,7 +1006,7 @@ REGLAS:
       }
     }
     catch (e) {
-      return res.json({ error: "Análisis IA no disponible: " + e.message + " Los datos de la base de datos ya están visibles." });
+      return res.json({ error: "Análisis IA no disponible. Los datos de la base de datos ya están visibles." });
     }
 
     if (!content) return res.json({ error: "Análisis IA no disponible temporalmente. Los datos de la base de datos ya están visibles." });
@@ -1002,7 +1023,7 @@ REGLAS:
         });
       }
     } catch {
-      return res.status(502).json({ error: "No se pudo parsear la respuesta JSON", raw: content });
+      return res.status(502).json({ error: "No se pudo analizar el producto. Intenta de nuevo." });
     }
 
     // No se espera (fire-and-forget): esta respuesta compite contra el timeout
@@ -1017,13 +1038,13 @@ REGLAS:
   }
 });
 
-app.delete('/api/cache/:barcode', async (req, res) => {
+app.delete('/api/cache/:barcode', requireAdmin, async (req, res) => {
   await removeCacheEntry(req.params.barcode);
   res.json({ ok: true, message: "Caché eliminado para " + req.params.barcode });
 });
 
 // Refresh cache: force re-fetch and re-analyze
-app.post('/api/cache/refresh/:barcode', async (req, res) => {
+app.post('/api/cache/refresh/:barcode', requireAdmin, async (req, res) => {
   const { barcode } = req.params;
 
   try {
@@ -1125,7 +1146,7 @@ RESPUESTA (SOLO JSON):`;
 });
 
 // Delete OCR data from Firebase
-app.delete('/api/ocr/:barcode', async (req, res) => {
+app.delete('/api/ocr/:barcode', requireAdmin, async (req, res) => {
   try {
     const { barcode } = req.params;
     const token = await getAccessToken();
@@ -1148,7 +1169,7 @@ app.delete('/api/ocr/:barcode', async (req, res) => {
 });
 
 // Delete nutrition OCR data from Firebase
-app.delete('/api/nutrition/:barcode', async (req, res) => {
+app.delete('/api/nutrition/:barcode', requireAdmin, async (req, res) => {
   try {
     const { barcode } = req.params;
     const token = await getAccessToken();
@@ -1467,6 +1488,7 @@ module.exports = app;
 module.exports.computeEnergyLevel = computeEnergyLevel;
 module.exports.detectGluten = detectGluten;
 module.exports.detectCasein = detectCasein;
+module.exports.requireUser = requireUser;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
