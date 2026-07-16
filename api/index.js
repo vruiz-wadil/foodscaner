@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
@@ -1305,6 +1305,64 @@ async function getMeHandler(req, res) {
 
 app.get('/api/me', requireUser, getMeHandler);
 
+// Mismas claves que extractDietaryFromLabels en app.js, más glutenFree (spec de cuentas).
+const ALLOWED_DIETARY = ['vegan', 'vegetarian', 'keto', 'kosher', 'halal', 'organic', 'nonGmo', 'noAdditives', 'palmOilFree', 'fairTrade', 'caseinFree', 'glutenFree'];
+// Mismas claves que grupoClave() en app.js:2094.
+const ALLOWED_HEALTH_CONDITIONS = ['diabet', 'hipert', 'lactos', 'fenilc', 'celiac', 'gluten', 'ninos'];
+// Mismos labels canónicos que COMMON_ALLERGENS en app.js (normalizado a minúsculas sin acento).
+const ALLOWED_ALLERGEN_CODES = ['lacteos', 'cacahuate', 'nueces', 'trigo', 'huevo', 'pescado', 'mariscos', 'soja'];
+const ALLOWED_SEVERITY = ['severe', 'mild'];
+
+async function putPreferencesHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (user.plan !== 'premium') return res.status(403).json({ error: 'premium_required' });
+
+    const { dietary, allergens, healthConditions, consent, consentNoticeVersion } = req.body || {};
+    if (!Array.isArray(dietary) || !Array.isArray(allergens) || !Array.isArray(healthConditions)) {
+      return res.status(400).json({ error: 'invalid_preferences' });
+    }
+    // Hallazgo de revisión legal/seguridad: el checkbox de preferences-ui.js solo
+    // validaba en cliente — cualquier llamada directa al endpoint (curl/Postman)
+    // guardaba datos de salud sin haber pasado nunca por el consentimiento. El
+    // servidor ahora lo exige y guarda evidencia (consentGivenAt/versión del
+    // aviso) para poder demostrar consentimiento expreso ante una auditoría.
+    if (consent !== true) {
+      return res.status(400).json({ error: 'consent_required' });
+    }
+    if (!dietary.every(d => ALLOWED_DIETARY.includes(d))) {
+      return res.status(400).json({ error: 'invalid_dietary' });
+    }
+    if (!healthConditions.every(h => ALLOWED_HEALTH_CONDITIONS.includes(h))) {
+      return res.status(400).json({ error: 'invalid_health_conditions' });
+    }
+    if (!allergens.every(a => a && ALLOWED_ALLERGEN_CODES.includes(a.code) && ALLOWED_SEVERITY.includes(a.severity))) {
+      return res.status(400).json({ error: 'invalid_allergens' });
+    }
+
+    const preferences = {
+      dietary, allergens, healthConditions,
+      consentGivenAt: new Date().toISOString(),
+      consentNoticeVersion: consentNoticeVersion || 'v1',
+      updatedAt: new Date().toISOString()
+    };
+    // updateMask explícito y ANIDADO sobre estos campos — nunca se acepta el
+    // body crudo como estado nuevo del doc completo, así "plan"/"billing" nunca se pisan.
+    await firePatchUserFields(req.user.uid, [
+      'preferences.dietary', 'preferences.allergens', 'preferences.healthConditions',
+      'preferences.consentGivenAt', 'preferences.consentNoticeVersion', 'preferences.updatedAt'
+    ], { preferences });
+
+    res.json({ ok: true, preferences });
+  } catch (e) {
+    console.warn('[PUT /api/me/preferences] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.put('/api/me/preferences', requireUser, putPreferencesHandler);
+
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const ADMIN_COOKIE = 'admin_session';
@@ -1548,6 +1606,7 @@ module.exports.detectCasein = detectCasein;
 module.exports.requireUser = requireUser;
 module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
+module.exports.putPreferencesHandler = putPreferencesHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
