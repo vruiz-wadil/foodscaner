@@ -7,6 +7,13 @@ export function onAuthChange(callback) {
 }
 
 export async function getIdToken(forceRefresh = false) {
+  // authStateReady() espera a que Firebase termine de rehidratar la sesión
+  // persistida (IndexedDB) — sin esto, en cualquier carga de página fresca
+  // (ej. justo después de un redirect post-login) firebaseAuth.currentUser
+  // todavía es null por unos ms, así que esta función reportaba "sin sesión"
+  // aunque el usuario SÍ estuviera logueado (hallazgo: Perfil redirigía a
+  // login incluso recién after signup).
+  await firebaseAuth.authStateReady();
   const user = firebaseAuth.currentUser;
   if (!user) return null;
   return user.getIdToken(forceRefresh);

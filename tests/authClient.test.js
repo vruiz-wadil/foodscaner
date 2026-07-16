@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockAuth = { currentUser: null }
+const mockAuth = { currentUser: null, authStateReady: vi.fn().mockResolvedValue(undefined) }
 const onAuthStateChanged = vi.fn()
 
 vi.mock('../firebase-init.js', () => ({
@@ -17,6 +17,7 @@ beforeEach(async () => {
   vi.clearAllMocks()
   vi.resetModules()
   mockAuth.currentUser = null
+  mockAuth.authStateReady = vi.fn().mockResolvedValue(undefined)
   global.fetch = vi.fn()
   const mod = await import('../authClient.js')
   getIdToken = mod.getIdToken
@@ -46,6 +47,20 @@ describe('getIdToken', () => {
     const token = await getIdToken(true)
     expect(getIdTokenMock).toHaveBeenCalledWith(true)
     expect(token).toBe('fresh-token')
+  })
+
+  it('awaits authStateReady() before reading currentUser (hallazgo: currentUser sigue null por unos ms tras un reload mientras Firebase rehidrata la sesión persistida — leerlo antes de tiempo reporta "sin sesión" con un usuario sí logueado)', async () => {
+    let resolveReady
+    mockAuth.authStateReady = vi.fn(() => new Promise(r => { resolveReady = r }))
+    mockAuth.currentUser = null
+    const getIdTokenMock = vi.fn().mockResolvedValue('late-token')
+
+    const tokenPromise = getIdToken()
+    // Simula la rehidratación terminando DESPUÉS de la llamada, con sesión ya restaurada.
+    mockAuth.currentUser = { getIdToken: getIdTokenMock }
+    resolveReady()
+
+    expect(await tokenPromise).toBe('late-token')
   })
 })
 
