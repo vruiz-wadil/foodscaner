@@ -54,3 +54,12 @@ describe('renderHistoryScreen — usuario premium', () => {
     expect(root.querySelector('.history-locked-block')).toBeNull()
   })
 })
+
+describe('renderHistoryScreen — estructura visual', () => {
+  it('envuelve el contenido en un único .content-card, no en cards sueltas (hallazgo de reskin visual)', async () => {
+    getCachedProfile.mockReturnValue({ plan: 'free' })
+    await renderHistoryScreen()
+    const root = document.getElementById('history-root')
+    expect(root.querySelectorAll(':scope > .content-card').length).toBe(1)
+  })
+})
