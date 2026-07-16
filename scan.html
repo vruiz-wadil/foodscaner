@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://*.firebaseapp.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
   <title>Yomi - Identificador Nutricional de Alimentos</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/assets/icons/favicon-32x32.png" sizes="32x32" type="image/png">
@@ -212,6 +212,7 @@
           <!-- 0. VEREDICTO -->
           <div id="verdict-banner" class="verdict-banner" role="status"></div>
           <p class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>
+          <p id="personalized-disclaimer" class="hidden" style="font-size:12px;color:#6b6b6b;margin-top:8px;"></p>
           <p id="report-ack" class="report-ack hidden" role="status">Reportaste un problema con este producto anteriormente — gracias por ayudarnos a mejorarlo.</p>
 
           <!-- 1. IDENTIDAD DEL PRODUCTO -->
@@ -654,5 +655,7 @@
 
   <!-- App Main Javascript -->
   <script src="app.js?v=74" defer></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="authClient.js"></script>
 </body>
 </html>
