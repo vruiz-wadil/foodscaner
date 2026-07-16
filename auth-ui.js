@@ -127,25 +127,57 @@ export async function handleGoogleSignIn() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('login-form');
+  const btnLogin = document.getElementById('btn-login');
   const btnSignup = document.getElementById('btn-signup');
+  const btnBackToLogin = document.getElementById('btn-back-to-login');
   const btnGoogle = document.getElementById('btn-google');
   const btnTogglePassword = document.getElementById('btn-toggle-password');
   const passwordInput = document.getElementById('login-password');
   const signupOnly = document.getElementById('signup-only');
+  const headingTitle = document.getElementById('auth-heading-title');
+
+  const SIGNUP_BTN_TEXT = btnSignup ? btnSignup.textContent : null;
+  const LOGIN_HEADING_TEXT = headingTitle ? headingTitle.textContent : null;
 
   let isSignupMode = false;
+
+  function enterSignupMode() {
+    isSignupMode = true;
+    signupOnly?.classList.remove('hidden');
+    // btn-login es type="submit" y, si sigue visible, se roba el Enter del
+    // teclado en modo signup (hallazgo UX #2) — se oculta, no solo se
+    // "desenfatiza", y btn-back-to-login toma su lugar visual (hallazgo #14).
+    btnLogin?.classList.add('hidden');
+    btnBackToLogin?.classList.remove('hidden');
+    if (headingTitle) headingTitle.textContent = 'Crea tu cuenta';
+    if (btnSignup) btnSignup.textContent = 'Confirmar creación de cuenta';
+  }
+
+  function exitSignupMode() {
+    isSignupMode = false;
+    signupOnly?.classList.add('hidden');
+    btnLogin?.classList.remove('hidden');
+    btnBackToLogin?.classList.add('hidden');
+    if (headingTitle && LOGIN_HEADING_TEXT !== null) headingTitle.textContent = LOGIN_HEADING_TEXT;
+    if (btnSignup && SIGNUP_BTN_TEXT !== null) btnSignup.textContent = SIGNUP_BTN_TEXT;
+  }
 
   if (btnTogglePassword && passwordInput) {
     btnTogglePassword.addEventListener('click', () => {
       const isHidden = passwordInput.type === 'password';
       passwordInput.type = isHidden ? 'text' : 'password';
       btnTogglePassword.textContent = isHidden ? 'Ocultar' : 'Ver';
+      btnTogglePassword.setAttribute('aria-label', isHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
     });
   }
 
   if (form) {
     form.addEventListener('submit', e => {
       e.preventDefault();
+      // hallazgo UX #13: el login saltaba required/minlength del <input> y
+      // pasaba directo a Firebase con campos vacíos (mismo problema que ya se
+      // había arreglado del lado de signup).
+      if (!form.reportValidity()) return;
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
       handleLogin(email, password);
@@ -157,9 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // todavía (evita pedir consentimiento antes de que el usuario decida
       // registrarse — menos fricción en el primer vistazo del formulario).
       if (!isSignupMode) {
-        isSignupMode = true;
-        signupOnly?.classList.remove('hidden');
-        btnSignup.textContent = 'Confirmar creación de cuenta';
+        enterSignupMode();
         return;
       }
       // Segundo clic: valida el form nativamente (hallazgo UX: antes este botón
@@ -170,6 +200,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const password = document.getElementById('login-password').value;
       handleSignup(email, password);
     });
+  }
+  if (btnBackToLogin) {
+    btnBackToLogin.addEventListener('click', () => exitSignupMode());
   }
   if (btnGoogle) {
     btnGoogle.addEventListener('click', () => handleGoogleSignIn());

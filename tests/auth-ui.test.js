@@ -24,16 +24,18 @@ beforeEach(async () => {
   vi.resetModules()
   global.fetch = vi.fn().mockResolvedValue({ ok: true })
   document.body.innerHTML = `
+    <h1 id="auth-heading-title">Inicia sesión</h1>
     <button id="btn-google">Continuar con Google</button>
     <form id="login-form" novalidate>
       <input id="login-email" type="email" required>
       <input id="login-password" type="password" required minlength="6">
-      <button type="button" id="btn-toggle-password">Ver</button>
+      <button type="button" id="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
       <div id="signup-only" class="hidden">
         <input type="checkbox" id="terms-checkbox">
         <input type="checkbox" id="age-checkbox">
       </div>
       <button type="submit" id="btn-login">Iniciar sesión</button>
+      <button type="button" id="btn-back-to-login" class="hidden">¿Ya tienes cuenta? Inicia sesión</button>
       <button type="button" id="btn-signup">Crear cuenta</button>
     </form>
     <p id="auth-error" class="hidden" role="alert"></p>
@@ -141,5 +143,63 @@ describe('handleGoogleSignIn', () => {
     signInWithPopup.mockRejectedValueOnce({ code: 'auth/popup-closed-by-user' })
     await expect(handleGoogleSignIn()).rejects.toBeTruthy()
     expect(document.getElementById('auth-error').textContent).toBe('Se cerró la ventana de Google antes de terminar.')
+  })
+})
+
+describe('signup-mode toggle (hallazgos #1, #2, #14: btn-login robaba el Enter en modo signup y no había forma de volver a login)', () => {
+  beforeEach(() => {
+    // El listener de DOMContentLoaded ya se registró en el import de arriba;
+    // se dispara manualmente porque jsdom ya pasó por 'loading' antes de que
+    // este test corriera.
+    document.dispatchEvent(new Event('DOMContentLoaded'))
+  })
+
+  it('entering signup mode hides btn-login (its only type="submit") and reveals the back-to-login link', () => {
+    document.getElementById('btn-signup').click()
+    expect(document.getElementById('btn-login').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('btn-back-to-login').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('auth-heading-title').textContent).toBe('Crea tu cuenta')
+  })
+
+  it('clicking the back-to-login link restores login mode', () => {
+    document.getElementById('btn-signup').click()
+    document.getElementById('btn-back-to-login').click()
+    expect(document.getElementById('btn-login').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('btn-back-to-login').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('auth-heading-title').textContent).toBe('Inicia sesión')
+    expect(document.getElementById('btn-signup').textContent).toBe('Crear cuenta')
+  })
+})
+
+describe('password toggle aria-label (hallazgo #12)', () => {
+  beforeEach(() => {
+    document.dispatchEvent(new Event('DOMContentLoaded'))
+  })
+
+  it('updates aria-label along with the text content when toggled', () => {
+    const btn = document.getElementById('btn-toggle-password')
+    btn.click()
+    expect(btn.textContent).toBe('Ocultar')
+    expect(btn.getAttribute('aria-label')).toBe('Ocultar contraseña')
+    btn.click()
+    expect(btn.textContent).toBe('Ver')
+    expect(btn.getAttribute('aria-label')).toBe('Mostrar contraseña')
+  })
+})
+
+describe('login submit validation (hallazgo #13)', () => {
+  beforeEach(() => {
+    document.dispatchEvent(new Event('DOMContentLoaded'))
+  })
+
+  it('does not call handleLogin/signInWithEmailAndPassword when required fields are invalid', () => {
+    const form = document.getElementById('login-form')
+    form.reportValidity = () => false
+    document.getElementById('login-email').value = ''
+    document.getElementById('login-password').value = ''
+    form.dispatchEvent(new Event('submit', { cancelable: true }))
+    expect(signInWithEmailAndPassword).not.toHaveBeenCalled()
   })
 })

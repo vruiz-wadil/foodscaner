@@ -22,7 +22,8 @@
     .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
     .password-field-wrap { position: relative; }
     .btn-toggle-password { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 13px; }
-    .consent-block { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; background: #fafafa; }
+    .consent-block { display: block; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; background: #fafafa; }
+    .link-button { background: none; border: none; color: var(--ink, #0d3d35); text-decoration: underline; font-size: 0.85rem; padding: 8px 0; cursor: pointer; }
     #login-form .btn { margin-top: 10px; }
   </style>
 </head>
@@ -33,7 +34,7 @@
     </header>
     <main class="app-main content-page">
       <section class="section-heading">
-        <h1 class="heading-title">Inicia sesión</h1>
+        <h1 class="heading-title" id="auth-heading-title">Inicia sesión</h1>
         <p class="heading-sub">Guarda tu historial y personaliza tus resultados.</p>
       </section>
 
@@ -74,6 +75,7 @@
           </div>
 
           <button type="submit" id="btn-login" class="btn btn-primary">Iniciar sesión</button>
+          <button type="button" id="btn-back-to-login" class="link-button hidden">¿Ya tienes cuenta? Inicia sesión</button>
           <button type="button" id="btn-signup" class="btn btn-secondary">Crear cuenta nueva</button>
         </form>
 
