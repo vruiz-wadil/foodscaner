@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
@@ -1288,6 +1288,23 @@ async function authSyncHandler(req, res) {
 
 app.post('/api/auth/sync', requireUser, authSyncHandler);
 
+async function getMeHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    const { preferences, ...rest } = user;
+    const body = { uid: req.user.uid, ...rest };
+    if (user.plan === 'premium' && preferences) body.preferences = preferences;
+    res.json(body);
+  } catch (e) {
+    console.warn('[GET /api/me] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.get('/api/me', requireUser, getMeHandler);
+
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const ADMIN_COOKIE = 'admin_session';
@@ -1530,6 +1547,7 @@ module.exports.detectGluten = detectGluten;
 module.exports.detectCasein = detectCasein;
 module.exports.requireUser = requireUser;
 module.exports.authSyncHandler = authSyncHandler;
+module.exports.getMeHandler = getMeHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
