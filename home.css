@@ -646,16 +646,20 @@ body:has(.app-main.content-page) {
 .stat-tile .stat-num { font-size: 20px; font-weight: 800; color: var(--ink); }
 .stat-tile .stat-label { font-size: 10px; color: var(--ink-3); }
 
-/* Tiles de dietas/condiciones/alergias en preferences.html — nunca aparecen
-   sin classList.add/remove de JS en scan.html (ahí siempre traen db-yes/
-   db-no/ai-yes/ai-no/unknown), así que esta base gris solo se ve aquí. */
-.dietary-grid-item,
-.allergen-grid-item {
+/* Tiles de dietas/condiciones/alergias en preferences.html — scopeado a
+   #preferences-form por dos razones: (1) especificidad, para ganarle a la
+   base .dietary-grid-item/.allergen-grid-item de styles.css (misma
+   especificidad de 1 clase, pero styles.css carga DESPUÉS de home.css en
+   estas páginas y ganaba); (2) aunque scan.html no carga home.css hoy, deja
+   esto imposible de filtrar por accidente ahí (siempre trae db-yes/db-no/
+   ai-yes/ai-no/unknown, nunca la clase base sola). */
+#preferences-form .dietary-grid-item,
+#preferences-form .allergen-grid-item {
   background: #eeeeee;
   border-color: #cccccc;
 }
-.dietary-grid-item .label,
-.allergen-grid-item .label { color: #666666; }
+#preferences-form .dietary-grid-item .label,
+#preferences-form .allergen-grid-item .label { color: #666666; }
 
 /* Elegido: naranja por default — dietas/condiciones no tienen severidad, un
    solo tono de "elegido" alcanza. Alergias lo sobreescribe por severidad
