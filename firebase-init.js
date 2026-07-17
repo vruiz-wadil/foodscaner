@@ -10,7 +10,10 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   signOut,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  getAdditionalUserInfo
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 
 // Placeholders — los valores reales se inyectan como variables de entorno en
@@ -34,5 +37,8 @@ export {
   createUserWithEmailAndPassword,
   signInWithPopup,
   signOut,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  getAdditionalUserInfo
 };

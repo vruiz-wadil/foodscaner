@@ -26,6 +26,9 @@ const createUserWithEmailAndPassword = vi.fn()
 const signInWithPopup = vi.fn()
 const signOut = vi.fn()
 class GoogleAuthProvider {}
+class RecaptchaVerifier {}
+const signInWithPhoneNumber = vi.fn()
+const getAdditionalUserInfo = vi.fn()
 
 vi.mock(APP_URL, () => ({ initializeApp }))
 vi.mock(AUTH_URL, () => ({
@@ -35,7 +38,10 @@ vi.mock(AUTH_URL, () => ({
   createUserWithEmailAndPassword,
   signInWithPopup,
   signOut,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  getAdditionalUserInfo
 }))
 
 describe('firebase-init.js', () => {
@@ -63,13 +69,16 @@ describe('firebase-init.js', () => {
     expect(mod.firebaseAuth).toBe(mockAuthInstance)
   })
 
-  it('re-exports the auth SDK functions Task 11/12 depend on', async () => {
+  it('re-exports the auth SDK functions Task 11/12/phone-auth depend on', async () => {
     const mod = await import('../firebase-init.js')
     expect(mod.onAuthStateChanged).toBe(onAuthStateChanged)
     expect(mod.signInWithEmailAndPassword).toBe(signInWithEmailAndPassword)
     expect(mod.createUserWithEmailAndPassword).toBe(createUserWithEmailAndPassword)
     expect(mod.signInWithPopup).toBe(signInWithPopup)
     expect(mod.GoogleAuthProvider).toBe(GoogleAuthProvider)
+    expect(mod.RecaptchaVerifier).toBe(RecaptchaVerifier)
+    expect(mod.signInWithPhoneNumber).toBe(signInWithPhoneNumber)
+    expect(mod.getAdditionalUserInfo).toBe(getAdditionalUserInfo)
   })
 })
 
@@ -88,5 +97,26 @@ describe('index.html wiring', () => {
 
   it('loads firebase-init.js as a module script', () => {
     expect(html).toMatch(/<script[^>]+type="module"[^>]+src="firebase-init\.js"/)
+  })
+})
+
+describe('auth.html wiring', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'auth.html'), 'utf8')
+
+  it('CSP allows loading the Firebase SDK and reCAPTCHA (google.com) for phone login', () => {
+    const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/)
+    expect(cspMatch).not.toBeNull()
+    const csp = cspMatch[1]
+    expect(csp).toMatch(/script-src[^;]*https:\/\/www\.gstatic\.com/)
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/identitytoolkit\.googleapis\.com/)
+    expect(csp).toMatch(/frame-src[^;]*firebaseapp\.com/)
+    expect(csp).toMatch(/script-src[^;]*https:\/\/www\.google\.com/)
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/www\.google\.com/)
+    expect(csp).toMatch(/frame-src[^;]*https:\/\/www\.google\.com/)
+  })
+
+  it('loads firebase-init.js and auth-ui.js as module scripts', () => {
+    expect(html).toMatch(/<script[^>]+type="module"[^>]+src="firebase-init\.js"/)
+    expect(html).toMatch(/<script[^>]+type="module"[^>]+src="auth-ui\.js"/)
   })
 })
