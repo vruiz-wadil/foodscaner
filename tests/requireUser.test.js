@@ -43,16 +43,27 @@ describe('requireUser', () => {
     process.env.FIREBASE_PROJECT_ID = ORIGINAL_PROJECT_ID
   })
 
-  it('attaches req.user = {uid, email, emailVerified} and calls next() on a valid token', async () => {
-    verifyFirebaseIdToken.mockResolvedValue({ uid: 'user-123', email: 'user@example.com', emailVerified: true })
+  it('attaches req.user = {uid, email, emailVerified, phoneNumber} and calls next() on a valid token', async () => {
+    verifyFirebaseIdToken.mockResolvedValue({ uid: 'user-123', email: 'user@example.com', emailVerified: true, phoneNumber: null })
     const req = { get: (name) => (name.toLowerCase() === 'authorization' ? 'Bearer valid-token' : undefined) }
     const res = makeRes()
     const next = vi.fn()
 
     await requireUser(req, res, next)
 
-    expect(req.user).toEqual({ uid: 'user-123', email: 'user@example.com', emailVerified: true })
+    expect(req.user).toEqual({ uid: 'user-123', email: 'user@example.com', emailVerified: true, phoneNumber: null })
     expect(next).toHaveBeenCalledTimes(1)
+  })
+
+  it('attaches phoneNumber for a phone-authenticated token (no email)', async () => {
+    verifyFirebaseIdToken.mockResolvedValue({ uid: 'user-9', email: null, emailVerified: false, phoneNumber: '+525512345678' })
+    const req = { get: (name) => (name.toLowerCase() === 'authorization' ? 'Bearer valid-token' : undefined) }
+    const res = makeRes()
+    const next = vi.fn()
+
+    await requireUser(req, res, next)
+
+    expect(req.user).toEqual({ uid: 'user-9', email: null, emailVerified: false, phoneNumber: '+525512345678' })
   })
 
   it('responds 401 when there is no Authorization header', async () => {

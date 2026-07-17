@@ -52,8 +52,8 @@ async function requireUser(req, res, next) {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     if (!projectId) return res.status(503).json({ error: 'auth_not_configured' });
 
-    const { uid, email, emailVerified } = await verifyFirebaseIdToken(match[1], projectId);
-    req.user = { uid, email, emailVerified };
+    const { uid, email, emailVerified, phoneNumber } = await verifyFirebaseIdToken(match[1], projectId);
+    req.user = { uid, email, emailVerified, phoneNumber };
     next();
   } catch (e) {
     // Fail-closed: cualquier error (token inválido, expirado, certs de Google
@@ -73,8 +73,8 @@ async function optionalUser(req, res, next) {
   try {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     if (!projectId) { req.user = null; return next(); }
-    const { uid, email, emailVerified } = await verifyFirebaseIdToken(match[1], projectId);
-    req.user = { uid, email, emailVerified };
+    const { uid, email, emailVerified, phoneNumber } = await verifyFirebaseIdToken(match[1], projectId);
+    req.user = { uid, email, emailVerified, phoneNumber };
   } catch {
     req.user = null;
   }
