@@ -663,21 +663,26 @@ body:has(.app-main.content-page) {
 
 /* Elegido: naranja por default — dietas/condiciones no tienen severidad, un
    solo tono de "elegido" alcanza. Alergias lo sobreescribe por severidad
-   abajo (mismo naranja para Aviso, rojo para Estricto). */
-.dietary-grid-item.chosen,
-.allergen-grid-item.chosen {
+   abajo (mismo naranja para Aviso, rojo para Estricto). Escopeado a
+   #preferences-form (igual que la regla gris de arriba): un selector con ID
+   siempre pesa más que cualquier cantidad de clases, así que la regla gris
+   sin escopear con ID le ganaba a este .chosen de puro-clases aunque tuviera
+   más clases — el tile se quedaba en gris con solo el outline oscuro
+   encima, sin relleno de color. */
+#preferences-form .dietary-grid-item.chosen,
+#preferences-form .allergen-grid-item.chosen {
   background: var(--accent);
   border-color: var(--accent);
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
-.dietary-grid-item.chosen .label,
-.allergen-grid-item.chosen .label { color: #fff; }
+#preferences-form .dietary-grid-item.chosen .label,
+#preferences-form .allergen-grid-item.chosen .label { color: #fff; }
 
 /* Alergia elegida con severidad "Estricto" — rojo en vez del naranja de
    "Aviso". .severity-mild/.severity-severe se sincronizan en preferences-ui.js
    junto con el botón .active del severity-toggle correspondiente. */
-.allergen-grid-item.chosen.severity-severe {
+#preferences-form .allergen-grid-item.chosen.severity-severe {
   background: var(--chile);
   border-color: var(--chile);
 }
