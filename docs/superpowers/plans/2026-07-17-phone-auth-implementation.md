@@ -12,8 +12,12 @@
 
 - Only branch `develop` — never touch `master`/production without being explicitly asked.
 - Single Firebase SDK import point: `firebase-init.js`. No other file imports directly from the CDN.
-- CSP in `auth.html` stays as restrictive as possible — only add the exact `https://www.google.com` entries needed for reCAPTCHA (`script-src`, `frame-src`, `connect-src`), nothing broader.
-- The OCR free-tier anti-abuse gate change (Task 3) must not be deployed to production without Firebase App Check enabled on the Phone provider (console config, out of scope for this repo — see spec's "Prerequisito de producción"). This plan implements the code; enabling App Check is a manual follow-up outside this repo.
+- **CSP exists in THREE places, not one — all three govern `auth.html` depending on environment, and all three need the `https://www.google.com` addition (found during plan review, not in the original spec):**
+  1. `auth.html:6` `<meta http-equiv="Content-Security-Policy">` — always present regardless of environment.
+  2. `vercel.json:26-37` — route-level header CSP for `/(.*)`, `"continue": true`. **This is the CSP that actually reaches the browser for `auth.html` in production** (static files are served by Vercel's edge per the `@vercel/static` builds, never touching the Express app) and in `vercel dev`. Browsers enforce the *intersection* of the meta CSP and this header per-directive — updating only the meta tag is cosmetic if this one is left unpatched.
+  3. `api/index.js:30-37` — Express middleware CSP header, applies to every response when running `node api/index.js` directly (local dev/test convenience only, per its own code comment — never hit in actual production for static files).
+  All three currently have identical CSP strings (missing `https://www.google.com`) — Task 9 updates all three identically, only adding the exact `https://www.google.com` entries needed for reCAPTCHA (`script-src`, `frame-src`, `connect-src`), nothing broader.
+- **The OCR free-tier anti-abuse gate change (Task 3) is a silent, unconditional code bypass — there is no env var or feature flag gating it.** It must not reach production without Firebase App Check enabled on the Phone provider (console config, out of scope for this repo — see spec's "Prerequisito de producción"). Treat this as a hard release gate: before promoting Task 3's commit past `develop`, confirm App Check is enabled. This plan implements the code only; enabling App Check is a manual follow-up this plan cannot verify or enforce in code.
 - Every new async auth handler wraps its button in the existing `withLoadingState(button, loadingText, fn)` helper — no exceptions (this is exactly what the spec review caught missing in v1).
 - Run `npx vitest run <file>` (not the full suite) after each task's own test file to keep iteration fast; run the full `npm test` before the final task's commit.
 
@@ -696,13 +700,96 @@ git commit -m "feat(auth): add country/dial-code data for phone login"
 
 **Files:**
 - Modify: `firebase-init.js`
+- Test: `tests/firebase-init.test.js` (this file DOES already exist and DOES test this exact file — it mocks the SDK's CDN URL directly and asserts on `firebase-init.js`'s re-exports)
 
 **Interfaces:**
 - Produces: `RecaptchaVerifier`, `signInWithPhoneNumber`, `getAdditionalUserInfo` re-exported from the single SDK import point. Consumed by Task 10.
 
-No dedicated test for this task — `firebase-init.js` has no existing test file (it only re-exports SDK symbols; every consumer test already mocks `'../firebase-init.js'` wholesale, so there's nothing here to unit-test in isolation). Verified instead by Task 10's tests, which mock these exact exports.
+- [ ] **Step 1: Update the test file's mocks**
 
-- [ ] **Step 1: Implement**
+In `tests/firebase-init.test.js`, add the new mocks alongside the existing ones (lines 19-28):
+
+```js
+const mockApp = { name: '[DEFAULT]' }
+const mockAuthInstance = { currentUser: null }
+const initializeApp = vi.fn(() => mockApp)
+const getAuth = vi.fn(() => mockAuthInstance)
+const onAuthStateChanged = vi.fn()
+const signInWithEmailAndPassword = vi.fn()
+const createUserWithEmailAndPassword = vi.fn()
+const signInWithPopup = vi.fn()
+const signOut = vi.fn()
+class GoogleAuthProvider {}
+class RecaptchaVerifier {}
+const signInWithPhoneNumber = vi.fn()
+const getAdditionalUserInfo = vi.fn()
+
+vi.mock(APP_URL, () => ({ initializeApp }))
+vi.mock(AUTH_URL, () => ({
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  getAdditionalUserInfo
+}))
+```
+
+- [ ] **Step 2: Write the failing tests**
+
+Extend the existing `'re-exports the auth SDK functions...'` test (line 66-73):
+
+```js
+  it('re-exports the auth SDK functions Task 11/12/phone-auth depend on', async () => {
+    const mod = await import('../firebase-init.js')
+    expect(mod.onAuthStateChanged).toBe(onAuthStateChanged)
+    expect(mod.signInWithEmailAndPassword).toBe(signInWithEmailAndPassword)
+    expect(mod.createUserWithEmailAndPassword).toBe(createUserWithEmailAndPassword)
+    expect(mod.signInWithPopup).toBe(signInWithPopup)
+    expect(mod.GoogleAuthProvider).toBe(GoogleAuthProvider)
+    expect(mod.RecaptchaVerifier).toBe(RecaptchaVerifier)
+    expect(mod.signInWithPhoneNumber).toBe(signInWithPhoneNumber)
+    expect(mod.getAdditionalUserInfo).toBe(getAdditionalUserInfo)
+  })
+```
+
+Add a new `describe('auth.html wiring', ...)` block, mirroring the existing `describe('index.html wiring', ...)` block (lines 76-92) — **this is new coverage the plan review found missing: no existing test reads `auth.html`'s CSP at all, only `index.html`'s.** Add this after the `index.html wiring` block:
+
+```js
+describe('auth.html wiring', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'auth.html'), 'utf8')
+
+  it('CSP allows loading the Firebase SDK and reCAPTCHA (google.com) for phone login', () => {
+    const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/)
+    expect(cspMatch).not.toBeNull()
+    const csp = cspMatch[1]
+    expect(csp).toMatch(/script-src[^;]*https:\/\/www\.gstatic\.com/)
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/identitytoolkit\.googleapis\.com/)
+    expect(csp).toMatch(/frame-src[^;]*firebaseapp\.com/)
+    expect(csp).toMatch(/script-src[^;]*https:\/\/www\.google\.com/)
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/www\.google\.com/)
+    expect(csp).toMatch(/frame-src[^;]*https:\/\/www\.google\.com/)
+  })
+
+  it('loads firebase-init.js and auth-ui.js as module scripts', () => {
+    expect(html).toMatch(/<script[^>]+type="module"[^>]+src="firebase-init\.js"/)
+    expect(html).toMatch(/<script[^>]+type="module"[^>]+src="auth-ui\.js"/)
+  })
+})
+```
+
+- [ ] **Step 3: Run the tests to verify they fail**
+
+Run: `npx vitest run tests/firebase-init.test.js`
+Expected: FAIL — `mod.RecaptchaVerifier` etc. are `undefined`, and `auth.html`'s CSP doesn't have `www.google.com` yet (Task 9 hasn't run yet either — see note below).
+
+Note on task order: this test's `auth.html wiring` assertions won't fully pass until Task 9 (CSP update) also lands. If executing tasks in order 1→10, this is expected — re-run this file's tests again after Task 9 to confirm full green; don't treat a failing `auth.html wiring` CSP assertion as a Task 7 bug if Task 9 hasn't run yet.
+
+- [ ] **Step 4: Implement**
 
 In `firebase-init.js`, add to the import from `firebase-auth.js` (line 6-14):
 
@@ -737,15 +824,15 @@ export {
 };
 ```
 
-- [ ] **Step 2: Sanity check**
+- [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `npx vitest run` (full suite)
-Expected: PASS, no regressions — this file has no direct test, so the check here is that every OTHER test file that mocks `'../firebase-init.js'` still passes unchanged (they mock the module wholesale, so adding new named exports to the real file doesn't affect them).
+Run: `npx vitest run tests/firebase-init.test.js`
+Expected: the SDK re-export assertions PASS now; the `auth.html wiring` CSP assertions remain failing until Task 9 lands (expected per the note above — this is not a regression).
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add firebase-init.js
+git add firebase-init.js tests/firebase-init.test.js
 git commit -m "feat(auth): export Phone Auth SDK functions from firebase-init.js"
 ```
 
@@ -806,6 +893,20 @@ And declare it alongside the other `let` bindings at the top of the file (line 1
 let getIdToken, onAuthChange, syncUserProfile, getCachedProfile, setAutoSyncSuppressed
 ```
 
+Also update the pre-existing `window.authClient` test (currently asserting 4 functions) — it needs to assert the 5th too, or it won't actually verify `setAutoSyncSuppressed` reached `window.authClient`:
+
+```js
+describe('window.authClient', () => {
+  it('exposes the five functions for non-module scripts', async () => {
+    expect(window.authClient.getIdToken).toBe(getIdToken)
+    expect(window.authClient.onAuthChange).toBe(onAuthChange)
+    expect(window.authClient.syncUserProfile).toBe(syncUserProfile)
+    expect(window.authClient.getCachedProfile).toBe(getCachedProfile)
+    expect(window.authClient.setAutoSyncSuppressed).toBe(setAutoSyncSuppressed)
+  })
+})
+```
+
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run tests/authClient.test.js`
@@ -818,13 +919,14 @@ In `authClient.js`, add the flag/setter and gate the existing auto-sync listener
 ```js
 let autoSyncSuppressed = false;
 
-// Escape hatch para el flujo de login por teléfono: confirmationResult.confirm()
-// dispara este listener ANTES de que el usuario nuevo vea el paso de
-// consentimiento (Términos/edad). Sin suprimir, el auto-sync sin body de abajo
-// crea el doc de Firestore con termsAccepted ausente, y la sync explícita con
-// consentimiento real que llega después cae en la rama de "usuario ya existe"
-// de fireUpsertUser — que nunca escribe termsAccepted*. Ver auth-ui.js
-// handleVerifyCode.
+// Escape hatch para auth.html: motivado por el flujo de teléfono
+// (confirmationResult.confirm() dispara este listener ANTES de que el
+// usuario nuevo vea el paso de consentimiento de Términos/edad — sin
+// suprimir, el auto-sync sin body de abajo crea el doc de Firestore con
+// termsAccepted ausente, y la sync explícita con consentimiento real que
+// llega después cae en la rama de "usuario ya existe" de fireUpsertUser, que
+// nunca escribe termsAccepted*), pero auth-ui.js lo usa para TODA la página,
+// no solo teléfono — ver el comentario junto a su import en auth-ui.js.
 export function setAutoSyncSuppressed(value) {
   autoSyncSuppressed = value;
 }
@@ -841,19 +943,7 @@ window.authClient = { getIdToken, onAuthChange, syncUserProfile, getCachedProfil
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/authClient.test.js`
-Expected: PASS (all tests in the file, including the pre-existing `window.authClient` test — update its assertion list too):
-
-```js
-describe('window.authClient', () => {
-  it('exposes the five functions for non-module scripts', async () => {
-    expect(window.authClient.getIdToken).toBe(getIdToken)
-    expect(window.authClient.onAuthChange).toBe(onAuthChange)
-    expect(window.authClient.syncUserProfile).toBe(syncUserProfile)
-    expect(window.authClient.getCachedProfile).toBe(getCachedProfile)
-    expect(window.authClient.setAutoSyncSuppressed).toBe(setAutoSyncSuppressed)
-  })
-})
-```
+Expected: PASS (all tests in the file, including the updated `window.authClient` test from Step 1).
 
 - [ ] **Step 5: Commit**
 
@@ -864,15 +954,50 @@ git commit -m "feat(auth): add setAutoSyncSuppressed to prevent losing phone-sig
 
 ---
 
-### Task 9: `auth.html` — markup and CSP
+### Task 9: `auth.html` — markup, and CSP in all 3 places that declare it
 
 **Files:**
-- Modify: `auth.html`
+- Modify: `auth.html`, `vercel.json`, `api/index.js`
+- Test: `tests/firebase-init.test.js` (the `auth.html wiring` CSP assertions added in Task 7 — this task is what actually turns them green), new `tests/vercel-csp.test.js`
 
 **Interfaces:**
-- Produces: DOM ids `login-view`, `btn-phone`, `phone-step`, `phone-country`, `phone-number`, `btn-send-code`, `btn-phone-cancel`, `phone-code-step`, `phone-code`, `btn-verify-code`, `btn-resend-code`, `btn-phone-code-back`, `btn-phone-consent-confirm`, `recaptcha-container`. Consumed by Task 10 (`auth-ui.js` wiring) — this task is markup-only, no JS logic here, so no test file (the DOM these ids live in is exercised by Task 10's `auth-ui.test.js` fixture, which builds its own equivalent jsdom fixture rather than parsing this file).
+- Produces: DOM ids `login-view`, `btn-phone`, `phone-step`, `phone-country`, `phone-number`, `btn-send-code`, `btn-phone-cancel`, `phone-code-step`, `phone-code`, `btn-verify-code`, `btn-resend-code`, `btn-phone-code-back`, `btn-phone-consent-confirm`, `recaptcha-container`. Consumed by Task 10 (`auth-ui.js` wiring).
 
-- [ ] **Step 1: Update the CSP meta tag**
+**Why 3 files, not 1** (found during plan review): `auth.html`'s `<meta>` CSP tag is NOT the only CSP that governs it.
+- `vercel.json:26-37` sets a route-level header CSP for `/(.*)` with `"continue": true` — since `auth.html` is a static file served by Vercel's edge (`@vercel/static` build) in production, **this is the CSP that actually reaches the browser in production**, not the meta tag alone. Browsers intersect multiple CSP sources per-directive (most restrictive wins), so leaving this one unpatched would still block reCAPTCHA in production regardless of the meta tag fix.
+- `api/index.js:30-37` sets the same header via Express middleware, which (per its own code comment) only applies to static files when running `node api/index.js` directly — local dev/test convenience, never hit for static assets in actual production, but still worth keeping in sync so local testing behaves like production.
+- All three currently have byte-identical CSP strings. This task updates all three identically.
+
+- [ ] **Step 1: Write the failing test for `vercel.json`'s CSP**
+
+Create `tests/vercel-csp.test.js`:
+
+```js
+import { describe, it, expect } from 'vitest'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const vercelConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8'))
+const csp = vercelConfig.routes.find(r => r.headers && r.headers['Content-Security-Policy']).headers['Content-Security-Policy']
+
+describe('vercel.json route-level CSP (governs static files like auth.html in production)', () => {
+  it('allows reCAPTCHA (google.com) alongside the existing Firebase entries', () => {
+    expect(csp).toMatch(/script-src[^;]*https:\/\/www\.gstatic\.com/)
+    expect(csp).toMatch(/script-src[^;]*https:\/\/www\.google\.com/)
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/www\.google\.com/)
+    expect(csp).toMatch(/frame-src[^;]*https:\/\/www\.google\.com/)
+  })
+})
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx vitest run tests/vercel-csp.test.js tests/firebase-init.test.js`
+Expected: FAIL — neither `vercel.json` nor `auth.html` has `www.google.com` yet (the `auth.html wiring` test from Task 7 is also still red at this point, as noted there).
+
+- [ ] **Step 3: Update the CSP meta tag in `auth.html`**
 
 In `auth.html:6`, add `https://www.google.com` to `script-src`, `frame-src`, and `connect-src`:
 
@@ -880,7 +1005,28 @@ In `auth.html:6`, add `https://www.google.com` to `script-src`, `frame-src`, and
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
 ```
 
-- [ ] **Step 2: Wrap the existing login content in `#login-view`, add the phone button**
+- [ ] **Step 4: Update the CSP header in `vercel.json`**
+
+In `vercel.json:34`, apply the identical `https://www.google.com` additions:
+
+```json
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
+```
+
+- [ ] **Step 5: Update the CSP header in `api/index.js`**
+
+In `api/index.js:35`, apply the same additions (this one has fewer existing entries than the other two — only add the 3 `www.google.com` entries, don't add the Firebase-specific entries this file never had, since that would be scope creep unrelated to this task):
+
+```js
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';");
+```
+
+- [ ] **Step 6: Run the tests to verify they pass**
+
+Run: `npx vitest run tests/vercel-csp.test.js tests/firebase-init.test.js`
+Expected: PASS — both the new `vercel.json` test and Task 7's `auth.html wiring` CSP test are now green.
+
+- [ ] **Step 7: Wrap the existing login content in `#login-view`, add the phone button**
 
 Replace lines 41-83 (the `.content-card` block) with:
 
@@ -957,15 +1103,15 @@ Replace lines 41-83 (the `.content-card` block) with:
 
 Note: `#signup-only` moved out from inside `<form id="login-form">` to be a sibling of `#login-view`/`#phone-step`/`#phone-code-step` (it's now shared by two different flows, one of which — phone — has no enclosing `<form>`). `#btn-phone-consent-confirm` starts `hidden` alongside the rest of `#signup-only` when reused for the email-signup path (where `#btn-signup` itself is the submit action, per the existing 2-click semantics) — `auth-ui.js`'s `setView('phone-consent')` is the only place that un-hides it.
 
-- [ ] **Step 3: Manual check (no automated test for markup)**
+- [ ] **Step 8: Manual check (no automated test for markup)**
 
-Open `auth.html` in a browser (or run the app locally) and confirm: the page still renders identically to before (Google button, divider, email form) with the new "Continuar con teléfono" button visible above the divider, and nothing else visually broken. This is a markup-only task — Task 10's tests are what actually exercise this DOM's behavior.
+Open `auth.html` in a browser (or run the app locally) and confirm: the page still renders identically to before (Google button, divider, email form) with the new "Continuar con teléfono" button visible above the divider, and nothing else visually broken. This is a markup-only step — Task 10's tests are what actually exercise this DOM's behavior.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add auth.html
-git commit -m "feat(auth): add phone login markup, CSP entries for reCAPTCHA"
+git add auth.html vercel.json api/index.js tests/vercel-csp.test.js tests/firebase-init.test.js
+git commit -m "feat(auth): add phone login markup, CSP entries for reCAPTCHA in all 3 places it's declared"
 ```
 
 ---
@@ -1132,8 +1278,14 @@ describe('handleSendCode', () => {
   })
 })
 
+describe('module load — auto-sync suppression', () => {
+  it('suprime el auto-sync genérico de authClient.js apenas se carga el módulo, para TODOS los flujos de esta página (hallazgo de revisión del plan: importar authClient.js activaba su listener por primera vez en auth.html)', () => {
+    expect(setAutoSyncSuppressed).toHaveBeenCalledWith(true)
+  })
+})
+
 describe('handleVerifyCode', () => {
-  it('suppresses auto-sync before confirming, and does not open the consent step for an existing user', async () => {
+  it('does not open the consent step for an existing user', async () => {
     const confirm = vi.fn().mockResolvedValue({ user: { uid: 'existing-1' } })
     signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
     getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: false })
@@ -1141,7 +1293,6 @@ describe('handleVerifyCode', () => {
 
     await handleVerifyCode('123456')
 
-    expect(setAutoSyncSuppressed).toHaveBeenCalledWith(true)
     expect(confirm).toHaveBeenCalledWith('123456')
     expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(true)
   })
@@ -1264,6 +1415,20 @@ import {
 } from './firebase-init.js';
 import { setAutoSyncSuppressed } from './authClient.js';
 import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
+
+// hallazgo de revisión del plan: auth-ui.js NUNCA había importado
+// authClient.js antes de este cambio — el simple hecho de importarlo activa
+// su listener de auto-sync module-level (onAuthChange, auth-ui.html nunca lo
+// había cargado). Si solo se suprimiera dentro de handleVerifyCode (como
+// decía una versión anterior de este plan), ese listener quedaría ACTIVO por
+// primera vez para handleLogin/handleSignup/handleGoogleSignIn también —
+// exponiendo la MISMA race de consentimiento perdido (spec, sección 4) en el
+// signup por correo ya existente, que nunca la tuvo porque authClient.js
+// nunca corría en esta página. auth.html no necesita el auto-sync genérico en
+// NINGÚN flujo: cada uno (login, signup, Google, teléfono) ya hace su propio
+// sync explícito y redirige de inmediato — así que se suprime una sola vez,
+// aquí, a nivel de módulo, para toda la vida de esta página.
+setAutoSyncSuppressed(true);
 ```
 
 Extend `AUTH_ERROR_MESSAGES` (after the existing entries, before the closing `};`):
@@ -1340,7 +1505,8 @@ export async function handleSendCode(dialCode, localNumber) {
 
 export async function handleVerifyCode(code) {
   clearError();
-  setAutoSyncSuppressed(true);
+  // No hace falta suprimir aquí — ya se suprimió a nivel de módulo arriba,
+  // para toda la página (ver comentario junto al import de setAutoSyncSuppressed).
   const btn = document.getElementById('btn-verify-code');
   return withLoadingState(btn, 'Verificando…', async () => {
     try {
