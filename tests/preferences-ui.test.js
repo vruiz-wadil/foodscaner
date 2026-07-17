@@ -58,7 +58,13 @@ describe('loadPreferencesIntoForm', () => {
     expect(document.querySelector('[data-dietary="vegan"]').classList.contains('chosen')).toBe(true)
     expect(document.querySelector('[data-dietary="glutenFree"]').classList.contains('chosen')).toBe(false)
     expect(document.querySelector('[data-health="diabet"]').classList.contains('chosen')).toBe(true)
-    expect(document.getElementById('allergen-cacahuate').classList.contains('chosen')).toBe(true)
+    const cacahuateTile = document.getElementById('allergen-cacahuate')
+    expect(cacahuateTile.classList.contains('chosen')).toBe(true)
+    // hallazgo: los tiles deben verse rojos en "Estricto", naranja en "Aviso"
+    // — .severity-severe/.severity-mild son las clases que el CSS lee para
+    // eso, sincronizadas junto con .chosen/.active.
+    expect(cacahuateTile.classList.contains('severity-severe')).toBe(true)
+    expect(cacahuateTile.classList.contains('severity-mild')).toBe(false)
     const toggle = document.getElementById('severity-cacahuate')
     expect(toggle.classList.contains('hidden')).toBe(false)
     expect(toggle.querySelector('[data-severity="severe"]').classList.contains('active')).toBe(true)
@@ -222,6 +228,9 @@ describe('setupPreferenceTiles — interacción de alergias', () => {
     expect(toggle.querySelector('[data-severity="mild"]').classList.contains('active')).toBe(true)
     expect(toggle.querySelector('[data-severity="mild"]').getAttribute('aria-checked')).toBe('true')
     expect(toggle.querySelector('[data-severity="severe"]').getAttribute('aria-checked')).toBe('false')
+    // hallazgo: naranja (severity-mild) por default al elegir, no rojo.
+    expect(tile.classList.contains('severity-mild')).toBe(true)
+    expect(tile.classList.contains('severity-severe')).toBe(false)
 
     tile.click()
     expect(tile.classList.contains('chosen')).toBe(false)
@@ -245,12 +254,18 @@ describe('setupPreferenceTiles — interacción de alergias', () => {
     expect(mildBtn.classList.contains('active')).toBe(false)
     expect(severeBtn.getAttribute('aria-checked')).toBe('true')
     expect(mildBtn.getAttribute('aria-checked')).toBe('false')
+    // hallazgo: cambiar a "Estricto" pinta el tile de rojo (severity-severe).
+    expect(tile.classList.contains('severity-severe')).toBe(true)
+    expect(tile.classList.contains('severity-mild')).toBe(false)
 
     mildBtn.click()
     expect(mildBtn.classList.contains('active')).toBe(true)
     expect(severeBtn.classList.contains('active')).toBe(false)
     expect(mildBtn.getAttribute('aria-checked')).toBe('true')
     expect(severeBtn.getAttribute('aria-checked')).toBe('false')
+    // y volver a "Aviso" lo regresa a naranja (severity-mild).
+    expect(tile.classList.contains('severity-mild')).toBe(true)
+    expect(tile.classList.contains('severity-severe')).toBe(false)
   })
 
   it('no reactiva "Aviso" al re-elegir un tile de alergeno si ya había una severidad marcada (no pisa la elección previa del usuario)', () => {

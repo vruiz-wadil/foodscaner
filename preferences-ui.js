@@ -1,6 +1,6 @@
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 
-const ALLERGEN_CODES = ['cacahuate', 'lacteos'];
+const ALLERGEN_CODES = ['cacahuate', 'lacteos', 'nueces', 'trigo', 'huevo', 'pescado', 'mariscos', 'soja'];
 const CONSENT_NOTICE_VERSION = 'v1';
 
 function showError(message) {
@@ -50,6 +50,16 @@ function clearSuccess() {
   el.classList.add('hidden');
 }
 
+// El color del tile de alergeno depende de la severidad elegida (naranja =
+// Aviso, rojo = Estricto — hallazgo: "los botones deben ser... rojos o
+// naranja dependiendo si estan seleccionados con aviso o estricto"). El CSS
+// (.allergen-grid-item.chosen.severity-severe) lee esta clase; se mantiene
+// sincronizada en los 3 puntos donde cambia la severidad.
+function setTileSeverityColor(tile, severity) {
+  tile.classList.remove('severity-mild', 'severity-severe');
+  tile.classList.add(`severity-${severity}`);
+}
+
 async function withLoadingState(button, loadingText, fn) {
   const originalText = button ? button.textContent : null;
   if (button) { button.disabled = true; button.textContent = loadingText; }
@@ -76,7 +86,11 @@ export function loadPreferencesIntoForm() {
   (prefs.allergens || []).forEach(({ code, severity }) => {
     const tile = document.getElementById(`allergen-${code}`);
     const toggle = document.getElementById(`severity-${code}`);
-    if (tile) { tile.classList.add('chosen'); tile.setAttribute('aria-pressed', 'true'); }
+    if (tile) {
+      tile.classList.add('chosen');
+      tile.setAttribute('aria-pressed', 'true');
+      setTileSeverityColor(tile, severity);
+    }
     if (toggle) {
       toggle.classList.remove('hidden');
       toggle.querySelectorAll('button').forEach(b => {
@@ -126,6 +140,7 @@ export function setupPreferenceTiles() {
         const mildBtn = toggle.querySelector('[data-severity="mild"]');
         mildBtn.classList.add('active');
         mildBtn.setAttribute('aria-checked', 'true');
+        setTileSeverityColor(tile, 'mild');
       }
     });
 
@@ -137,6 +152,7 @@ export function setupPreferenceTiles() {
         });
         btn.classList.add('active');
         btn.setAttribute('aria-checked', 'true');
+        setTileSeverityColor(tile, btn.dataset.severity);
       });
     });
   });

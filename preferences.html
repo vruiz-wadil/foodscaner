@@ -61,25 +61,69 @@
       </p>
       <form id="preferences-form">
         <fieldset>
+          <!-- Mismas 12 opciones que ALLOWED_DIETARY en api/index.js, y los
+               mismos emoji que ya usa scan.html en renderDietaryBadges
+               (app.js) para las mismas 12 etiquetas — paridad total con el
+               resultado de escaneo (hallazgo: faltaban 8 de las 12). -->
           <legend>Dietas</legend>
           <div class="dietary-icon-grid" id="dietary-tiles">
             <button type="button" class="dietary-grid-item" data-dietary="vegan" aria-pressed="false"><span class="emoji">🌱</span><span class="label">Vegano</span></button>
             <button type="button" class="dietary-grid-item" data-dietary="vegetarian" aria-pressed="false"><span class="emoji">🥦</span><span class="label">Vegetariano</span></button>
             <button type="button" class="dietary-grid-item" data-dietary="keto" aria-pressed="false"><span class="emoji">🥑</span><span class="label">Keto</span></button>
             <button type="button" class="dietary-grid-item" data-dietary="glutenFree" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Sin gluten</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="caseinFree" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Sin caseína</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="organic" aria-pressed="false"><span class="emoji">🌿</span><span class="label">Orgánico</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="kosher" aria-pressed="false"><span class="emoji">🏷️</span><span class="label">Kosher</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="halal" aria-pressed="false"><span class="emoji">📛</span><span class="label">Halal</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="nonGmo" aria-pressed="false"><span class="emoji">🧬</span><span class="label">Sin OGM</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="noAdditives" aria-pressed="false"><span class="emoji">🧪</span><span class="label">Sin aditivos</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="palmOilFree" aria-pressed="false"><span class="emoji">🌴</span><span class="label">Sin palma</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="fairTrade" aria-pressed="false"><span class="emoji">🤝</span><span class="label">C. justo</span></button>
           </div>
         </fieldset>
         <fieldset>
+          <!-- Mismos 8 alergenos que ALLOWED_ALLERGEN_CODES en api/index.js
+               y COMMON_ALLERGENS en app.js (hallazgo: faltaban 6 de los 8). -->
           <legend>Alergias</legend>
           <div class="allergen-icon-grid" id="allergen-tiles">
             <button type="button" class="allergen-grid-item" id="allergen-cacahuate" data-allergen="cacahuate" aria-pressed="false"><span class="emoji">🥜</span><span class="label">Cacahuate</span></button>
             <button type="button" class="allergen-grid-item" id="allergen-lacteos" data-allergen="lacteos" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Lácteos</span></button>
+            <button type="button" class="allergen-grid-item" id="allergen-nueces" data-allergen="nueces" aria-pressed="false"><span class="emoji">🌰</span><span class="label">Nueces</span></button>
+            <button type="button" class="allergen-grid-item" id="allergen-trigo" data-allergen="trigo" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Trigo</span></button>
+            <button type="button" class="allergen-grid-item" id="allergen-huevo" data-allergen="huevo" aria-pressed="false"><span class="emoji">🥚</span><span class="label">Huevo</span></button>
+            <button type="button" class="allergen-grid-item" id="allergen-pescado" data-allergen="pescado" aria-pressed="false"><span class="emoji">🐟</span><span class="label">Pescado</span></button>
+            <button type="button" class="allergen-grid-item" id="allergen-mariscos" data-allergen="mariscos" aria-pressed="false"><span class="emoji">🦐</span><span class="label">Mariscos</span></button>
+            <button type="button" class="allergen-grid-item" id="allergen-soja" data-allergen="soja" aria-pressed="false"><span class="emoji">🫘</span><span class="label">Soja</span></button>
           </div>
           <div class="severity-toggle hidden" id="severity-cacahuate" role="radiogroup">
             <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
             <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
           </div>
           <div class="severity-toggle hidden" id="severity-lacteos" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+          </div>
+          <div class="severity-toggle hidden" id="severity-nueces" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+          </div>
+          <div class="severity-toggle hidden" id="severity-trigo" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+          </div>
+          <div class="severity-toggle hidden" id="severity-huevo" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+          </div>
+          <div class="severity-toggle hidden" id="severity-pescado" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+          </div>
+          <div class="severity-toggle hidden" id="severity-mariscos" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+          </div>
+          <div class="severity-toggle hidden" id="severity-soja" role="radiogroup">
             <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
             <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
           </div>
