@@ -704,3 +704,33 @@ body:has(.app-main.content-page) {
   color: #fff;
   border-color: var(--ink);
 }
+
+/* #allergen-tiles: grid -> flex, escopeado a esta página (styles.css define
+   .allergen-icon-grid como grid, compartido con scan.html; no tocamos esa
+   regla). El severity-toggle de cada alergeno ahora vive interleaved justo
+   después de su tile en el HTML — flex-basis:100% fuerza un salto de línea
+   ahí mismo, así la barra Aviso/Estricto aparece pegada a SU tile, no
+   apilada al final de todo el grid (hallazgo UX de confusión con 8 tiles). */
+#preferences-form #allergen-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#preferences-form .allergen-grid-item {
+  flex: 0 0 calc(25% - 6px);
+}
+#preferences-form .severity-toggle {
+  flex: 0 0 100%;
+  margin: -2px 0 4px;
+}
+.severity-toggle-name {
+  flex: 0 0 auto;
+  min-width: 56px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+@media (max-width: 500px) {
+  #preferences-form .allergen-grid-item { flex: 0 0 calc(33.333% - 6px); }
+}
