@@ -295,7 +295,7 @@ Expected: FAIL — `phoneNumber` absent from the objects/fields asserted above.
 
 - [ ] **Step 4: Implement**
 
-In `api/index.js`, in `authSyncHandler` (~line 1337), add `phoneNumber` to the object passed to `fireUpsertUser`:
+In `api/index.js`, in `authSyncHandler` (~line 1337), add `phoneNumber` to the object passed to `fireUpsertUser`. **Keep the existing comment above `termsAccepted` — the snippet below reproduces it; don't drop it in a whole-function replace:**
 
 ```js
 async function authSyncHandler(req, res) {
@@ -306,6 +306,8 @@ async function authSyncHandler(req, res) {
       providers: Array.isArray(req.body?.providers) ? req.body.providers : [],
       displayName: sanitizeDisplayName(req.body?.displayName),
       photoURL: sanitizePhotoURL(req.body?.photoURL),
+      // Solo relevantes en la creación (fireUpsertUser los ignora si el doc ya existe) —
+      // vienen del checkbox de Términos/edad en el signup (Task 11).
       termsAccepted: req.body?.termsAccepted === true,
       termsVersion: req.body?.termsVersion,
       ageConfirmed: req.body?.ageConfirmed === true
@@ -1015,10 +1017,10 @@ In `vercel.json:34`, apply the identical `https://www.google.com` additions:
 
 - [ ] **Step 5: Update the CSP header in `api/index.js`**
 
-In `api/index.js:35`, apply the same additions (this one has fewer existing entries than the other two — only add the 3 `www.google.com` entries, don't add the Firebase-specific entries this file never had, since that would be scope creep unrelated to this task):
+In `api/index.js:35`, apply the same additions (this one has fewer existing entries than the other two, and — unlike `auth.html`/`vercel.json` — has NO `frame-src` directive at all today; add one so reCAPTCHA's iframe isn't blocked by the `default-src 'self'` fallback when this middleware's CSP is exercised. Only add the 3 `www.google.com` entries plus the new `frame-src`, don't add the Firebase-specific entries this file never had — that would be scope creep unrelated to this task):
 
 ```js
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://www.google.com; frame-src https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';");
 ```
 
 - [ ] **Step 6: Run the tests to verify they pass**
@@ -1384,6 +1386,17 @@ describe('phone-step wiring (DOMContentLoaded)', () => {
     expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(false)
   })
 
+  it('#btn-phone exits any in-progress email signup mode first (hallazgo de revisión: sin esto, los checkboxes de Términos del signup por correo abandonado quedan visibles junto a la UI de teléfono)', () => {
+    document.getElementById('btn-signup').click()
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
+
+    document.getElementById('btn-phone').click()
+
+    expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('auth-heading-title').textContent).toBe('Inicia sesión')
+  })
+
   it('#btn-phone-cancel returns to the login view', () => {
     document.getElementById('btn-phone').click()
     document.getElementById('btn-phone-cancel').click()
@@ -1561,13 +1574,26 @@ Then add the DOM wiring inside that same `DOMContentLoaded` block, after the exi
   const btnPhoneConsentConfirm = document.getElementById('btn-phone-consent-confirm');
 
   if (phoneCountrySelect) {
+    // Nombre primero, bandera al final — un emoji regional-indicator al INICIO
+    // del texto rompe el typeahead nativo del <select> (teclear "M" ya no
+    // salta a "México", porque el primer carácter visible ya no es una letra).
     phoneCountrySelect.innerHTML = COUNTRY_CODES.map(c =>
-      `<option value="${c.dial}">${flagEmoji(c.iso2)} ${c.name} (${c.dial})</option>`
+      `<option value="${c.dial}">${c.name} (${c.dial}) ${flagEmoji(c.iso2)}</option>`
     ).join('');
   }
 
   if (btnPhone) {
-    btnPhone.addEventListener('click', () => setView('phone-number'));
+    btnPhone.addEventListener('click', () => {
+      clearError();
+      // Si el usuario venía de "Crear cuenta nueva" (isSignupMode=true) y
+      // cambia a teléfono sin terminar, exitSignupMode() ya resetea todo lo
+      // relacionado (heading, botones, isSignupMode) — sin esto, setView()
+      // seguiría mostrando los checkboxes de Términos del signup por correo
+      // abandonado junto a la UI de teléfono (hallazgo de revisión: ambos
+      // toggles de #signup-only son independientes por diseño).
+      exitSignupMode();
+      setView('phone-number');
+    });
   }
   if (btnSendCode) {
     btnSendCode.addEventListener('click', () => {
@@ -1578,6 +1604,7 @@ Then add the DOM wiring inside that same `DOMContentLoaded` block, after the exi
   }
   if (btnPhoneCancel) {
     btnPhoneCancel.addEventListener('click', () => {
+      clearError();
       clearPhoneFlowState();
       recaptchaVerifier?.clear();
       recaptchaVerifier = null;
@@ -1601,6 +1628,7 @@ Then add the DOM wiring inside that same `DOMContentLoaded` block, after the exi
   }
   if (btnPhoneCodeBack) {
     btnPhoneCodeBack.addEventListener('click', () => {
+      clearError();
       confirmationResult = null;
       setView('phone-number');
     });
