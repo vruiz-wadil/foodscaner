@@ -80,7 +80,7 @@ async function verifyFirebaseIdToken(idToken, projectId) {
   if (payload.aud !== projectId) throw new Error('Audience inválido');
   if (typeof payload.sub !== 'string' || payload.sub.trim() === '') throw new Error('Subject (sub) vacío o ausente');
 
-  return { uid: payload.sub, email: payload.email || null, emailVerified: !!payload.email_verified };
+  return { uid: payload.sub, email: payload.email || null, emailVerified: !!payload.email_verified, phoneNumber: payload.phone_number || null };
 }
 
 function _resetJwksCacheForTests() {

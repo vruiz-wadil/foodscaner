@@ -55,11 +55,18 @@ describe('verifyFirebaseIdToken', () => {
     }))
   }
 
-  it('accepts a validly signed token and returns {uid, email, emailVerified}', async () => {
+  it('accepts a validly signed token and returns {uid, email, emailVerified, phoneNumber}', async () => {
     mockJwks()
     const token = signRS256({}, privateKey)
     const result = await verifyFirebaseIdToken(token, PROJECT_ID)
-    expect(result).toEqual({ uid: 'user-123', email: 'user@example.com', emailVerified: true })
+    expect(result).toEqual({ uid: 'user-123', email: 'user@example.com', emailVerified: true, phoneNumber: null })
+  })
+
+  it('extracts phone_number from a phone-authenticated token', async () => {
+    mockJwks()
+    const token = signRS256({ email: undefined, email_verified: undefined, phone_number: '+525512345678' }, privateKey)
+    const result = await verifyFirebaseIdToken(token, PROJECT_ID)
+    expect(result).toEqual({ uid: 'user-123', email: null, emailVerified: false, phoneNumber: '+525512345678' })
   })
 
   it('rejects an expired token', async () => {
