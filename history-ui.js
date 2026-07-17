@@ -12,9 +12,10 @@ function renderLocalHistoryWithUpsell(root) {
   root.innerHTML = `
     <div class="content-card">
       ${itemsHtml || '<p class="account-empty">Aún no tienes escaneos.</p>'}
-      <div class="history-locked-block">
-        <div class="history-locked-overlay">
-          <p>Ya sabemos qué trae este producto. Ahora dinos qué NO puedes comer tú o tu familia,
+      <div class="row-card history-upsell">
+        <div class="icon-wrap" style="background:rgba(245,166,35,0.15);">🔓</div>
+        <div>
+          <p class="about-text">Ya sabemos qué trae este producto. Ahora dinos qué NO puedes comer tú o tu familia,
           y Yomi revisa cada escaneo contra tu perfil antes de que muerdas.</p>
           <a href="preferences.html" class="btn btn-primary">Configurar mis preferencias</a>
         </div>

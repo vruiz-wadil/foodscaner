@@ -28,7 +28,8 @@ describe('renderHistoryScreen — usuario free', () => {
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     expect(root.textContent).toMatch(/Producto A/)
-    expect(root.querySelector('.history-locked-block')).toBeTruthy()
+    expect(root.querySelector('.history-upsell')).toBeTruthy()
+    expect(root.querySelector('.history-upsell a.btn.btn-primary').textContent).toMatch(/Configurar mis preferencias/)
     expect(global.fetch).not.toHaveBeenCalled()
   })
 })
@@ -51,7 +52,7 @@ describe('renderHistoryScreen — usuario premium', () => {
     const root = document.getElementById('history-root')
     expect(root.textContent).toMatch(/Producto A/)
     expect(root.textContent).toMatch(/Producto B/)
-    expect(root.querySelector('.history-locked-block')).toBeNull()
+    expect(root.querySelector('.history-upsell')).toBeNull()
   })
 })
 

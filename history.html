@@ -9,11 +9,10 @@
   <link rel="stylesheet" href="styles.css?v=15">
   <style>
     .hidden{display:none!important}
-    /* Card teaser simple, sin blur (hallazgo visual previo: un filter:blur en
-       el padre no se puede "cancelar" con filter:none en el hijo). No hay
-       datos reales que ocultar aquí, solo un mensaje de upsell. */
-    .history-locked-block{padding:20px;border-radius:12px;background:var(--paper);border:1.5px solid var(--border);margin-top:12px;text-align:center}
-    .history-locked-overlay{display:flex;flex-direction:column;align-items:center;gap:10px}
+    /* El upsell de free-plan usa el mismo tratamiento de card que account.html
+       (.row-card + .icon-wrap, dentro del .content-card del panel) — ya no un
+       bloque .history-locked-block standalone, que producía un "card dentro de
+       card" visible dentro de este mismo .content-card. */
   </style>
 </head>
 <body>
