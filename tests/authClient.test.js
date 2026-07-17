@@ -11,7 +11,7 @@ vi.mock('../firebase-init.js', () => ({
   onAuthStateChanged
 }))
 
-let getIdToken, onAuthChange, syncUserProfile, getCachedProfile
+let getIdToken, onAuthChange, syncUserProfile, getCachedProfile, setAutoSyncSuppressed
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -24,6 +24,7 @@ beforeEach(async () => {
   onAuthChange = mod.onAuthChange
   syncUserProfile = mod.syncUserProfile
   getCachedProfile = mod.getCachedProfile
+  setAutoSyncSuppressed = mod.setAutoSyncSuppressed
 })
 
 describe('onAuthChange', () => {
@@ -104,11 +105,12 @@ describe('syncUserProfile', () => {
 })
 
 describe('window.authClient', () => {
-  it('exposes the four functions for non-module scripts', async () => {
+  it('exposes the five functions for non-module scripts', async () => {
     expect(window.authClient.getIdToken).toBe(getIdToken)
     expect(window.authClient.onAuthChange).toBe(onAuthChange)
     expect(window.authClient.syncUserProfile).toBe(syncUserProfile)
     expect(window.authClient.getCachedProfile).toBe(getCachedProfile)
+    expect(window.authClient.setAutoSyncSuppressed).toBe(setAutoSyncSuppressed)
   })
 })
 
@@ -137,5 +139,28 @@ describe('auto-sync on auth state change', () => {
     const internalCallback = onAuthStateChanged.mock.calls[0][1]
     await internalCallback(null)
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('no llama a syncUserProfile cuando setAutoSyncSuppressed(true) está activo, aunque haya usuario', async () => {
+    setAutoSyncSuppressed(true)
+    mockAuth.currentUser = { getIdToken: vi.fn().mockResolvedValue('tok-suppressed') }
+    const internalCallback = onAuthStateChanged.mock.calls[0][1]
+    await internalCallback({ uid: 'u1' })
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('vuelve a auto-sincronizar normalmente después de setAutoSyncSuppressed(false)', async () => {
+    setAutoSyncSuppressed(true)
+    setAutoSyncSuppressed(false)
+    mockAuth.currentUser = { getIdToken: vi.fn().mockResolvedValue('tok-resumed') }
+    global.fetch
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ plan: 'free' }) })
+    const internalCallback = onAuthStateChanged.mock.calls[0][1]
+    await internalCallback({ uid: 'u1' })
+    expect(global.fetch).toHaveBeenNthCalledWith(1, '/api/auth/sync', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-resumed' }
+    })
   })
 })

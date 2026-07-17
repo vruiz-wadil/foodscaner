@@ -48,6 +48,20 @@ export function getCachedProfile() {
   return cachedProfile;
 }
 
+let autoSyncSuppressed = false;
+
+// Escape hatch para auth.html: motivado por el flujo de teléfono
+// (confirmationResult.confirm() dispara este listener ANTES de que el
+// usuario nuevo vea el paso de consentimiento de Términos/edad — sin
+// suprimir, el auto-sync sin body de abajo crea el doc de Firestore con
+// termsAccepted ausente, y la sync explícita con consentimiento real que
+// llega después cae en la rama de "usuario ya existe" de fireUpsertUser, que
+// nunca escribe termsAccepted*), pero auth-ui.js lo usa para TODA la página,
+// no solo teléfono — ver el comentario junto a su import en auth-ui.js.
+export function setAutoSyncSuppressed(value) {
+  autoSyncSuppressed = value;
+}
+
 // Auto-sync al detectar sesión (hallazgo crítico de revisión, 4a ronda): sin
 // esto, getCachedProfile() regresa null en cualquier pantalla que no llame
 // syncUserProfile() explícitamente por su cuenta — que era el caso de todas
@@ -64,7 +78,7 @@ onAuthChange((user) => {
   // single microtask tick on the callback's own (otherwise undefined) return
   // value. Firebase's real onAuthStateChanged ignores the callback's return
   // value, so this has no effect on production behavior.
-  if (user) return syncUserProfile();
+  if (user && !autoSyncSuppressed) return syncUserProfile();
 });
 
-window.authClient = { getIdToken, onAuthChange, syncUserProfile, getCachedProfile };
+window.authClient = { getIdToken, onAuthChange, syncUserProfile, getCachedProfile, setAutoSyncSuppressed };
