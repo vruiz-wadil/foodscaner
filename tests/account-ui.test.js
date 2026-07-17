@@ -47,6 +47,13 @@ describe('renderAccountHub', () => {
     expect(root.querySelector('a[href="preferences.html"]')?.textContent).not.toMatch(/[Ee]ditar/)
   })
 
+  it('muestra el número de teléfono en vez de vacío cuando el perfil no tiene email (cuenta creada por SMS)', () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525512345678', plan: 'free' })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('.account-email').textContent).toBe('+525512345678')
+  })
+
   it('muestra el resumen del perfil dietético/alérgico ANTES de cualquier upsell, y botón editar preferencias para premium', () => {
     getCachedProfile.mockReturnValue({
       email: 'a@b.com', plan: 'premium',

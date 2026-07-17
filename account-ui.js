@@ -35,7 +35,7 @@ export function renderAccountHub() {
       <div class="hero-card-dark">
         <div class="icon-wrap">${PROFILE_ICON_SVG}</div>
         <div>
-          <p class="account-email">${profile.email || ''}</p>
+          <p class="account-email">${profile.email || profile.phoneNumber || ''}</p>
           <span class="account-plan-badge account-plan-${profile.plan}">${isPremium ? 'Premium' : 'Free'}</span>
         </div>
       </div>
