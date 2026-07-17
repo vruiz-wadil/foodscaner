@@ -218,6 +218,21 @@ body {
   .products-grid { grid-template-columns: 1fr 1fr 1fr; }
 }
 
+/* Mobile: "¿Qué es Yomi?" arriba del botón de escanear. Rango exacto
+   complementario al breakpoint desktop de abajo (min-width 768 AND
+   min-height 600) — así nunca compiten por especificidad. */
+@media (max-width: 767.98px), (max-height: 599.98px) {
+  .app-main:has(.home-left) { display: flex; flex-direction: column; }
+  .home-left, .home-right { display: contents; }
+  .home-left .home-scan-frame { order: 1; }
+  .home-left .section-heading { order: 2; }
+  #home-upsell-banner         { order: 3; }
+  .home-right .section-about  { order: 4; }
+  .home-left .section-scan    { order: 5; }
+  .home-right .section-recent { order: 6; }
+  .home-right .section-social { order: 7; }
+}
+
 @media (min-width: 768px) and (min-height: 600px) {
   .app-shell { max-width: 1100px; }
   .app-main {
