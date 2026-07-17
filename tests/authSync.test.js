@@ -49,4 +49,16 @@ describe('authSyncHandler', () => {
 
     expect(res.body).toEqual({ ok: true, warning: 'sync_deferred' })
   })
+
+  it('includes phoneNumber from req.user in the upsert payload', async () => {
+    fireUpsertUser.mockResolvedValue({ created: true })
+    const req = { user: { uid: 'user-9', email: null, phoneNumber: '+525512345678' }, body: {} }
+    const res = makeRes()
+
+    await authSyncHandler(req, res)
+
+    expect(fireUpsertUser).toHaveBeenCalledWith('user-9', expect.objectContaining({
+      phoneNumber: '+525512345678'
+    }))
+  })
 })

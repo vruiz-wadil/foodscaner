@@ -1336,6 +1336,7 @@ async function authSyncHandler(req, res) {
   try {
     await fireUpsertUser(req.user.uid, {
       email: req.user.email,
+      phoneNumber: req.user.phoneNumber,
       providers: Array.isArray(req.body?.providers) ? req.body.providers : [],
       displayName: sanitizeDisplayName(req.body?.displayName),
       photoURL: sanitizePhotoURL(req.body?.photoURL),

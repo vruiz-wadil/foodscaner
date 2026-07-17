@@ -88,6 +88,34 @@ describe('users/{uid} data layer', () => {
     expect(patchCalls[0].body.fields.billing.mapValue.fields.billingCycle).toEqual({ nullValue: null })
   })
 
+  it('fireUpsertUser stores phoneNumber on the creation doc', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    const patchCalls = []
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) return { status: 404, ok: false }
+      patchCalls.push({ url, body: JSON.parse(options.body) })
+      return { ok: true, status: 200 }
+    }))
+
+    await fireUpsertUser('uid-phone', { phoneNumber: '+525512345678', providers: [] })
+
+    expect(patchCalls[0].body.fields.phoneNumber.stringValue).toBe('+525512345678')
+  })
+
+  it('fireUpsertUser stores phoneNumber:null on creation when not provided (email-only signup)', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    const patchCalls = []
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) return { status: 404, ok: false }
+      patchCalls.push({ url, body: JSON.parse(options.body) })
+      return { ok: true, status: 200 }
+    }))
+
+    await fireUpsertUser('uid-email-only', { email: 'a@b.com', providers: ['password'] })
+
+    expect(patchCalls[0].body.fields.phoneNumber).toEqual({ nullValue: null })
+  })
+
   it('fireUpsertUser only updates lastLoginAt/providers when the doc already exists', async () => {
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
     const patchCalls = []

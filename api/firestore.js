@@ -479,6 +479,7 @@ async function fireUpsertUser(uid, data) {
   if (existingResp.status === 404) {
     const fields = toFirestoreFields({
       email: data.email || null,
+      phoneNumber: data.phoneNumber || null,
       emailVerified: !!data.emailVerified,
       displayName: data.displayName || null,
       photoURL: data.photoURL || null,
