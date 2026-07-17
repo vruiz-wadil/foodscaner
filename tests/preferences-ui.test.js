@@ -27,9 +27,9 @@ beforeEach(async () => {
       <div id="allergen-tiles">
         <button type="button" id="allergen-cacahuate" data-allergen="cacahuate">Cacahuate</button>
       </div>
-      <div class="severity-toggle hidden" id="severity-cacahuate">
-        <button type="button" data-severity="mild">Aviso</button>
-        <button type="button" data-severity="severe">Estricto</button>
+      <div class="severity-toggle hidden" id="severity-cacahuate" role="radiogroup">
+        <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+        <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
       </div>
       <div class="consent-block">
         <input type="checkbox" id="consent-checkbox" required>
@@ -63,6 +63,8 @@ describe('loadPreferencesIntoForm', () => {
     expect(toggle.classList.contains('hidden')).toBe(false)
     expect(toggle.querySelector('[data-severity="severe"]').classList.contains('active')).toBe(true)
     expect(toggle.querySelector('[data-severity="mild"]').classList.contains('active')).toBe(false)
+    expect(toggle.querySelector('[data-severity="severe"]').getAttribute('aria-checked')).toBe('true')
+    expect(toggle.querySelector('[data-severity="mild"]').getAttribute('aria-checked')).toBe('false')
   })
 
   it('no marca nada si no hay preferences aún (usuario premium sin configurar)', () => {
@@ -218,6 +220,8 @@ describe('setupPreferenceTiles — interacción de alergias', () => {
     expect(tile.classList.contains('chosen')).toBe(true)
     expect(toggle.classList.contains('hidden')).toBe(false)
     expect(toggle.querySelector('[data-severity="mild"]').classList.contains('active')).toBe(true)
+    expect(toggle.querySelector('[data-severity="mild"]').getAttribute('aria-checked')).toBe('true')
+    expect(toggle.querySelector('[data-severity="severe"]').getAttribute('aria-checked')).toBe('false')
 
     tile.click()
     expect(tile.classList.contains('chosen')).toBe(false)
@@ -233,14 +237,20 @@ describe('setupPreferenceTiles — interacción de alergias', () => {
     const mildBtn = toggle.querySelector('[data-severity="mild"]')
     const severeBtn = toggle.querySelector('[data-severity="severe"]')
     expect(mildBtn.classList.contains('active')).toBe(true)
+    expect(mildBtn.getAttribute('aria-checked')).toBe('true')
+    expect(severeBtn.getAttribute('aria-checked')).toBe('false')
 
     severeBtn.click()
     expect(severeBtn.classList.contains('active')).toBe(true)
     expect(mildBtn.classList.contains('active')).toBe(false)
+    expect(severeBtn.getAttribute('aria-checked')).toBe('true')
+    expect(mildBtn.getAttribute('aria-checked')).toBe('false')
 
     mildBtn.click()
     expect(mildBtn.classList.contains('active')).toBe(true)
     expect(severeBtn.classList.contains('active')).toBe(false)
+    expect(mildBtn.getAttribute('aria-checked')).toBe('true')
+    expect(severeBtn.getAttribute('aria-checked')).toBe('false')
   })
 
   it('no reactiva "Aviso" al re-elegir un tile de alergeno si ya había una severidad marcada (no pisa la elección previa del usuario)', () => {
@@ -257,5 +267,7 @@ describe('setupPreferenceTiles — interacción de alergias', () => {
 
     expect(severeBtn.classList.contains('active')).toBe(true)
     expect(mildBtn.classList.contains('active')).toBe(false)
+    expect(severeBtn.getAttribute('aria-checked')).toBe('true')
+    expect(mildBtn.getAttribute('aria-checked')).toBe('false')
   })
 })

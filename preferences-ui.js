@@ -79,7 +79,11 @@ export function loadPreferencesIntoForm() {
     if (tile) { tile.classList.add('chosen'); tile.setAttribute('aria-pressed', 'true'); }
     if (toggle) {
       toggle.classList.remove('hidden');
-      toggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.severity === severity));
+      toggle.querySelectorAll('button').forEach(b => {
+        const isActive = b.dataset.severity === severity;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-checked', String(isActive));
+      });
     }
   });
 }
@@ -119,14 +123,20 @@ export function setupPreferenceTiles() {
       tile.setAttribute('aria-pressed', String(chosen));
       toggle.classList.toggle('hidden', !chosen);
       if (chosen && !toggle.querySelector('button.active')) {
-        toggle.querySelector('[data-severity="mild"]').classList.add('active');
+        const mildBtn = toggle.querySelector('[data-severity="mild"]');
+        mildBtn.classList.add('active');
+        mildBtn.setAttribute('aria-checked', 'true');
       }
     });
 
     toggle.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
-        toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        toggle.querySelectorAll('button').forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-checked', 'false');
+        });
         btn.classList.add('active');
+        btn.setAttribute('aria-checked', 'true');
       });
     });
   });

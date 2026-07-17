@@ -75,13 +75,13 @@
             <button type="button" class="allergen-grid-item" id="allergen-cacahuate" data-allergen="cacahuate" aria-pressed="false"><span class="emoji">🥜</span><span class="label">Cacahuate</span></button>
             <button type="button" class="allergen-grid-item" id="allergen-lacteos" data-allergen="lacteos" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Lácteos</span></button>
           </div>
-          <div class="severity-toggle hidden" id="severity-cacahuate">
-            <button type="button" data-severity="mild">Aviso</button>
-            <button type="button" data-severity="severe">Estricto</button>
+          <div class="severity-toggle hidden" id="severity-cacahuate" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
           </div>
-          <div class="severity-toggle hidden" id="severity-lacteos">
-            <button type="button" data-severity="mild">Aviso</button>
-            <button type="button" data-severity="severe">Estricto</button>
+          <div class="severity-toggle hidden" id="severity-lacteos" role="radiogroup">
+            <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+            <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
           </div>
         </fieldset>
         <fieldset>
