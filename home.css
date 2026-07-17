@@ -705,32 +705,31 @@ body:has(.app-main.content-page) {
   border-color: var(--ink);
 }
 
-/* #allergen-tiles: grid -> flex, escopeado a esta página (styles.css define
-   .allergen-icon-grid como grid, compartido con scan.html; no tocamos esa
-   regla). El severity-toggle de cada alergeno ahora vive interleaved justo
-   después de su tile en el HTML — flex-basis:100% fuerza un salto de línea
-   ahí mismo, así la barra Aviso/Estricto aparece pegada a SU tile, no
-   apilada al final de todo el grid (hallazgo UX de confusión con 8 tiles). */
+/* #allergen-tiles: flex-wrap de .allergen-item (tile + su propio
+   severity-toggle envueltos juntos), escopeado a esta página (styles.css
+   define .allergen-icon-grid como grid, compartido con scan.html; no
+   tocamos esa regla). Ronda 2 de fix UX: la barra de severidad interleaved
+   (commit 04556fb) ya era clara pero rompía el grid de 4 columnas cada vez
+   que se elegía un alergeno. Ahora el toggle vive DENTRO del wrapper de su
+   propio tile — el wrapper crece de alto al elegirse, la fila nunca se
+   rompe. */
 #preferences-form #allergen-tiles {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-#preferences-form .allergen-grid-item {
+#preferences-form .allergen-item {
   flex: 0 0 calc(25% - 6px);
+  display: flex;
+  flex-direction: column;
+}
+#preferences-form .allergen-grid-item {
+  width: 100%;
 }
 #preferences-form .severity-toggle {
-  flex: 0 0 100%;
-  margin: -2px 0 4px;
-}
-.severity-toggle-name {
-  flex: 0 0 auto;
-  min-width: 56px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--ink);
+  margin: 4px 0 0;
 }
 
 @media (max-width: 500px) {
-  #preferences-form .allergen-grid-item { flex: 0 0 calc(33.333% - 6px); }
+  #preferences-form .allergen-item { flex: 0 0 calc(33.333% - 6px); }
 }

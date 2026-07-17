@@ -94,53 +94,61 @@
                tile (no al final), con el nombre del alergeno visible en la
                barra. -->
           <div class="allergen-icon-grid" id="allergen-tiles">
-            <button type="button" class="allergen-grid-item" id="allergen-cacahuate" data-allergen="cacahuate" aria-pressed="false"><span class="emoji">🥜</span><span class="label">Cacahuate</span></button>
-            <div class="severity-toggle hidden" id="severity-cacahuate" role="radiogroup" aria-label="Severidad para Cacahuate">
-              <span class="severity-toggle-name">Cacahuate</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-cacahuate" data-allergen="cacahuate" aria-pressed="false"><span class="emoji">🥜</span><span class="label">Cacahuate</span></button>
+              <div class="severity-toggle hidden" id="severity-cacahuate" role="radiogroup" aria-label="Severidad para Cacahuate">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
-            <button type="button" class="allergen-grid-item" id="allergen-lacteos" data-allergen="lacteos" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Lácteos</span></button>
-            <div class="severity-toggle hidden" id="severity-lacteos" role="radiogroup" aria-label="Severidad para Lácteos">
-              <span class="severity-toggle-name">Lácteos</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-lacteos" data-allergen="lacteos" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Lácteos</span></button>
+              <div class="severity-toggle hidden" id="severity-lacteos" role="radiogroup" aria-label="Severidad para Lácteos">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
-            <button type="button" class="allergen-grid-item" id="allergen-nueces" data-allergen="nueces" aria-pressed="false"><span class="emoji">🌰</span><span class="label">Nueces</span></button>
-            <div class="severity-toggle hidden" id="severity-nueces" role="radiogroup" aria-label="Severidad para Nueces">
-              <span class="severity-toggle-name">Nueces</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-nueces" data-allergen="nueces" aria-pressed="false"><span class="emoji">🌰</span><span class="label">Nueces</span></button>
+              <div class="severity-toggle hidden" id="severity-nueces" role="radiogroup" aria-label="Severidad para Nueces">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
-            <button type="button" class="allergen-grid-item" id="allergen-trigo" data-allergen="trigo" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Trigo</span></button>
-            <div class="severity-toggle hidden" id="severity-trigo" role="radiogroup" aria-label="Severidad para Trigo">
-              <span class="severity-toggle-name">Trigo</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-trigo" data-allergen="trigo" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Trigo</span></button>
+              <div class="severity-toggle hidden" id="severity-trigo" role="radiogroup" aria-label="Severidad para Trigo">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
-            <button type="button" class="allergen-grid-item" id="allergen-huevo" data-allergen="huevo" aria-pressed="false"><span class="emoji">🥚</span><span class="label">Huevo</span></button>
-            <div class="severity-toggle hidden" id="severity-huevo" role="radiogroup" aria-label="Severidad para Huevo">
-              <span class="severity-toggle-name">Huevo</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-huevo" data-allergen="huevo" aria-pressed="false"><span class="emoji">🥚</span><span class="label">Huevo</span></button>
+              <div class="severity-toggle hidden" id="severity-huevo" role="radiogroup" aria-label="Severidad para Huevo">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
-            <button type="button" class="allergen-grid-item" id="allergen-pescado" data-allergen="pescado" aria-pressed="false"><span class="emoji">🐟</span><span class="label">Pescado</span></button>
-            <div class="severity-toggle hidden" id="severity-pescado" role="radiogroup" aria-label="Severidad para Pescado">
-              <span class="severity-toggle-name">Pescado</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-pescado" data-allergen="pescado" aria-pressed="false"><span class="emoji">🐟</span><span class="label">Pescado</span></button>
+              <div class="severity-toggle hidden" id="severity-pescado" role="radiogroup" aria-label="Severidad para Pescado">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
-            <button type="button" class="allergen-grid-item" id="allergen-mariscos" data-allergen="mariscos" aria-pressed="false"><span class="emoji">🦐</span><span class="label">Mariscos</span></button>
-            <div class="severity-toggle hidden" id="severity-mariscos" role="radiogroup" aria-label="Severidad para Mariscos">
-              <span class="severity-toggle-name">Mariscos</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-mariscos" data-allergen="mariscos" aria-pressed="false"><span class="emoji">🦐</span><span class="label">Mariscos</span></button>
+              <div class="severity-toggle hidden" id="severity-mariscos" role="radiogroup" aria-label="Severidad para Mariscos">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
-            <button type="button" class="allergen-grid-item" id="allergen-soja" data-allergen="soja" aria-pressed="false"><span class="emoji">🫘</span><span class="label">Soja</span></button>
-            <div class="severity-toggle hidden" id="severity-soja" role="radiogroup" aria-label="Severidad para Soja">
-              <span class="severity-toggle-name">Soja</span>
-              <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
-              <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-soja" data-allergen="soja" aria-pressed="false"><span class="emoji">🫘</span><span class="label">Soja</span></button>
+              <div class="severity-toggle hidden" id="severity-soja" role="radiogroup" aria-label="Severidad para Soja">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
             </div>
           </div>
         </fieldset>
