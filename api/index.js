@@ -1120,7 +1120,7 @@ async function ocrProcessHandler(req, res) {
       // el plan primero (hallazgo de la 4a ronda de revisión, ver nota de producto
       // arriba). Un premium con email no verificado ya pagó, no tiene cuota que
       // saltarse, y bloquearlo solo le niega servicio sin ganar seguridad real.
-      if (plan !== 'premium' && !req.user.emailVerified) {
+      if (plan !== 'premium' && !req.user.emailVerified && !req.user.phoneNumber) {
         return res.status(403).json({ error: 'email_not_verified' });
       }
 

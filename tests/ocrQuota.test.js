@@ -143,6 +143,25 @@ describe('ocrProcessHandler — enforcement de cuota', () => {
     expect(groqCalled).toBe(false)
   })
 
+  it('usuario free con teléfono verificado pero SIN email verificado → NO recibe 403, procesa normal', async () => {
+    const token = signRS256({ email: undefined, email_verified: false, phone_number: '+525512345678' }, privateKey)
+    let groqCalled = false
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
+      if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
+      if (url.includes('firestore.googleapis.com')) {
+        return { ok: true, status: 200, json: async () => ({ fields: toFields({ plan: 'free', usage: { date: '2026-07-15', ocrCount: 1 } }), updateTime: 't' }) }
+      }
+      if (url.includes('api.groq.com')) { groqCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'ingredientes: harina' } }] }) } }
+      return { ok: true, status: 200 }
+    }))
+    const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
+    const res = makeRes()
+    await runOcrRoute(req, res)
+    expect(res.body.status).toBe('ok')
+    expect(groqCalled).toBe(true)
+  })
+
   it('usuario premium con email no verificado → procesa normal (el chequeo de email solo protege la cuota free)', async () => {
     const token = signRS256({ email_verified: false }, privateKey)
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
