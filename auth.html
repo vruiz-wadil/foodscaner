@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
   <title>Yomi — Iniciar sesión</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.json">
@@ -39,47 +39,72 @@
       </section>
 
       <div class="content-card">
-        <!-- Google primero (hallazgo UX: es la opción de menor fricción, un toque
-             sin escribir nada) con divisor antes del formulario de email/password. -->
-        <button type="button" id="btn-google" class="btn btn-google">Continuar con Google</button>
-        <div class="auth-divider">o con tu correo</div>
+        <div id="login-view">
+          <button type="button" id="btn-google" class="btn btn-google">Continuar con Google</button>
+          <button type="button" id="btn-phone" class="btn btn-secondary">Continuar con teléfono</button>
+          <div class="auth-divider">o con tu correo</div>
 
-        <form id="login-form" novalidate>
-          <div class="form-field">
-            <label for="login-email">Correo electrónico</label>
-            <input id="login-email" class="form-input" type="email" required autocomplete="email" placeholder="tucorreo@ejemplo.com">
-          </div>
-
-          <div class="form-field">
-            <label for="login-password">Contraseña</label>
-            <div class="password-field-wrap">
-              <input id="login-password" class="form-input" type="password" required minlength="6" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
-              <button type="button" id="btn-toggle-password" class="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
+          <form id="login-form" novalidate>
+            <div class="form-field">
+              <label for="login-email">Correo electrónico</label>
+              <input id="login-email" class="form-input" type="email" required autocomplete="email" placeholder="tucorreo@ejemplo.com">
             </div>
-          </div>
 
-          <!-- Solo visibles/requeridos en modo signup — auth-ui.js los muestra vía
-               #signup-only cuando el usuario elige "Crear cuenta" (hallazgo legal:
-               sin esto no se puede facturar una suscripción sin evidencia de
-               aceptación de términos, ni verificar declaración de edad). -->
-          <div id="signup-only" class="hidden">
-            <label class="consent-block">
-              <input type="checkbox" id="terms-checkbox">
-              Acepto los <a href="/terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a>
-              y el <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de Privacidad</a>.
-            </label>
-            <label class="consent-block">
-              <input type="checkbox" id="age-checkbox">
-              Confirmo que soy mayor de 18 años.
-            </label>
-          </div>
+            <div class="form-field">
+              <label for="login-password">Contraseña</label>
+              <div class="password-field-wrap">
+                <input id="login-password" class="form-input" type="password" required minlength="6" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+                <button type="button" id="btn-toggle-password" class="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
+              </div>
+            </div>
 
-          <button type="submit" id="btn-login" class="btn btn-primary">Iniciar sesión</button>
-          <button type="button" id="btn-back-to-login" class="link-button hidden">¿Ya tienes cuenta? Inicia sesión</button>
-          <button type="button" id="btn-signup" class="btn btn-secondary">Crear cuenta nueva</button>
-        </form>
+            <button type="submit" id="btn-login" class="btn btn-primary">Iniciar sesión</button>
+            <button type="button" id="btn-back-to-login" class="link-button hidden">¿Ya tienes cuenta? Inicia sesión</button>
+            <button type="button" id="btn-signup" class="btn btn-secondary">Crear cuenta nueva</button>
+          </form>
+        </div>
+
+        <div id="phone-step" class="hidden">
+          <div class="form-field">
+            <label for="phone-country">País</label>
+            <select id="phone-country"></select>
+          </div>
+          <div class="form-field">
+            <label for="phone-number">Número de teléfono</label>
+            <input id="phone-number" class="form-input" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="10 dígitos">
+          </div>
+          <button type="button" id="btn-send-code" class="btn btn-primary">Enviar código</button>
+          <button type="button" id="btn-phone-cancel" class="link-button">Cancelar</button>
+        </div>
+
+        <div id="phone-code-step" class="hidden">
+          <div class="form-field">
+            <label for="phone-code">Código de verificación</label>
+            <input id="phone-code" class="form-input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+          </div>
+          <button type="button" id="btn-verify-code" class="btn btn-primary">Verificar</button>
+          <button type="button" id="btn-resend-code" class="link-button">Reenviar código</button>
+          <button type="button" id="btn-phone-code-back" class="link-button">Cambiar número</button>
+        </div>
+
+        <!-- Compartido entre signup por correo (2do clic de #btn-signup) y
+             signup por teléfono (#btn-phone-consent-confirm) — mismo gate legal,
+             sin duplicar markup. Ver setView() en auth-ui.js. -->
+        <div id="signup-only" class="hidden">
+          <label class="consent-block">
+            <input type="checkbox" id="terms-checkbox">
+            Acepto los <a href="/terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a>
+            y el <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de Privacidad</a>.
+          </label>
+          <label class="consent-block">
+            <input type="checkbox" id="age-checkbox">
+            Confirmo que soy mayor de 18 años.
+          </label>
+          <button type="button" id="btn-phone-consent-confirm" class="btn btn-primary hidden">Confirmar y continuar</button>
+        </div>
 
         <p id="auth-error" class="hidden" role="alert"></p>
+        <div id="recaptcha-container"></div>
       </div>
     </main>
   </div>
