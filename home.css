@@ -560,6 +560,17 @@ body {
   padding-bottom: calc(72px + env(safe-area-inset-bottom));
 }
 
+/* El padding-bottom de arriba solo garantiza que el botón quede libre en el
+   scroll MÁXIMO real — pero el rango de scroll en estas páginas es chico
+   (a veces <150px), así que un scroll "natural" que se detiene apenas el
+   botón se ve (scrollIntoView, tab de teclado, swipe corto) lo deja tapado
+   la mayor parte del recorrido. scroll-margin-bottom hace que cualquier
+   scroll-to-reveal nativo respete el mismo espacio reservado para el nav
+   fijo (hallazgo: "el botón de guardar preferencias se tapa con el footer"). */
+.content-page .btn {
+  scroll-margin-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
 /* .app-shell normalmente fija height:100dvh + overflow:hidden (necesario
    para el layout scroll-in-a-box de Home) — eso es lo que en realidad
    atrapaba el scroll en estas páginas, incluso después de liberar
