@@ -25,6 +25,7 @@
     .consent-block { display: block; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; background: #fafafa; }
     .link-button { background: none; border: none; color: var(--ink, #0d3d35); text-decoration: underline; font-size: 0.85rem; padding: 8px 0; cursor: pointer; }
     #login-form .btn { margin-top: 10px; }
+    .btn-icon { width: 18px; height: 18px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -40,8 +41,8 @@
 
       <div class="content-card">
         <div id="login-view">
-          <button type="button" id="btn-google" class="btn btn-google">Continuar con Google</button>
-          <button type="button" id="btn-phone" class="btn btn-secondary">Continuar con teléfono</button>
+          <button type="button" id="btn-google" class="btn btn-google"><img src="assets/redesign/icon-google.svg" alt="" class="btn-icon">Continuar con Google</button>
+          <button type="button" id="btn-phone" class="btn btn-secondary"><img src="assets/redesign/icon-phone.svg" alt="" class="btn-icon">Continuar con teléfono</button>
           <div class="auth-divider">o con tu correo</div>
 
           <form id="login-form" novalidate>
