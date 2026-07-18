@@ -7,17 +7,34 @@ const mockAuth = { currentUser: null }
 const signInWithEmailAndPassword = vi.fn()
 const createUserWithEmailAndPassword = vi.fn()
 const signInWithPopup = vi.fn()
+const signInWithPhoneNumber = vi.fn()
+const getAdditionalUserInfo = vi.fn()
 class GoogleAuthProvider {}
+class RecaptchaVerifier {
+  constructor() {}
+  clear() {}
+}
 
 vi.mock('../firebase-init.js', () => ({
   firebaseAuth: mockAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  getAdditionalUserInfo
 }))
 
-let mapAuthError, handleLogin, handleSignup, handleGoogleSignIn
+const setAutoSyncSuppressed = vi.fn()
+vi.mock('../authClient.js', () => ({ setAutoSyncSuppressed }))
+
+vi.mock('../country-codes.js', () => ({
+  COUNTRY_CODES: [{ name: 'México', iso2: 'MX', dial: '+52' }, { name: 'Argentina', iso2: 'AR', dial: '+54' }],
+  flagEmoji: () => '🏳️'
+}))
+
+let mapAuthError, handleLogin, handleSignup, handleGoogleSignIn, handleSendCode, handleVerifyCode, handlePhoneSignupConsent, setView
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -25,26 +42,47 @@ beforeEach(async () => {
   global.fetch = vi.fn().mockResolvedValue({ ok: true })
   document.body.innerHTML = `
     <h1 id="auth-heading-title">Inicia sesión</h1>
-    <button id="btn-google">Continuar con Google</button>
-    <form id="login-form" novalidate>
-      <input id="login-email" type="email" required>
-      <input id="login-password" type="password" required minlength="6">
-      <button type="button" id="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
-      <div id="signup-only" class="hidden">
-        <input type="checkbox" id="terms-checkbox">
-        <input type="checkbox" id="age-checkbox">
-      </div>
-      <button type="submit" id="btn-login">Iniciar sesión</button>
-      <button type="button" id="btn-back-to-login" class="hidden">¿Ya tienes cuenta? Inicia sesión</button>
-      <button type="button" id="btn-signup">Crear cuenta</button>
-    </form>
+    <div id="login-view">
+      <button id="btn-google">Continuar con Google</button>
+      <button type="button" id="btn-phone">Continuar con teléfono</button>
+      <form id="login-form" novalidate>
+        <input id="login-email" type="email" required>
+        <input id="login-password" type="password" required minlength="6">
+        <button type="button" id="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
+        <button type="submit" id="btn-login">Iniciar sesión</button>
+        <button type="button" id="btn-back-to-login" class="hidden">¿Ya tienes cuenta? Inicia sesión</button>
+        <button type="button" id="btn-signup">Crear cuenta</button>
+      </form>
+    </div>
+    <div id="phone-step" class="hidden">
+      <select id="phone-country"></select>
+      <input id="phone-number" type="tel">
+      <button type="button" id="btn-send-code">Enviar código</button>
+      <button type="button" id="btn-phone-cancel">Cancelar</button>
+    </div>
+    <div id="phone-code-step" class="hidden">
+      <input id="phone-code" type="text" maxlength="6">
+      <button type="button" id="btn-verify-code">Verificar</button>
+      <button type="button" id="btn-resend-code">Reenviar código</button>
+      <button type="button" id="btn-phone-code-back">Cambiar número</button>
+    </div>
+    <div id="signup-only" class="hidden">
+      <input type="checkbox" id="terms-checkbox">
+      <input type="checkbox" id="age-checkbox">
+      <button type="button" id="btn-phone-consent-confirm" class="hidden">Confirmar y continuar</button>
+    </div>
     <p id="auth-error" class="hidden" role="alert"></p>
+    <div id="recaptcha-container"></div>
   `
   const mod = await import('../auth-ui.js')
   mapAuthError = mod.mapAuthError
   handleLogin = mod.handleLogin
   handleSignup = mod.handleSignup
   handleGoogleSignIn = mod.handleGoogleSignIn
+  handleSendCode = mod.handleSendCode
+  handleVerifyCode = mod.handleVerifyCode
+  handlePhoneSignupConsent = mod.handlePhoneSignupConsent
+  setView = mod.setView
 })
 
 describe('mapAuthError', () => {
@@ -143,6 +181,186 @@ describe('handleGoogleSignIn', () => {
     signInWithPopup.mockRejectedValueOnce({ code: 'auth/popup-closed-by-user' })
     await expect(handleGoogleSignIn()).rejects.toBeTruthy()
     expect(document.getElementById('auth-error').textContent).toBe('Se cerró la ventana de Google antes de terminar.')
+  })
+})
+
+describe('mapAuthError — phone codes', () => {
+  it('maps the new phone-specific error codes', () => {
+    expect(mapAuthError('auth/invalid-phone-number')).toBe('Número de teléfono inválido.')
+    expect(mapAuthError('auth/missing-phone-number')).toBe('Ingresa un número de teléfono.')
+    expect(mapAuthError('auth/invalid-verification-code')).toBe('Código incorrecto. Verifica e intenta de nuevo.')
+    expect(mapAuthError('auth/code-expired')).toBe('El código expiró. Solicita uno nuevo.')
+    expect(mapAuthError('auth/quota-exceeded')).toBe('Demasiados SMS solicitados. Intenta más tarde.')
+    expect(mapAuthError('auth/captcha-check-failed')).toBe('Verificación de seguridad falló. Intenta de nuevo.')
+    expect(mapAuthError('auth/invalid-app-credential')).toBe('Verificación de seguridad falló. Intenta de nuevo.')
+  })
+})
+
+describe('setView', () => {
+  it('shows only #login-view by default', () => {
+    setView('login')
+    expect(document.getElementById('login-view').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('phone-code-step').classList.contains('hidden')).toBe(true)
+  })
+
+  it('shows only #phone-step for "phone-number"', () => {
+    setView('phone-number')
+    expect(document.getElementById('login-view').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('phone-code-step').classList.contains('hidden')).toBe(true)
+  })
+
+  it('shows only #phone-code-step for "phone-code"', () => {
+    setView('phone-code')
+    expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('phone-code-step').classList.contains('hidden')).toBe(false)
+  })
+
+  it('shows #signup-only for "phone-consent"', () => {
+    setView('phone-consent')
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('login-view').classList.contains('hidden')).toBe(true)
+  })
+})
+
+describe('handleSendCode', () => {
+  it('calls signInWithPhoneNumber with the concatenated dial code + digits, and moves to phone-code view', async () => {
+    signInWithPhoneNumber.mockResolvedValueOnce({ confirm: vi.fn() })
+    await handleSendCode('+52', '55 1234 5678')
+    expect(signInWithPhoneNumber).toHaveBeenCalledWith(mockAuth, '+525512345678', expect.any(RecaptchaVerifier))
+    expect(document.getElementById('phone-code-step').classList.contains('hidden')).toBe(false)
+  })
+
+  it('shows a mapped error and clears the recaptcha verifier on failure', async () => {
+    signInWithPhoneNumber.mockRejectedValueOnce({ code: 'auth/invalid-phone-number' })
+    await expect(handleSendCode('+52', 'abc')).rejects.toBeTruthy()
+    expect(document.getElementById('auth-error').textContent).toBe('Número de teléfono inválido.')
+  })
+})
+
+describe('module load — auto-sync suppression', () => {
+  it('suprime el auto-sync genérico de authClient.js apenas se carga el módulo, para TODOS los flujos de esta página (hallazgo de revisión del plan: importar authClient.js activaba su listener por primera vez en auth.html)', () => {
+    expect(setAutoSyncSuppressed).toHaveBeenCalledWith(true)
+  })
+})
+
+describe('handleVerifyCode', () => {
+  it('does not open the consent step for an existing user', async () => {
+    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'existing-1' } })
+    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
+    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: false })
+    await handleSendCode('+52', '5512345678')
+
+    await handleVerifyCode('123456')
+
+    expect(confirm).toHaveBeenCalledWith('123456')
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(true)
+  })
+
+  it('shows the consent step (does not redirect yet) for a new user', async () => {
+    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'new-1', getIdToken: vi.fn() } })
+    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
+    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: true })
+    await handleSendCode('+52', '5512345678')
+
+    await handleVerifyCode('123456')
+
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
+  })
+
+  it('shows a mapped error when the code is wrong', async () => {
+    const confirm = vi.fn().mockRejectedValue({ code: 'auth/invalid-verification-code' })
+    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
+    await handleSendCode('+52', '5512345678')
+
+    await expect(handleVerifyCode('000000')).rejects.toBeTruthy()
+    expect(document.getElementById('auth-error').textContent).toBe('Código incorrecto. Verifica e intenta de nuevo.')
+  })
+})
+
+describe('handlePhoneSignupConsent', () => {
+  async function arriveAtConsentStep() {
+    const getIdToken = vi.fn().mockResolvedValue('tok-phone-new')
+    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'new-1', getIdToken } })
+    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
+    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: true })
+    await handleSendCode('+52', '5512345678')
+    await handleVerifyCode('123456')
+    return getIdToken
+  }
+
+  it('rechaza si los checkboxes no están marcados', async () => {
+    await arriveAtConsentStep()
+    document.getElementById('terms-checkbox').checked = false
+    document.getElementById('age-checkbox').checked = false
+    await handlePhoneSignupConsent()
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/auth/sync', expect.anything())
+  })
+
+  it('sincroniza con termsAccepted/ageConfirmed y redirige cuando ambos checkboxes están marcados', async () => {
+    const getIdToken = await arriveAtConsentStep()
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+
+    await handlePhoneSignupConsent()
+
+    expect(getIdToken).toHaveBeenCalled()
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/sync', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-phone-new', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ termsAccepted: true, ageConfirmed: true, termsVersion: 'v1' })
+    })
+  })
+
+  it('deshabilita el botón de confirmar mientras la petición está en curso', async () => {
+    await arriveAtConsentStep()
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    let resolveFetch
+    global.fetch = vi.fn().mockReturnValueOnce(new Promise(r => { resolveFetch = r }))
+    const btn = document.getElementById('btn-phone-consent-confirm')
+    const promise = handlePhoneSignupConsent()
+    expect(btn.disabled).toBe(true)
+    resolveFetch({ ok: true })
+    await promise
+    expect(btn.disabled).toBe(false)
+  })
+})
+
+describe('phone-step wiring (DOMContentLoaded)', () => {
+  beforeEach(() => {
+    document.dispatchEvent(new Event('DOMContentLoaded'))
+  })
+
+  it('populates #phone-country from COUNTRY_CODES with México first/selected', () => {
+    const select = document.getElementById('phone-country')
+    expect(select.options.length).toBe(2)
+    expect(select.options[0].value).toBe('+52')
+    expect(select.value).toBe('+52')
+  })
+
+  it('#btn-phone switches to the phone-number view', () => {
+    document.getElementById('btn-phone').click()
+    expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(false)
+  })
+
+  it('#btn-phone exits any in-progress email signup mode first (hallazgo de revisión: sin esto, los checkboxes de Términos del signup por correo abandonado quedan visibles junto a la UI de teléfono)', () => {
+    document.getElementById('btn-signup').click()
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
+
+    document.getElementById('btn-phone').click()
+
+    expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('auth-heading-title').textContent).toBe('Inicia sesión')
+  })
+
+  it('#btn-phone-cancel returns to the login view', () => {
+    document.getElementById('btn-phone').click()
+    document.getElementById('btn-phone-cancel').click()
+    expect(document.getElementById('login-view').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('phone-step').classList.contains('hidden')).toBe(true)
   })
 })
 

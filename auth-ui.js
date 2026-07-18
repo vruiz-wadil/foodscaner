@@ -3,8 +3,27 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  getAdditionalUserInfo
 } from './firebase-init.js';
+import { setAutoSyncSuppressed } from './authClient.js';
+import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
+
+// hallazgo de revisión del plan: auth-ui.js NUNCA había importado
+// authClient.js antes de este cambio — el simple hecho de importarlo activa
+// su listener de auto-sync module-level (onAuthChange, auth-ui.html nunca lo
+// había cargado). Si solo se suprimiera dentro de handleVerifyCode (como
+// decía una versión anterior de este plan), ese listener quedaría ACTIVO por
+// primera vez para handleLogin/handleSignup/handleGoogleSignIn también —
+// exponiendo la MISMA race de consentimiento perdido (spec, sección 4) en el
+// signup por correo ya existente, que nunca la tuvo porque authClient.js
+// nunca corría en esta página. auth.html no necesita el auto-sync genérico en
+// NINGÚN flujo: cada uno (login, signup, Google, teléfono) ya hace su propio
+// sync explícito y redirige de inmediato — así que se suprime una sola vez,
+// aquí, a nivel de módulo, para toda la vida de esta página.
+setAutoSyncSuppressed(true);
 
 const googleProvider = new GoogleAuthProvider();
 const TERMS_VERSION = 'v1';
@@ -25,7 +44,14 @@ const AUTH_ERROR_MESSAGES = {
   'auth/popup-blocked': 'Tu navegador bloqueó la ventana de Google. Habilítala e inténtalo de nuevo.',
   'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.',
   'auth/network-request-failed': 'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.',
-  'auth/account-exists-with-different-credential': 'Ya tienes una cuenta con ese correo usando otro método de acceso (ej. Google). Usa ese método para entrar.'
+  'auth/account-exists-with-different-credential': 'Ya tienes una cuenta con ese correo usando otro método de acceso (ej. Google). Usa ese método para entrar.',
+  'auth/invalid-phone-number': 'Número de teléfono inválido.',
+  'auth/missing-phone-number': 'Ingresa un número de teléfono.',
+  'auth/invalid-verification-code': 'Código incorrecto. Verifica e intenta de nuevo.',
+  'auth/code-expired': 'El código expiró. Solicita uno nuevo.',
+  'auth/quota-exceeded': 'Demasiados SMS solicitados. Intenta más tarde.',
+  'auth/captcha-check-failed': 'Verificación de seguridad falló. Intenta de nuevo.',
+  'auth/invalid-app-credential': 'Verificación de seguridad falló. Intenta de nuevo.'
 };
 
 export function mapAuthError(code) {
@@ -57,6 +83,42 @@ async function withLoadingState(button, loadingText, fn) {
   } finally {
     if (button) { button.disabled = false; button.textContent = originalText; }
   }
+}
+
+let recaptchaVerifier = null;
+let confirmationResult = null;
+let pendingPhoneCredentialResult = null;
+let isSignupMode = false; // movido aquí desde dentro de DOMContentLoaded — ver nota arriba
+
+const VIEWS = ['login', 'phone-number', 'phone-code', 'phone-consent'];
+let currentView = 'login';
+
+export function setView(view) {
+  currentView = view;
+  document.getElementById('login-view')?.classList.toggle('hidden', view !== 'login');
+  document.getElementById('phone-step')?.classList.toggle('hidden', view !== 'phone-number');
+  document.getElementById('phone-code-step')?.classList.toggle('hidden', view !== 'phone-code');
+  // signup-only es compartido: visible si estamos en consentimiento de teléfono
+  // O si el signup por correo (isSignupMode, controlado por enterSignupMode/
+  // exitSignupMode más abajo) ya lo mostró — ninguno de los dos caminos debe
+  // pisar al otro.
+  document.getElementById('signup-only')?.classList.toggle('hidden', view !== 'phone-consent' && !isSignupMode);
+  // btn-phone-consent-confirm SOLO es para el camino de teléfono — el signup
+  // por correo usa btn-signup (su semántica de doble-clic existente), nunca
+  // este botón.
+  document.getElementById('btn-phone-consent-confirm')?.classList.toggle('hidden', view !== 'phone-consent');
+}
+
+function getRecaptchaVerifier() {
+  if (!recaptchaVerifier) {
+    recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', { size: 'invisible' });
+  }
+  return recaptchaVerifier;
+}
+
+function clearPhoneFlowState() {
+  confirmationResult = null;
+  pendingPhoneCredentialResult = null;
 }
 
 export async function handleLogin(email, password) {
@@ -125,6 +187,65 @@ export async function handleGoogleSignIn() {
   });
 }
 
+export async function handleSendCode(dialCode, localNumber) {
+  clearError();
+  const btn = document.getElementById('btn-send-code');
+  return withLoadingState(btn, 'Enviando código…', async () => {
+    try {
+      const phoneNumber = dialCode + localNumber.replace(/\D/g, '');
+      confirmationResult = await signInWithPhoneNumber(firebaseAuth, phoneNumber, getRecaptchaVerifier());
+      setView('phone-code');
+    } catch (err) {
+      showError(mapAuthError(err.code));
+      recaptchaVerifier?.clear();
+      recaptchaVerifier = null;
+      throw err;
+    }
+  });
+}
+
+export async function handleVerifyCode(code) {
+  clearError();
+  // No hace falta suprimir aquí — ya se suprimió a nivel de módulo arriba,
+  // para toda la página (ver comentario junto al import de setAutoSyncSuppressed).
+  const btn = document.getElementById('btn-verify-code');
+  return withLoadingState(btn, 'Verificando…', async () => {
+    try {
+      const result = await confirmationResult.confirm(code);
+      const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
+      if (isNewUser) {
+        pendingPhoneCredentialResult = result;
+        setView('phone-consent');
+        return result;
+      }
+      window.location.href = 'index.html';
+      return result;
+    } catch (err) {
+      showError(mapAuthError(err.code));
+      throw err;
+    }
+  });
+}
+
+export async function handlePhoneSignupConsent() {
+  const termsChecked = document.getElementById('terms-checkbox')?.checked;
+  const ageChecked = document.getElementById('age-checkbox')?.checked;
+  if (!termsChecked || !ageChecked) {
+    showError('Debes aceptar los Términos y confirmar tu edad para crear tu cuenta.');
+    return;
+  }
+  const btn = document.getElementById('btn-phone-consent-confirm');
+  return withLoadingState(btn, 'Guardando…', async () => {
+    const token = await pendingPhoneCredentialResult.user.getIdToken();
+    await fetch('/api/auth/sync', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ termsAccepted: true, ageConfirmed: true, termsVersion: TERMS_VERSION })
+    });
+    window.location.href = 'index.html';
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('login-form');
   const btnLogin = document.getElementById('btn-login');
@@ -138,8 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const SIGNUP_BTN_TEXT = btnSignup ? btnSignup.textContent : null;
   const LOGIN_HEADING_TEXT = headingTitle ? headingTitle.textContent : null;
-
-  let isSignupMode = false;
 
   function enterSignupMode() {
     isSignupMode = true;
@@ -206,5 +325,78 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnGoogle) {
     btnGoogle.addEventListener('click', () => handleGoogleSignIn());
+  }
+
+  const btnPhone = document.getElementById('btn-phone');
+  const phoneCountrySelect = document.getElementById('phone-country');
+  const btnSendCode = document.getElementById('btn-send-code');
+  const btnPhoneCancel = document.getElementById('btn-phone-cancel');
+  const btnVerifyCode = document.getElementById('btn-verify-code');
+  const btnResendCode = document.getElementById('btn-resend-code');
+  const btnPhoneCodeBack = document.getElementById('btn-phone-code-back');
+  const btnPhoneConsentConfirm = document.getElementById('btn-phone-consent-confirm');
+
+  if (phoneCountrySelect) {
+    // Nombre primero, bandera al final — un emoji regional-indicator al INICIO
+    // del texto rompe el typeahead nativo del <select> (teclear "M" ya no
+    // salta a "México", porque el primer carácter visible ya no es una letra).
+    phoneCountrySelect.innerHTML = COUNTRY_CODES.map(c =>
+      `<option value="${c.dial}">${c.name} (${c.dial}) ${flagEmoji(c.iso2)}</option>`
+    ).join('');
+  }
+
+  if (btnPhone) {
+    btnPhone.addEventListener('click', () => {
+      clearError();
+      // Si el usuario venía de "Crear cuenta nueva" (isSignupMode=true) y
+      // cambia a teléfono sin terminar, exitSignupMode() ya resetea todo lo
+      // relacionado (heading, botones, isSignupMode) — sin esto, setView()
+      // seguiría mostrando los checkboxes de Términos del signup por correo
+      // abandonado junto a la UI de teléfono (hallazgo de revisión: ambos
+      // toggles de #signup-only son independientes por diseño).
+      exitSignupMode();
+      setView('phone-number');
+    });
+  }
+  if (btnSendCode) {
+    btnSendCode.addEventListener('click', () => {
+      const dialCode = phoneCountrySelect.value;
+      const localNumber = document.getElementById('phone-number').value;
+      handleSendCode(dialCode, localNumber);
+    });
+  }
+  if (btnPhoneCancel) {
+    btnPhoneCancel.addEventListener('click', () => {
+      clearError();
+      clearPhoneFlowState();
+      recaptchaVerifier?.clear();
+      recaptchaVerifier = null;
+      setView('login');
+    });
+  }
+  if (btnVerifyCode) {
+    btnVerifyCode.addEventListener('click', () => {
+      const code = document.getElementById('phone-code').value;
+      handleVerifyCode(code);
+    });
+  }
+  if (btnResendCode) {
+    btnResendCode.addEventListener('click', () => {
+      recaptchaVerifier?.clear();
+      recaptchaVerifier = null;
+      const dialCode = phoneCountrySelect.value;
+      const localNumber = document.getElementById('phone-number').value;
+      handleSendCode(dialCode, localNumber);
+    });
+  }
+  if (btnPhoneCodeBack) {
+    btnPhoneCodeBack.addEventListener('click', () => {
+      clearError();
+      confirmationResult = null;
+      setView('phone-number');
+    });
+  }
+  if (btnPhoneConsentConfirm) {
+    btnPhoneConsentConfirm.addEventListener('click', () => handlePhoneSignupConsent());
   }
 });
