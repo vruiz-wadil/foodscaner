@@ -213,7 +213,7 @@ export async function handleVerifyCode(code) {
     try {
       const result = await confirmationResult.confirm(code);
       const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
-      if (isNewUser) {
+      if (isNewUser !== false) {
         pendingPhoneCredentialResult = result;
         setView('phone-consent');
         return result;
@@ -236,13 +236,21 @@ export async function handlePhoneSignupConsent() {
   }
   const btn = document.getElementById('btn-phone-consent-confirm');
   return withLoadingState(btn, 'Guardando…', async () => {
-    const token = await pendingPhoneCredentialResult.user.getIdToken();
-    await fetch('/api/auth/sync', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ termsAccepted: true, ageConfirmed: true, termsVersion: TERMS_VERSION })
-    });
-    window.location.href = 'index.html';
+    try {
+      const token = await pendingPhoneCredentialResult.user.getIdToken();
+      const res = await fetch('/api/auth/sync', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ termsAccepted: true, ageConfirmed: true, termsVersion: TERMS_VERSION })
+      });
+      if (!res.ok) {
+        showError(mapAuthError());
+        return;
+      }
+      window.location.href = 'index.html';
+    } catch (err) {
+      showError(mapAuthError(err.code));
+    }
   });
 }
 

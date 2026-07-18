@@ -421,3 +421,62 @@ describe('login submit validation (hallazgo #13)', () => {
     expect(signInWithEmailAndPassword).not.toHaveBeenCalled()
   })
 })
+
+// Nota: estos tres tests van al final del archivo a propósito. Los describe
+// blocks de arriba (phone-step wiring, signup-mode toggle, password toggle,
+// login submit validation) disparan document.dispatchEvent(new
+// Event('DOMContentLoaded')) manualmente en su beforeEach, lo cual re-ejecuta
+// TODOS los listeners de DOMContentLoaded acumulados en `document` desde el
+// inicio del archivo (uno por cada import de auth-ui.js hecho por un test
+// anterior — jsdom nunca los limpia entre tests). Insertar tests nuevos ANTES
+// de esos describe blocks cambia cuántos listeners se disparan ahí y puede
+// romper sus aserciones (ya verificado: mover estos tests a mitad del archivo
+// hacía fallar "password toggle aria-label" por paridad de clicks). Al agregar
+// al final, después del último bloque que dispara el evento, no se altera el
+// conteo de ninguno de los tests existentes.
+describe('handleVerifyCode — isNewUser ambiguo (hallazgo de revisión: undefined no debe tratarse como usuario existente)', () => {
+  it('shows the consent step (fails safe) when isNewUser is ambiguous/undefined', async () => {
+    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'ambiguous-1', getIdToken: vi.fn() } })
+    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
+    getAdditionalUserInfo.mockReturnValueOnce(undefined)
+    await handleSendCode('+52', '5512345678')
+
+    await handleVerifyCode('123456')
+
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
+  })
+})
+
+describe('handlePhoneSignupConsent — manejo de errores (hallazgo de revisión: sin try/catch, fallos quedaban silenciosos)', () => {
+  async function arriveAtConsentStep() {
+    const getIdToken = vi.fn().mockResolvedValue('tok-phone-new')
+    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'new-1', getIdToken } })
+    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
+    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: true })
+    await handleSendCode('+52', '5512345678')
+    await handleVerifyCode('123456')
+    return getIdToken
+  }
+
+  it('muestra un error y no revienta si el sync responde con !res.ok', async () => {
+    await arriveAtConsentStep()
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false })
+
+    await expect(handlePhoneSignupConsent()).resolves.toBeUndefined()
+
+    expect(document.getElementById('auth-error').textContent).toBe('Ocurrió un error. Intenta de nuevo.')
+  })
+
+  it('muestra un error mapeado (sin throw) si falla el fetch de sync', async () => {
+    await arriveAtConsentStep()
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    global.fetch = vi.fn().mockRejectedValueOnce({ code: 'auth/network-request-failed' })
+
+    await expect(handlePhoneSignupConsent()).resolves.toBeUndefined()
+
+    expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
+  })
+})
