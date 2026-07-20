@@ -5,16 +5,24 @@ let _token = null;
 let _tokenExpiry = 0;
 let _projectId = null;
 
-async function getAccessToken() {
-  if (_token && Date.now() < _tokenExpiry) return _token;
+// dotenvx deja \" para comillas y \+LF para saltos de línea del PEM en el
+// blob JSON de la service account — se des-escapa antes de parsear. Se usa
+// tanto para el OAuth2 de Firestore (abajo) como para firmar Firebase custom
+// tokens (api/phoneAuth.js) — MISMA credencial, un solo lugar que mantener.
+function getServiceAccount() {
   const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (!key) return null;
+  const raw = key.includes('\\"')
+    ? key.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22')
+    : key;
+  return JSON.parse(raw);
+}
+
+async function getAccessToken() {
+  if (_token && Date.now() < _tokenExpiry) return _token;
   try {
-    // dotenvx leaves \" for quotes and \+LF for PEM line breaks
-    const raw = key.includes('\\"')
-      ? key.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22')
-      : key;
-    const sa = JSON.parse(raw);
+    const sa = getServiceAccount();
+    if (!sa) return null;
     _projectId = sa.project_id;
     const jwtHeader = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
@@ -54,8 +62,8 @@ const BASE = 'https://firestore.googleapis.com/v1';
 function getProjectId() {
   if (_projectId) return _projectId;
   try {
-    const k = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (k) { const raw = k.includes('\\"') ? k.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22') : k; _projectId = JSON.parse(raw).project_id; }
+    const sa = getServiceAccount();
+    if (sa) _projectId = sa.project_id;
   } catch {}
   return _projectId || 'foodscaner-cache-v2';
 }
@@ -647,7 +655,7 @@ async function fireListUserHistory(uid, limit = 50) {
 }
 
 module.exports = {
-  getAccessToken,
+  getAccessToken, getServiceAccount,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
