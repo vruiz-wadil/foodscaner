@@ -22,7 +22,7 @@
 - `FIREBASE_SERVICE_ACCOUNT_KEY` se parsea en UN solo lugar (`api/firestore.js:getServiceAccount()`, exportada); `api/phoneAuth.js` la importa en vez de reimplementar el des-escape dotenvx — evita una 3ra copia del mismo parseo sensible a secretos.
 - Twilio real no se puede probar en CI — cada test mockea `fetch`/Twilio. Un smoke-test manual con teléfono real es obligatorio antes de mergear (no lo hace este plan; queda como paso final para el humano).
 
-**Cambios de esta revisión** (equipo de 3 agentes especializados — Security Architect, Backend Architect, Frontend Developer — revisó spec+plan; 0 Critical, 4 Important, varios Minor, todos aplicados abajo): `phoneVerifyHandler` ahora valida el formato E.164 del teléfono (antes solo `phoneSendHandler` lo hacía — permitía mintear un uid distinto para el mismo teléfono real vía variantes de formato); status HTTP de Twilio ya no se colapsa todo a 502 (ver bullet arriba); firma de custom token fallida es 500 dedicado, nunca 502 (antes ambos caían en el mismo catch); parseo de `FIREBASE_SERVICE_ACCOUNT_KEY` extraído a un solo lugar; `handleVerifyCode` ya no traga `err.code` en su catch (Task 6); comentario obsoleto de `confirmationResult` en `authClient.js` corregido (Task 6); nombre de test en `firebase-init.test.js` corregido para no atribuir las entradas CSP de `google.com` al login por teléfono (son de App Check).
+**Cambios de esta revisión** (2 rondas — equipo de 3 agentes especializados, Security Architect/Backend Architect/Frontend Developer, revisó spec+plan; ronda 1: 0 Critical, 4 Important; ronda 2 (verificación): 0 Critical, 1 Important — encontrado corriendo la suite real, no solo leyendo — todos aplicados abajo): `phoneVerifyHandler` ahora valida el formato E.164 del teléfono (antes solo `phoneSendHandler` lo hacía — permitía mintear un uid distinto para el mismo teléfono real vía variantes de formato); status HTTP de Twilio ya no se colapsa todo a 502 (ver bullet arriba); firma de custom token fallida es 500 dedicado, nunca 502 (antes ambos caían en el mismo catch); parseo de `FIREBASE_SERVICE_ACCOUNT_KEY` extraído a un solo lugar; `handleVerifyCode` ya no traga `err.code` en su catch (Task 6); comentario obsoleto de `confirmationResult` en `authClient.js` corregido (Task 6); nombre de test en `firebase-init.test.js` corregido para no atribuir las entradas CSP de `google.com` al login por teléfono (son de App Check); **Task 6 Step 1's contenido de `tests/auth-ui.test.js` fue aplicado al repo real y corrido de verdad (`npx vitest run`) — una versión intermedia de este mismo Step 1 fusionaba 3 tests dentro de sus describes "naturales" y rompía silenciosamente `'password toggle aria-label'` por paridad de listeners `DOMContentLoaded`; el bloque de código que queda en Step 1 ya está reverificado 39/39 PASS**.
 
 ---
 
@@ -908,6 +908,8 @@ git commit -m "fix(auth): remove unused recaptcha-container div (Twilio needs no
 
 Reemplaza el archivo completo con este contenido (cambios: mocks de `firebase-init.js` sin `RecaptchaVerifier`/`signInWithPhoneNumber`/`getAdditionalUserInfo`, con `signInWithCustomToken`; fixture sin `#recaptcha-container`; `mapAuthError — phone codes` con los códigos nuevos del backend; `handleSendCode`/`handleVerifyCode`/`handlePhoneSignupConsent` reescritos contra `fetch` mockeado; el resto de describes — `handleLogin`, `handleSignup`, `handleGoogleSignIn`, `setView`, wiring de DOMContentLoaded, password toggle, login validation — sin cambios de comportamiento, solo re-teclados en el mismo archivo):
 
+**Verificado empíricamente contra el repo real** (aplicado, corrido con `npx vitest run tests/auth-ui.test.js`, 39/39 PASS, luego revertido — no relanzar este paso, ya está probado):
+
 ```js
 /**
  * @vitest-environment jsdom
@@ -1143,12 +1145,6 @@ describe('handleSendCode', () => {
     expect(document.getElementById('auth-error').textContent).toBe('Número de teléfono inválido.')
     expect(document.getElementById('phone-code-step').classList.contains('hidden')).toBe(true)
   })
-
-  it('shows a generic error when the fetch itself throws (network failure)', async () => {
-    global.fetch = vi.fn().mockRejectedValueOnce(new Error('offline'))
-    await handleSendCode('+52', '5512345678')
-    expect(document.getElementById('auth-error').textContent).toBe('Ocurrió un error. Intenta de nuevo.')
-  })
 })
 
 describe('module load — auto-sync suppression', () => {
@@ -1181,25 +1177,11 @@ describe('handleVerifyCode', () => {
     expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
   })
 
-  it('shows the consent step (fails safe) when isNewUser is ambiguous/undefined', async () => {
-    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678' } })
-    await sendThenVerify({ ok: true, json: async () => ({ customToken: 'jwt-3' }) })
-
-    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
-  })
-
   it('shows a mapped error when the code is wrong', async () => {
     await sendThenVerify({ ok: false, json: async () => ({ error: 'invalid_code' }) })
 
     expect(document.getElementById('auth-error').textContent).toBe('Código incorrecto o expirado.')
     expect(signInWithCustomToken).not.toHaveBeenCalled()
-  })
-
-  it('maps signInWithCustomToken failures by their Firebase error code (hallazgo de revisión: un catch sin err perdía el mapeo específico, ej. sin conexión)', async () => {
-    signInWithCustomToken.mockRejectedValueOnce({ code: 'auth/network-request-failed' })
-    await sendThenVerify({ ok: true, json: async () => ({ customToken: 'jwt-4', isNewUser: false }) })
-
-    expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
   })
 })
 
@@ -1252,28 +1234,6 @@ describe('handlePhoneSignupConsent', () => {
     resolveFetch({ ok: true })
     await promise
     expect(btn.disabled).toBe(false)
-  })
-
-  it('muestra un error y no revienta si el sync responde con !res.ok', async () => {
-    await arriveAtConsentStep()
-    document.getElementById('terms-checkbox').checked = true
-    document.getElementById('age-checkbox').checked = true
-    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false })
-
-    await expect(handlePhoneSignupConsent()).resolves.toBeUndefined()
-
-    expect(document.getElementById('auth-error').textContent).toBe('Ocurrió un error. Intenta de nuevo.')
-  })
-
-  it('muestra un error mapeado (sin throw) si falla el fetch de sync', async () => {
-    await arriveAtConsentStep()
-    document.getElementById('terms-checkbox').checked = true
-    document.getElementById('age-checkbox').checked = true
-    global.fetch = vi.fn().mockRejectedValueOnce({ code: 'auth/network-request-failed' })
-
-    await expect(handlePhoneSignupConsent()).resolves.toBeUndefined()
-
-    expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
   })
 })
 
@@ -1367,9 +1327,94 @@ describe('login submit validation (hallazgo #13)', () => {
     expect(signInWithEmailAndPassword).not.toHaveBeenCalled()
   })
 })
+
+// Nota: estos tests van al final del archivo A PROPÓSITO — misma posición
+// exacta que ya tenían en el archivo original, sin fusionarlos en sus
+// describes "naturales" de arriba. Los describe blocks de arriba (phone-step
+// wiring, signup-mode toggle, password toggle, login submit validation)
+// disparan document.dispatchEvent(new Event('DOMContentLoaded')) en su
+// beforeEach, lo cual re-ejecuta TODOS los listeners de DOMContentLoaded
+// acumulados en `document` desde el inicio del archivo (uno por cada import
+// de auth-ui.js hecho por un test anterior — jsdom nunca los limpia). El test
+// 'password toggle aria-label' es sensible a la PARIDAD de esa cuenta (par =
+// el toggle queda pegado, impar = funciona) — lo que importa es cuántos tests
+// con import del módulo corrieron ANTES de él, no si los describes
+// intermedios disparan o no el evento. Verificado empíricamente: fusionar
+// estos 3 tests en handleSendCode/handleVerifyCode de arriba (ANTES de
+// 'phone-step wiring') rompe 'password toggle aria-label' por paridad
+// (confirmado corriendo la suite real). Dejarlos aquí, después del último
+// describe que dispara el evento, no altera el conteo de ningún test
+// existente.
+describe('handleVerifyCode — isNewUser ambiguo (hallazgo de revisión: undefined no debe tratarse como usuario existente)', () => {
+  it('shows the consent step (fails safe) when isNewUser is ambiguous/undefined', async () => {
+    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678' } })
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customToken: 'jwt-3' }) })
+    await handleSendCode('+52', '5512345678')
+
+    await handleVerifyCode('123456')
+
+    expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
+  })
+
+  it('maps signInWithCustomToken failures by their Firebase error code (hallazgo de revisión: un catch sin err perdía el mapeo específico, ej. sin conexión)', async () => {
+    signInWithCustomToken.mockRejectedValueOnce({ code: 'auth/network-request-failed' })
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customToken: 'jwt-4', isNewUser: false }) })
+    await handleSendCode('+52', '5512345678')
+
+    await handleVerifyCode('123456')
+
+    expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
+  })
+
+  it('shows a generic error when handleSendCode itself throws (network failure)', async () => {
+    global.fetch = vi.fn().mockRejectedValueOnce(new Error('offline'))
+    await handleSendCode('+52', '5512345678')
+    expect(document.getElementById('auth-error').textContent).toBe('Ocurrió un error. Intenta de nuevo.')
+  })
+})
+
+describe('handlePhoneSignupConsent — manejo de errores (hallazgo de revisión: sin try/catch, fallos quedaban silenciosos)', () => {
+  async function arriveAtConsentStep() {
+    const getIdToken = vi.fn().mockResolvedValue('tok-phone-new')
+    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678', getIdToken } })
+    mockAuth.currentUser = { getIdToken }
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customToken: 'jwt-new', isNewUser: true }) })
+    await handleSendCode('+52', '5512345678')
+    await handleVerifyCode('123456')
+    return getIdToken
+  }
+
+  it('muestra un error y no revienta si el sync responde con !res.ok', async () => {
+    await arriveAtConsentStep()
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false })
+
+    await expect(handlePhoneSignupConsent()).resolves.toBeUndefined()
+
+    expect(document.getElementById('auth-error').textContent).toBe('Ocurrió un error. Intenta de nuevo.')
+  })
+
+  it('muestra un error mapeado (sin throw) si falla el fetch de sync', async () => {
+    await arriveAtConsentStep()
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    global.fetch = vi.fn().mockRejectedValueOnce({ code: 'auth/network-request-failed' })
+
+    await expect(handlePhoneSignupConsent()).resolves.toBeUndefined()
+
+    expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
+  })
+})
 ```
 
-**Nota importante sobre por qué el archivo puede reordenarse así (hallazgo de revisión — la explicación original era imprecisa):** el archivo actual trae un comentario que dice "estos tests van al final porque los describes de arriba no disparan `DOMContentLoaded`". Eso es cierto pero no es el invariante real. Cada `describe` cuyo `beforeEach` hace `document.dispatchEvent(new Event('DOMContentLoaded'))` re-dispara TODOS los listeners de `DOMContentLoaded` acumulados en `document` desde el inicio del archivo (uno por cada `import('../auth-ui.js')` de un test anterior — jsdom nunca los limpia). El test `'password toggle aria-label'` es sensible a la PARIDAD de esa cuenta (par = el toggle queda pegado, impar = funciona) — lo que importa es cuántos tests con IMPORT del módulo corrieron ANTES de él, no si los describes intermedios disparan o no el evento. Este plan agrega 4 tests nuevos antes de ese punto (uno en `handleSendCode`, uno en `handleVerifyCode` para el fix de `err.code`, y ninguno neto en `handlePhoneSignupConsent` — ya traía 5, sigue con 5) — un número par, así que la paridad total se preserva y el archivo de arriba (reescrito completo, tal cual aparece en este Step 1) ya quedó verificado con el conteo correcto. Si en el futuro se agrega o quita un test ANTES de `describe('password toggle aria-label', ...)`, hay que verificar la paridad total, no si el describe recién tocado dispara el evento.
+**Nota sobre por qué el archivo de arriba mantiene esa estructura exacta (hallazgo de revisión, verificado empíricamente):** una versión anterior de este Step 1 fusionaba los 3 tests de `handleVerifyCode — isNewUser ambiguo`/`handlePhoneSignupConsent — manejo de errores` dentro de sus describes "naturales" (`handleVerifyCode`, `handlePhoneSignupConsent`), ANTES de `describe('phone-step wiring', ...)`. Se aplicó esa versión al repo real y se corrió `npx vitest run tests/auth-ui.test.js`: rompía `'password toggle aria-label'` (paridad de listeners `DOMContentLoaded` acumulados — ver el comentario dentro del propio archivo, arriba, justo antes de esos 2 describes). El bloque de código de este Step 1 ya está corregido y reverificado (39/39 PASS) con esos 3 tests de vuelta en su posición original, al final del archivo — no muevas esos tests de ahí sin volver a correr la suite real.
 
 - [ ] **Step 2: Corre el test y verifica que falla**
 
@@ -1574,7 +1619,7 @@ por:
 - [ ] **Step 5: Corre el test y verifica que pasa**
 
 Run: `npx vitest run tests/auth-ui.test.js`
-Expected: PASS (todos los tests)
+Expected: PASS (39 tests — verificado empíricamente contra el repo real durante la revisión de este plan)
 
 - [ ] **Step 6: Corre toda la suite para descartar regresiones**
 
