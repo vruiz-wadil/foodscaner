@@ -29,9 +29,7 @@ const createUserWithEmailAndPassword = vi.fn()
 const signInWithPopup = vi.fn()
 const signOut = vi.fn()
 class GoogleAuthProvider {}
-class RecaptchaVerifier {}
-const signInWithPhoneNumber = vi.fn()
-const getAdditionalUserInfo = vi.fn()
+const signInWithCustomToken = vi.fn()
 
 vi.mock(APP_URL, () => ({ initializeApp }))
 vi.mock(APP_CHECK_URL, () => ({ initializeAppCheck, ReCaptchaV3Provider }))
@@ -43,9 +41,7 @@ vi.mock(AUTH_URL, () => ({
   signInWithPopup,
   signOut,
   GoogleAuthProvider,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  getAdditionalUserInfo
+  signInWithCustomToken
 }))
 
 describe('firebase-init.js', () => {
@@ -73,16 +69,14 @@ describe('firebase-init.js', () => {
     expect(mod.firebaseAuth).toBe(mockAuthInstance)
   })
 
-  it('re-exports the auth SDK functions Task 11/12/phone-auth depend on', async () => {
+  it('re-exports the auth SDK functions the app depends on', async () => {
     const mod = await import('../firebase-init.js')
     expect(mod.onAuthStateChanged).toBe(onAuthStateChanged)
     expect(mod.signInWithEmailAndPassword).toBe(signInWithEmailAndPassword)
     expect(mod.createUserWithEmailAndPassword).toBe(createUserWithEmailAndPassword)
     expect(mod.signInWithPopup).toBe(signInWithPopup)
     expect(mod.GoogleAuthProvider).toBe(GoogleAuthProvider)
-    expect(mod.RecaptchaVerifier).toBe(RecaptchaVerifier)
-    expect(mod.signInWithPhoneNumber).toBe(signInWithPhoneNumber)
-    expect(mod.getAdditionalUserInfo).toBe(getAdditionalUserInfo)
+    expect(mod.signInWithCustomToken).toBe(signInWithCustomToken)
   })
 
   it('skips App Check init when the site key placeholder was never injected at build time', async () => {
@@ -113,7 +107,7 @@ describe('index.html wiring', () => {
 describe('auth.html wiring', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'auth.html'), 'utf8')
 
-  it('CSP allows loading the Firebase SDK and reCAPTCHA (google.com) for phone login', () => {
+  it('CSP allows loading the Firebase SDK and Firebase App Check (google.com reCAPTCHA v3)', () => {
     const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/)
     expect(cspMatch).not.toBeNull()
     const csp = cspMatch[1]
