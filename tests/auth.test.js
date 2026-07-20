@@ -69,6 +69,20 @@ describe('verifyFirebaseIdToken', () => {
     expect(result).toEqual({ uid: 'user-123', email: null, emailVerified: false, phoneNumber: '+525512345678' })
   })
 
+  it('derives phoneNumber from a "phone:"-prefixed uid when the token has no phone_number claim (Twilio custom-token bridge)', async () => {
+    mockJwks()
+    const token = signRS256({ sub: 'phone:+525512345678', email: undefined, email_verified: undefined }, privateKey)
+    const result = await verifyFirebaseIdToken(token, PROJECT_ID)
+    expect(result).toEqual({ uid: 'phone:+525512345678', email: null, emailVerified: false, phoneNumber: '+525512345678' })
+  })
+
+  it('does not derive a phoneNumber for a non-"phone:" uid with no phone_number claim', async () => {
+    mockJwks()
+    const token = signRS256({ email: undefined, email_verified: undefined }, privateKey)
+    const result = await verifyFirebaseIdToken(token, PROJECT_ID)
+    expect(result.phoneNumber).toBeNull()
+  })
+
   it('rejects an expired token', async () => {
     mockJwks()
     const token = signRS256({ exp: Math.floor(Date.now() / 1000) - 10 }, privateKey)
