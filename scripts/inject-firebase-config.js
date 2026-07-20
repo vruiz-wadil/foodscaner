@@ -8,6 +8,7 @@ const projectId = process.env.FIREBASE_PROJECT_ID;
 const apiKey = process.env.FIREBASE_WEB_API_KEY;
 const appId = process.env.FIREBASE_WEB_APP_ID;
 const messagingSenderId = process.env.FIREBASE_WEB_MESSAGING_SENDER_ID;
+const recaptchaSiteKey = process.env.FIREBASE_RECAPTCHA_SITE_KEY;
 
 if (!projectId || !apiKey || !appId || !messagingSenderId) {
   console.warn('[inject-firebase-config] Faltan FIREBASE_PROJECT_ID / FIREBASE_WEB_API_KEY / FIREBASE_WEB_APP_ID / FIREBASE_WEB_MESSAGING_SENDER_ID — firebase-init.js queda con placeholders (Auth no funcionará hasta configurarlas en Vercel).');
@@ -23,5 +24,12 @@ code = code
   .replace('__FIREBASE_STORAGE_BUCKET__', `${projectId}.firebasestorage.app`)
   .replace('__FIREBASE_MESSAGING_SENDER_ID__', messagingSenderId)
   .replace('__FIREBASE_APP_ID__', appId);
+
+if (recaptchaSiteKey) {
+  code = code.replace('__RECAPTCHA_V3_SITE_KEY__', recaptchaSiteKey);
+} else {
+  console.warn('[inject-firebase-config] Falta FIREBASE_RECAPTCHA_SITE_KEY — App Check queda deshabilitado (no bloquea el build).');
+}
+
 fs.writeFileSync(filePath, code);
 console.log('[inject-firebase-config] firebase-init.js listo para el proyecto', projectId);

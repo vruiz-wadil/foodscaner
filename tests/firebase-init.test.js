@@ -8,10 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // module-id argument can't reference a plain `const` computed below it
 // (ReferenceError: Cannot access before initialization). vi.hoisted() runs
 // its callback as part of that same hoisting pass, so it's safe to use here.
-const { APP_URL, AUTH_URL } = vi.hoisted(() => {
+const { APP_URL, APP_CHECK_URL, AUTH_URL } = vi.hoisted(() => {
   const FIREBASE_SDK_VERSION = '11.6.0'
   return {
     APP_URL: `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`,
+    APP_CHECK_URL: `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app-check.js`,
     AUTH_URL: `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`
   }
 })
@@ -20,6 +21,8 @@ const mockApp = { name: '[DEFAULT]' }
 const mockAuthInstance = { currentUser: null }
 const initializeApp = vi.fn(() => mockApp)
 const getAuth = vi.fn(() => mockAuthInstance)
+const initializeAppCheck = vi.fn()
+class ReCaptchaV3Provider {}
 const onAuthStateChanged = vi.fn()
 const signInWithEmailAndPassword = vi.fn()
 const createUserWithEmailAndPassword = vi.fn()
@@ -31,6 +34,7 @@ const signInWithPhoneNumber = vi.fn()
 const getAdditionalUserInfo = vi.fn()
 
 vi.mock(APP_URL, () => ({ initializeApp }))
+vi.mock(APP_CHECK_URL, () => ({ initializeAppCheck, ReCaptchaV3Provider }))
 vi.mock(AUTH_URL, () => ({
   getAuth,
   onAuthStateChanged,
@@ -80,6 +84,11 @@ describe('firebase-init.js', () => {
     expect(mod.signInWithPhoneNumber).toBe(signInWithPhoneNumber)
     expect(mod.getAdditionalUserInfo).toBe(getAdditionalUserInfo)
   })
+
+  it('skips App Check init when the site key placeholder was never injected at build time', async () => {
+    await import('../firebase-init.js')
+    expect(initializeAppCheck).not.toHaveBeenCalled()
+  })
 })
 
 describe('index.html wiring', () => {
@@ -92,6 +101,7 @@ describe('index.html wiring', () => {
     expect(csp).toMatch(/script-src[^;]*https:\/\/www\.gstatic\.com/)
     expect(csp).toMatch(/connect-src[^;]*https:\/\/identitytoolkit\.googleapis\.com/)
     expect(csp).toMatch(/connect-src[^;]*https:\/\/securetoken\.googleapis\.com/)
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/firebaseappcheck\.googleapis\.com/)
     expect(csp).toMatch(/frame-src[^;]*firebaseapp\.com/)
   })
 
@@ -113,6 +123,7 @@ describe('auth.html wiring', () => {
     expect(csp).toMatch(/script-src[^;]*https:\/\/www\.google\.com/)
     expect(csp).toMatch(/connect-src[^;]*https:\/\/www\.google\.com/)
     expect(csp).toMatch(/frame-src[^;]*https:\/\/www\.google\.com/)
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/firebaseappcheck\.googleapis\.com/)
   })
 
   it('loads firebase-init.js and auth-ui.js as module scripts', () => {

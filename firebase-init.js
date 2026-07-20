@@ -3,6 +3,7 @@
 // CDN, para fijar la versión del SDK en un solo lugar y para poder mockear
 // esta dependencia con una ruta relativa normal en tests.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app-check.js";
 import {
   getAuth,
   onAuthStateChanged,
@@ -27,8 +28,19 @@ const firebaseConfig = {
   messagingSenderId: "__FIREBASE_MESSAGING_SENDER_ID__",
   appId: "__FIREBASE_APP_ID__"
 };
+const recaptchaSiteKey = "__RECAPTCHA_V3_SITE_KEY__";
 
 export const firebaseApp = initializeApp(firebaseConfig);
+
+// Placeholder not injected (env var missing at build time) -> skip App Check
+// init instead of handing initializeAppCheck a literal "__..._" string.
+if (!recaptchaSiteKey.startsWith('__')) {
+  initializeAppCheck(firebaseApp, {
+    provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+    isTokenAutoRefreshEnabled: true
+  });
+}
+
 export const firebaseAuth = getAuth(firebaseApp);
 
 export {
