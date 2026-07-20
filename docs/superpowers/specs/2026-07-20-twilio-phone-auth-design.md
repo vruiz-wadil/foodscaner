@@ -45,10 +45,10 @@ auth-ui.js
 
 El gate de OCR (`api/index.js`) exige `req.user.emailVerified || req.user.phoneNumber` para desbloquear OCR gratis. Hoy `phoneNumber` sale del claim `phone_number` del ID token, que solo existe cuando el login fue con Firebase Phone Auth nativo. Con custom token ese claim no aparece — y meterlo como claim transitorio del custom token (`claims: { phone_number }`) tampoco sirve: esos claims transitorios NO sobreviven al refresh silencioso del SDK (~1h después), porque el refresh usa el endpoint de `securetoken.googleapis.com` directo, sin volver a pasar por nuestro custom token.
 
-Fix: como el `uid` es determinístico y estable en cualquier token (inicial o refrescado), `requireUser`/`optionalUser` derivan el teléfono del propio `uid` cuando el claim no viene:
+Fix: como el `uid` es determinístico y estable en cualquier token (inicial o refrescado), se deriva el teléfono del propio `uid` cuando el claim no viene. **Actualizado tras revisión del plan**: esto se centraliza en un solo lugar, `verifyFirebaseIdToken` (`api/auth.js`), del que `requireUser` y `optionalUser` ya obtienen `phoneNumber` — no hace falta duplicar la derivación en ambos middlewares:
 
 ```js
-const phoneNumber = payload.phone_number || (uid.startsWith('phone:') ? uid.slice(6) : null);
+const phoneNumber = payload.phone_number || (payload.sub.startsWith('phone:') ? payload.sub.slice(6) : null);
 ```
 
 Cero llamadas nuevas, cero fragilidad de refresh.
@@ -74,9 +74,9 @@ Twilio Verify ya limita reintentos de código (5 por verificación) y expira el 
 ## Qué se agrega
 
 - `firebase-init.js`: re-export de `signInWithCustomToken`.
-- Backend: `POST /api/auth/phone/send`, `POST /api/auth/phone/verify` (nuevo módulo o dentro de `api/index.js`, a decidir en el plan).
-- `requireUser`/`optionalUser`: derivación de `phoneNumber` desde `uid` cuando falta el claim.
-- Nuevas env vars: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `FIREBASE_SERVICE_ACCOUNT_CLIENT_EMAIL`, `FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY` (esta última requiere generar una clave de service account en Firebase Console — paso manual único, se documenta en el plan de implementación).
+- Backend: nuevo módulo `api/phoneAuth.js` (Twilio Verify + firma de custom token) + `POST /api/auth/phone/send`, `POST /api/auth/phone/verify` en `api/index.js`.
+- `verifyFirebaseIdToken` (`api/auth.js`): derivación de `phoneNumber` desde `uid` cuando falta el claim — `requireUser`/`optionalUser` la heredan gratis, sin tocarlos.
+- Nuevas env vars: solo `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`. **Actualizado tras revisión del plan**: NO se necesita ninguna credencial nueva de Firebase — `FIREBASE_SERVICE_ACCOUNT_KEY` ya existe (usada por `api/firestore.js` para Firestore) y ya tiene permiso de firmar tokens para este proyecto; se reutiliza tal cual. Cero pasos manuales nuevos en Firebase Console.
 
 ## Qué NO cambia
 

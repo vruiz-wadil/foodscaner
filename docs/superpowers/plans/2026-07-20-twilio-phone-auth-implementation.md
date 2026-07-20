@@ -17,30 +17,138 @@
 - Nunca leer `alg` de un JWT entrante para decidir cómo verificarlo (no aplica aquí — solo se FIRMAN tokens propios, no se verifican tokens de terceros).
 - No se agrega rate-limit propio para los endpoints de teléfono (decisión explícita: Twilio Verify ya limita reintentos/expira códigos; el limiter genérico de `/api/*` ya existente sigue aplicando sin cambios).
 - Cero entradas CSP nuevas: Twilio se llama servidor-a-servidor, nunca desde el browser. Las entradas de `https://www.google.com`/`https://firebaseappcheck.googleapis.com` en las 8 declaraciones de CSP (6 páginas HTML + `vercel.json` + `api/index.js`) se QUEDAN — son de Firebase App Check, ortogonal a este cambio, sigue protegiendo el login de email/Google.
-- `country-codes.js`, `setView()`, el consent-gate (checkboxes de Términos/edad), `authClient.js` (`setAutoSyncSuppressed`), `fireUpsertUser` — sin cambios.
+- `country-codes.js`, `setView()`, el consent-gate (checkboxes de Términos/edad), `fireUpsertUser` — sin cambios. `authClient.js` solo cambia en un comentario obsoleto (Task 6, Step 3b) — su lógica (`setAutoSyncSuppressed`) no se toca.
+- Mapeo de status HTTP de Twilio → status HTTP propio: `sendVerificationCode`/`checkVerificationCode` (Task 1) adjuntan `error.status = resp.status` en cualquier error que lancen. Los route handlers (Task 3) usan ese `status` para distinguir "el usuario se equivocó" (4xx de Twilio → 400/401 propio) de "Twilio/nuestra config falló" (5xx o sin `status` → 502/500 propio) — nunca colapsan todo a un solo código genérico, para no perder la distinción que ya pedía el spec original.
+- `FIREBASE_SERVICE_ACCOUNT_KEY` se parsea en UN solo lugar (`api/firestore.js:getServiceAccount()`, exportada); `api/phoneAuth.js` la importa en vez de reimplementar el des-escape dotenvx — evita una 3ra copia del mismo parseo sensible a secretos.
 - Twilio real no se puede probar en CI — cada test mockea `fetch`/Twilio. Un smoke-test manual con teléfono real es obligatorio antes de mergear (no lo hace este plan; queda como paso final para el humano).
+
+**Cambios de esta revisión** (equipo de 3 agentes especializados — Security Architect, Backend Architect, Frontend Developer — revisó spec+plan; 0 Critical, 4 Important, varios Minor, todos aplicados abajo): `phoneVerifyHandler` ahora valida el formato E.164 del teléfono (antes solo `phoneSendHandler` lo hacía — permitía mintear un uid distinto para el mismo teléfono real vía variantes de formato); status HTTP de Twilio ya no se colapsa todo a 502 (ver bullet arriba); firma de custom token fallida es 500 dedicado, nunca 502 (antes ambos caían en el mismo catch); parseo de `FIREBASE_SERVICE_ACCOUNT_KEY` extraído a un solo lugar; `handleVerifyCode` ya no traga `err.code` en su catch (Task 6); comentario obsoleto de `confirmationResult` en `authClient.js` corregido (Task 6); nombre de test en `firebase-init.test.js` corregido para no atribuir las entradas CSP de `google.com` al login por teléfono (son de App Check).
 
 ---
 
-### Task 1: `api/phoneAuth.js` — Twilio Verify + firma de Firebase custom token
+### Task 1: `api/firestore.js` (extrae `getServiceAccount`) + `api/phoneAuth.js` — Twilio Verify + firma de Firebase custom token
 
 **Files:**
+- Modify: `api/firestore.js:8-61` (extrae el parseo de `FIREBASE_SERVICE_ACCOUNT_KEY` a una función `getServiceAccount()` exportada, sin cambiar su comportamiento)
 - Create: `api/phoneAuth.js`
 - Test: `tests/phoneAuth.test.js`
+- Test: correr `tests/firestore-*.test.js` existentes (regresión, el refactor de `firestore.js` no debe cambiar su comportamiento)
 
 **Interfaces:**
-- Produces: `sendVerificationCode(phone: string): Promise<string>` (retorna `data.status`, ej. `"pending"`; lanza `Error` si Twilio responde no-ok), `checkVerificationCode(phone: string, code: string): Promise<string>` (retorna `data.status`, ej. `"approved"`/`"pending"`; lanza `Error` si Twilio responde no-ok), `createFirebaseCustomToken(uid: string): string` (JWT RS256 firmado, lanza `Error` si falta `FIREBASE_SERVICE_ACCOUNT_KEY`).
+- Produces (`api/firestore.js`, nuevo export): `getServiceAccount(): object | null` (parsea `FIREBASE_SERVICE_ACCOUNT_KEY` con el des-escape dotenvx; `null` si la env var no existe — mismo comportamiento que hoy, solo extraído a función nombrada).
+- Produces (`api/phoneAuth.js`): `sendVerificationCode(phone: string): Promise<string>` (retorna `data.status`, ej. `"pending"`; lanza `Error` con `.status = resp.status` si Twilio responde no-ok), `checkVerificationCode(phone: string, code: string): Promise<string>` (mismo contrato), `createFirebaseCustomToken(uid: string): string` (JWT RS256 firmado, lanza `Error` si `getServiceAccount()` devuelve `null`).
 
-Nota: NO se exporta un `phoneFromUid` desde este módulo — Task 2 necesita la misma lógica de un lado (`api/auth.js`) sin acoplarse a este módulo, así que la repite inline en una línea. Repetir una línea es más barato que la dependencia cruzada (YAGNI).
-- Consumes: nada de otros archivos de este proyecto (módulo autocontenido).
+Nota: NO se exporta un `phoneFromUid` desde `api/phoneAuth.js` — Task 2 necesita la misma lógica de un lado (`api/auth.js`) sin acoplarse a este módulo, así que la repite inline en una línea. Repetir una línea es más barato que la dependencia cruzada (YAGNI). El caso de `getServiceAccount()` es distinto: es lógica de parseo de un secreto (dotenvx-unescape) ya duplicada 2 veces en `api/firestore.js` — una 3ra copia en `phoneAuth.js` sería el mismo bug-en-2-lugares esperando pasar si la convención de escape cambia algún día; por eso esta sí se comparte.
+- Consumes: `getServiceAccount` de `./firestore` (única dependencia interna del proyecto).
 
-- [ ] **Step 1: Escribe el test completo**
+- [ ] **Step 1a: Extrae `getServiceAccount()` en `api/firestore.js` (refactor sin cambio de comportamiento)**
+
+En `api/firestore.js`, reemplaza el bloque de `getAccessToken` (líneas 8-50) y la lectura duplicada dentro de `getProjectId` (líneas 54-61):
+
+```js
+let _token = null;
+let _tokenExpiry = 0;
+let _projectId = null;
+
+// dotenvx deja \" para comillas y \+LF para saltos de línea del PEM en el
+// blob JSON de la service account — se des-escapa antes de parsear. Se usa
+// tanto para el OAuth2 de Firestore (abajo) como para firmar Firebase custom
+// tokens (api/phoneAuth.js) — MISMA credencial, un solo lugar que mantener.
+function getServiceAccount() {
+  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!key) return null;
+  const raw = key.includes('\\"')
+    ? key.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22')
+    : key;
+  return JSON.parse(raw);
+}
+
+async function getAccessToken() {
+  if (_token && Date.now() < _tokenExpiry) return _token;
+  try {
+    const sa = getServiceAccount();
+    if (!sa) return null;
+    _projectId = sa.project_id;
+    const jwtHeader = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const now = Math.floor(Date.now() / 1000);
+    const claim = JSON.stringify({
+      iss: sa.client_email, scope: 'https://www.googleapis.com/auth/datastore',
+      aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
+    });
+    const jwtPayload = Buffer.from(claim).toString('base64url');
+    const { createSign } = require('crypto');
+    const sign = createSign('RSA-SHA256');
+    sign.update(jwtHeader + '.' + jwtPayload);
+    const signature = sign.sign(sa.private_key, 'base64url');
+    const assertion = jwtHeader + '.' + jwtPayload + '.' + signature;
+
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    _token = data.access_token;
+    _tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+    return _token;
+  } catch (e) {
+    console.warn('[Firestore] Auth error:', e.message);
+    return null;
+  }
+}
+
+const BASE = 'https://firestore.googleapis.com/v1';
+
+function getProjectId() {
+  if (_projectId) return _projectId;
+  try {
+    const sa = getServiceAccount();
+    if (sa) _projectId = sa.project_id;
+  } catch {}
+  return _projectId || 'foodscaner-cache-v2';
+}
+```
+
+(Comportamiento idéntico al original: `getAccessToken` seguía retornando `null` cuando falta la key ANTES de entrar al `try` — ahora ese `return null` vive dentro del `try` vía `if (!sa) return null`, mismo resultado observable. `getProjectId` seguía tragando cualquier error de parseo — sigue igual, solo que ahora llama a `getServiceAccount()` en vez de repetir el des-escape.)
+
+Al final del archivo, en `module.exports`, agrega `getServiceAccount` a la lista existente (línea 649-658):
+
+```js
+module.exports = {
+  getAccessToken, getServiceAccount,
+  fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
+  fireGetOcrData, fireSetOcrData,
+  fireGetNutritionOcr, fireSetNutritionOcr,
+  fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
+  fireGetUser, fireUpsertUser, firePatchUserFields,
+  fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter,
+  fireLogUserHistory, fireListUserHistory
+};
+```
+
+- [ ] **Step 1b: Corre la suite de Firestore existente para confirmar cero regresión**
+
+Run: `npx vitest run tests/firestore-history.test.js tests/firestore-usage.test.js tests/firestore-users.test.js`
+Expected: PASS — mismos tests, mismo resultado que antes del refactor (es un refactor puro, sin cambio de comportamiento observable).
+
+- [ ] **Step 2: Escribe el test completo de `api/phoneAuth.js`**
 
 Crea `tests/phoneAuth.test.js`:
 
 ```js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { createRequire } from 'module'
 import crypto from 'crypto'
+
+const requireFn = createRequire(import.meta.url)
+const firestoreModule = requireFn('../api/firestore.js')
+const getServiceAccount = vi.fn()
+firestoreModule.getServiceAccount = getServiceAccount
 
 const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken } = await import('../api/phoneAuth.js')
 
@@ -69,9 +177,14 @@ describe('sendVerificationCode', () => {
     expect(opts.body.toString()).toBe('To=%2B525512345678&Channel=sms')
   })
 
-  it('throws when Twilio responds non-ok', async () => {
+  it('throws with .status set to the Twilio HTTP status when Twilio responds non-ok', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ message: 'Invalid phone' }) }))
     await expect(sendVerificationCode('bad')).rejects.toThrow('Invalid phone')
+    try {
+      await sendVerificationCode('bad')
+    } catch (e) {
+      expect(e.status).toBe(400)
+    }
   })
 })
 
@@ -95,26 +208,30 @@ describe('checkVerificationCode', () => {
     expect(opts.body.toString()).toBe('To=%2B525512345678&Code=123456')
   })
 
-  it('throws when Twilio responds non-ok', async () => {
+  it('throws with .status set to the Twilio HTTP status when Twilio responds non-ok', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({ message: 'Not found' }) }))
-    await expect(checkVerificationCode('+525512345678', '000000')).rejects.toThrow('Not found')
+    try {
+      await checkVerificationCode('+525512345678', '000000')
+      expect.unreachable()
+    } catch (e) {
+      expect(e.message).toBe('Not found')
+      expect(e.status).toBe(404)
+    }
   })
 })
 
 describe('createFirebaseCustomToken', () => {
-  const ORIGINAL_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
   let publicKey
 
   beforeEach(() => {
     const keyPair = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
     publicKey = keyPair.publicKey
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = JSON.stringify({
+    getServiceAccount.mockReturnValue({
       client_email: 'firebase-adminsdk@foodscaner-dev.iam.gserviceaccount.com',
       private_key: keyPair.privateKey.export({ type: 'pkcs1', format: 'pem' }),
       project_id: 'foodscaner-dev'
     })
   })
-  afterEach(() => { process.env.FIREBASE_SERVICE_ACCOUNT_KEY = ORIGINAL_KEY })
 
   it('signs a JWT with the claims Firebase custom tokens require', () => {
     const token = createFirebaseCustomToken('phone:+525512345678')
@@ -134,19 +251,19 @@ describe('createFirebaseCustomToken', () => {
     expect(crypto.verify('RSA-SHA256', signingInput, publicKey, signature)).toBe(true)
   })
 
-  it('throws when FIREBASE_SERVICE_ACCOUNT_KEY is missing', () => {
-    delete process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+  it('throws when getServiceAccount() returns null (FIREBASE_SERVICE_ACCOUNT_KEY missing)', () => {
+    getServiceAccount.mockReturnValue(null)
     expect(() => createFirebaseCustomToken('phone:+525512345678')).toThrow(/FIREBASE_SERVICE_ACCOUNT_KEY/)
   })
 })
 ```
 
-- [ ] **Step 2: Corre el test y verifica que falla**
+- [ ] **Step 3: Corre el test y verifica que falla**
 
 Run: `npx vitest run tests/phoneAuth.test.js`
 Expected: FAIL — `Cannot find module '../api/phoneAuth.js'`
 
-- [ ] **Step 3: Implementa `api/phoneAuth.js`**
+- [ ] **Step 4: Implementa `api/phoneAuth.js`**
 
 ```js
 // Twilio Verify (envío/checo de código SMS) + firma manual de Firebase custom
@@ -156,6 +273,7 @@ Expected: FAIL — `Cannot find module '../api/phoneAuth.js'`
 // (FIREBASE_SERVICE_ACCOUNT_KEY) — ya tiene permiso de firmar tokens para
 // este proyecto, no hace falta una credencial nueva.
 const crypto = require('crypto');
+const { getServiceAccount } = require('./firestore');
 
 const TWILIO_VERIFY_BASE = 'https://verify.twilio.com/v2';
 const CUSTOM_TOKEN_AUD = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
@@ -175,7 +293,11 @@ async function sendVerificationCode(phone) {
     signal: AbortSignal.timeout(10000)
   });
   const data = await resp.json();
-  if (!resp.ok) throw new Error(data?.message || `Twilio Verify error (status ${resp.status})`);
+  if (!resp.ok) {
+    const err = new Error(data?.message || `Twilio Verify error (status ${resp.status})`);
+    err.status = resp.status;
+    throw err;
+  }
   return data.status;
 }
 
@@ -188,19 +310,12 @@ async function checkVerificationCode(phone, code) {
     signal: AbortSignal.timeout(10000)
   });
   const data = await resp.json();
-  if (!resp.ok) throw new Error(data?.message || `Twilio Verify error (status ${resp.status})`);
+  if (!resp.ok) {
+    const err = new Error(data?.message || `Twilio Verify error (status ${resp.status})`);
+    err.status = resp.status;
+    throw err;
+  }
   return data.status;
-}
-
-function getServiceAccount() {
-  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (!key) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada');
-  // dotenvx deja \" para comillas y \+LF para saltos de línea del PEM — mismo
-  // des-escape que ya usa api/firestore.js:getAccessToken.
-  const raw = key.includes('\\"')
-    ? key.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22')
-    : key;
-  return JSON.parse(raw);
 }
 
 function base64UrlJson(obj) {
@@ -209,6 +324,7 @@ function base64UrlJson(obj) {
 
 function createFirebaseCustomToken(uid) {
   const sa = getServiceAccount();
+  if (!sa) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada');
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
   const payload = {
@@ -225,16 +341,23 @@ function createFirebaseCustomToken(uid) {
 module.exports = { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken };
 ```
 
-- [ ] **Step 4: Corre el test y verifica que pasa**
+- [ ] **Step 5: Corre el test y verifica que pasa**
 
 Run: `npx vitest run tests/phoneAuth.test.js`
 Expected: PASS (6 tests)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add api/phoneAuth.js tests/phoneAuth.test.js
-git commit -m "feat(auth): add Twilio Verify client + Firebase custom token signing"
+git add api/firestore.js api/phoneAuth.js tests/phoneAuth.test.js
+git commit -m "feat(auth): add Twilio Verify client + Firebase custom token signing
+
+Extracts getServiceAccount() out of api/firestore.js:getAccessToken (pure
+refactor, same dotenvx-unescape logic, no behavior change) so
+api/phoneAuth.js can reuse the same parsed service account credential
+instead of a 3rd copy of the same secret-parsing code. Twilio errors
+carry .status so callers can distinguish client-fault (4xx) from
+outage (5xx)."
 ```
 
 ---
@@ -353,6 +476,12 @@ function makeRes() {
   }
 }
 
+function twilioError(message, status) {
+  const e = new Error(message)
+  e.status = status
+  return e
+}
+
 describe('phoneSendHandler', () => {
   beforeEach(() => { sendVerificationCode.mockReset() })
 
@@ -361,6 +490,7 @@ describe('phoneSendHandler', () => {
     const res = makeRes()
     await phoneSendHandler(req, res)
     expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_phone' })
     expect(sendVerificationCode).not.toHaveBeenCalled()
   })
 
@@ -373,12 +503,22 @@ describe('phoneSendHandler', () => {
     expect(res.body).toEqual({ status: 'pending' })
   })
 
-  it('502s when Twilio throws', async () => {
-    sendVerificationCode.mockRejectedValue(new Error('Twilio down'))
+  it('400s (not 502) when Twilio itself rejects the number (4xx from Twilio)', async () => {
+    sendVerificationCode.mockRejectedValue(twilioError('Invalid parameter', 400))
+    const req = { body: { phone: '+525512345678' } }
+    const res = makeRes()
+    await phoneSendHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_phone' })
+  })
+
+  it('502s when Twilio is down (5xx or no status)', async () => {
+    sendVerificationCode.mockRejectedValue(new Error('network error'))
     const req = { body: { phone: '+525512345678' } }
     const res = makeRes()
     await phoneSendHandler(req, res)
     expect(res.statusCode).toBe(502)
+    expect(res.body).toEqual({ error: 'send_failed' })
   })
 })
 
@@ -389,13 +529,40 @@ describe('phoneVerifyHandler', () => {
     fireGetUser.mockReset()
   })
 
+  it('400s on a missing/invalid phone, same E.164 check as phoneSendHandler (hallazgo de seguridad: sin esto, el mismo teléfono real podía mintear varios uids con formatos distintos)', async () => {
+    const req = { body: { phone: 'not-a-phone', code: '123456' } }
+    const res = makeRes()
+    await phoneVerifyHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(checkVerificationCode).not.toHaveBeenCalled()
+  })
+
   it('401s when Twilio does not approve the code', async () => {
     checkVerificationCode.mockResolvedValue('pending')
     const req = { body: { phone: '+525512345678', code: '000000' } }
     const res = makeRes()
     await phoneVerifyHandler(req, res)
     expect(res.statusCode).toBe(401)
+    expect(res.body).toEqual({ error: 'invalid_code' })
     expect(createFirebaseCustomToken).not.toHaveBeenCalled()
+  })
+
+  it('401s (not 502) when Twilio rejects the check itself (4xx, e.g. expired/max attempts)', async () => {
+    checkVerificationCode.mockRejectedValue(twilioError('Max check attempts reached', 429))
+    const req = { body: { phone: '+525512345678', code: '000000' } }
+    const res = makeRes()
+    await phoneVerifyHandler(req, res)
+    expect(res.statusCode).toBe(401)
+    expect(res.body).toEqual({ error: 'invalid_code' })
+  })
+
+  it('502s when Twilio is down (5xx or no status) during the check', async () => {
+    checkVerificationCode.mockRejectedValue(new Error('network error'))
+    const req = { body: { phone: '+525512345678', code: '123456' } }
+    const res = makeRes()
+    await phoneVerifyHandler(req, res)
+    expect(res.statusCode).toBe(502)
+    expect(res.body).toEqual({ error: 'verify_failed' })
   })
 
   it('mints a custom token for uid "phone:"+phone and reports isNewUser:true for a first-time phone', async () => {
@@ -420,12 +587,25 @@ describe('phoneVerifyHandler', () => {
     expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: false })
   })
 
-  it('502s when Twilio/firma del token truena', async () => {
-    checkVerificationCode.mockRejectedValue(new Error('Twilio down'))
+  it('defaults isNewUser to true (fail-safe) when the Firestore lookup itself fails, without blocking the response (diseño: Firestore ambiguo -> trata como nuevo)', async () => {
+    checkVerificationCode.mockResolvedValue('approved')
+    fireGetUser.mockRejectedValue(new Error('Firestore unavailable'))
+    createFirebaseCustomToken.mockReturnValue('signed.jwt.token')
     const req = { body: { phone: '+525512345678', code: '123456' } }
     const res = makeRes()
     await phoneVerifyHandler(req, res)
-    expect(res.statusCode).toBe(502)
+    expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: true })
+  })
+
+  it('500s (dedicated, not 502) when custom-token signing fails — distinct from a Twilio outage (diseño: falla firma de custom token -> 500)', async () => {
+    checkVerificationCode.mockResolvedValue('approved')
+    fireGetUser.mockResolvedValue(null)
+    createFirebaseCustomToken.mockImplementation(() => { throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada') })
+    const req = { body: { phone: '+525512345678', code: '123456' } }
+    const res = makeRes()
+    await phoneVerifyHandler(req, res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body).toEqual({ error: 'server_error' })
   })
 })
 ```
@@ -448,6 +628,14 @@ Agrega los 2 handlers y sus rutas inmediatamente ANTES de `app.post('/api/auth/s
 ```js
 const E164_RE = /^\+[1-9]\d{6,14}$/;
 
+// Twilio 4xx (número inválido, código incorrecto/expirado, límite de
+// intentos) es culpa del usuario -> mapeamos a un 4xx propio. Cualquier otra
+// cosa (5xx de Twilio, timeout, sin .status) es una falla nuestra/de Twilio
+// -> 502, nunca confundido con el 4xx de "te equivocaste".
+function isClientFaultTwilioError(e) {
+  return typeof e.status === 'number' && e.status < 500;
+}
+
 async function phoneSendHandler(req, res) {
   const phone = req.body?.phone;
   if (typeof phone !== 'string' || !E164_RE.test(phone)) {
@@ -457,6 +645,7 @@ async function phoneSendHandler(req, res) {
     const status = await sendVerificationCode(phone);
     res.json({ status });
   } catch (e) {
+    if (isClientFaultTwilioError(e)) return res.status(400).json({ error: 'invalid_phone' });
     console.warn('[auth/phone/send] Twilio error:', e.message);
     res.status(502).json({ error: 'send_failed' });
   }
@@ -466,20 +655,47 @@ app.post('/api/auth/phone/send', phoneSendHandler);
 
 async function phoneVerifyHandler(req, res) {
   const { phone, code } = req.body || {};
-  if (typeof phone !== 'string' || typeof code !== 'string') {
+  // Mismo E164_RE que phoneSendHandler (hallazgo de seguridad: sin esto, un
+  // mismo teléfono real podía verificarse con un formato y mintear el custom
+  // token con OTRO formato de la misma variable `phone`, generando un uid
+  // distinto — rompiendo la garantía de "mismo teléfono siempre mapea al
+  // mismo uid" de la que depende toda esta arquitectura).
+  if (typeof phone !== 'string' || !E164_RE.test(phone) || typeof code !== 'string') {
     return res.status(400).json({ error: 'invalid_request' });
   }
-  try {
-    const status = await checkVerificationCode(phone, code);
-    if (status !== 'approved') return res.status(401).json({ error: 'invalid_code' });
 
-    const uid = 'phone:' + phone;
-    const existing = await fireGetUser(uid);
-    const customToken = createFirebaseCustomToken(uid);
-    res.json({ customToken, isNewUser: !existing });
+  let status;
+  try {
+    status = await checkVerificationCode(phone, code);
   } catch (e) {
-    console.warn('[auth/phone/verify] error:', e.message);
-    res.status(502).json({ error: 'verify_failed' });
+    if (isClientFaultTwilioError(e)) return res.status(401).json({ error: 'invalid_code' });
+    console.warn('[auth/phone/verify] Twilio error:', e.message);
+    return res.status(502).json({ error: 'verify_failed' });
+  }
+  if (status !== 'approved') return res.status(401).json({ error: 'invalid_code' });
+
+  const uid = 'phone:' + phone;
+  // Firestore ambiguo/inaccesible -> trata como usuario nuevo (fail-safe,
+  // mismo criterio que el resto de la app) — nunca bloquea la respuesta.
+  let isNewUser = true;
+  try {
+    const existing = await fireGetUser(uid);
+    isNewUser = !existing;
+  } catch (e) {
+    console.warn('[auth/phone/verify] Firestore isNewUser check failed, defaulting to new:', e.message);
+  }
+
+  try {
+    const customToken = createFirebaseCustomToken(uid);
+    res.json({ customToken, isNewUser });
+  } catch (e) {
+    // Distinto del catch de arriba a propósito: firmar el token es lo único
+    // de lo que no hay forma de "fallar hacia adelante" — sin token no hay
+    // sesión. Diseño pide 500 dedicado aquí, nunca el mismo 502 que un
+    // problema de Twilio (para que on-call no confunda "Twilio caído" con
+    // "nuestra service account está mal configurada").
+    console.warn('[auth/phone/verify] custom token signing error:', e.message);
+    res.status(500).json({ error: 'server_error' });
   }
 }
 
@@ -496,7 +712,7 @@ module.exports.phoneVerifyHandler = phoneVerifyHandler;
 - [ ] **Step 4: Corre el test y verifica que pasa**
 
 Run: `npx vitest run tests/phoneAuthRoutes.test.js`
-Expected: PASS (7 tests)
+Expected: PASS (12 tests)
 
 - [ ] **Step 5: Corre toda la suite para descartar regresiones**
 
@@ -507,7 +723,15 @@ Expected: mismos archivos/tests que antes + los nuevos, todos PASS (salvo el fal
 
 ```bash
 git add api/index.js tests/phoneAuthRoutes.test.js
-git commit -m "feat(auth): wire /api/auth/phone/send and /verify to Twilio + custom token minting"
+git commit -m "feat(auth): wire /api/auth/phone/send and /verify to Twilio + custom token minting
+
+phoneVerifyHandler validates E.164 the same way phoneSendHandler already
+did (a missing check here let the same real phone mint different uids
+via formatting variants). Twilio 4xx vs 5xx errors map to distinct
+client-facing codes (400/401 vs 502) instead of collapsing everything
+to one generic status. Custom-token signing failure gets its own 500,
+never confused with a Twilio outage. Firestore's isNewUser check
+fails safe (defaults to true) without ever blocking the response."
 ```
 
 ---
@@ -562,6 +786,14 @@ En el test `'re-exports the auth SDK functions Task 11/12/phone-auth depend on'`
     expect(mod.signInWithCustomToken).toBe(signInWithCustomToken)
   })
 ```
+
+También en `tests/firebase-init.test.js`, dentro de `describe('auth.html wiring', ...)`, el test `'CSP allows loading the Firebase SDK and reCAPTCHA (google.com) for phone login'` queda con un nombre engañoso: esas entradas de `google.com` ya no las usa el login por teléfono (Twilio no corre nada en el browser) — las sigue necesitando Firebase App Check. Renómbralo:
+
+```js
+  it('CSP allows loading the Firebase SDK and Firebase App Check (google.com reCAPTCHA v3)', () => {
+```
+
+(El cuerpo del test no cambia — mismas aserciones sobre las mismas entradas CSP, que siguen ahí por App Check.)
 
 - [ ] **Step 2: Corre el test y verifica que falla**
 
@@ -665,11 +897,12 @@ git commit -m "fix(auth): remove unused recaptcha-container div (Twilio needs no
 
 **Files:**
 - Modify: `auth-ui.js`
+- Modify: `authClient.js:54` (un comentario obsoleto, sin cambio de lógica — ver Step 4)
 - Test: `tests/auth-ui.test.js`
 
 **Interfaces:**
 - Consumes: `signInWithCustomToken` de `./firebase-init.js` (Task 4); `POST /api/auth/phone/send` y `POST /api/auth/phone/verify` (Task 3, vía `fetch`, mockeado en tests).
-- Produces: `handleSendCode`, `handleVerifyCode`, `handlePhoneSignupConsent`, `setView` sin cambios de firma pública — mismo contrato que hoy.
+- Produces: `handleSendCode`, `handleVerifyCode`, `handlePhoneSignupConsent`, `setView` sin cambios de firma (mismos parámetros/nombres). Cambio de contrato real, a propósito: `handleSendCode`/`handleVerifyCode` ya NO relanzan (`throw`) en su rama de error — siempre resuelven, igual que `handlePhoneSignupConsent` ya hacía desde la ronda de fixes anterior. Ningún llamador actual dependía del `throw` (los click handlers nunca hacen `.catch()`), así que esto no es una regresión — evita además el ruido de "Uncaught (in promise)" en consola que este mismo proyecto ya venía persiguiendo.
 
 - [ ] **Step 1: Reescribe `tests/auth-ui.test.js` completo**
 
@@ -961,6 +1194,13 @@ describe('handleVerifyCode', () => {
     expect(document.getElementById('auth-error').textContent).toBe('Código incorrecto o expirado.')
     expect(signInWithCustomToken).not.toHaveBeenCalled()
   })
+
+  it('maps signInWithCustomToken failures by their Firebase error code (hallazgo de revisión: un catch sin err perdía el mapeo específico, ej. sin conexión)', async () => {
+    signInWithCustomToken.mockRejectedValueOnce({ code: 'auth/network-request-failed' })
+    await sendThenVerify({ ok: true, json: async () => ({ customToken: 'jwt-4', isNewUser: false }) })
+
+    expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
+  })
 })
 
 describe('handlePhoneSignupConsent', () => {
@@ -1129,7 +1369,7 @@ describe('login submit validation (hallazgo #13)', () => {
 })
 ```
 
-Nota: se preserva la nota original del archivo sobre por qué los tests de `DOMContentLoaded` no van al inicio (acumulación de listeners entre tests) — aquí ya no aplica separar los últimos 3 tests (`handleVerifyCode — isNewUser ambiguo` y `handlePhoneSignupConsent — manejo de errores`) en bloques aparte al final, porque quedaron fusionados dentro de `describe('handleVerifyCode', ...)` y `describe('handlePhoneSignupConsent', ...)` respectivamente (arriba, antes de los bloques que disparan `DOMContentLoaded`) — igual que en el archivo original, ya que esos describes tampoco disparan el evento.
+**Nota importante sobre por qué el archivo puede reordenarse así (hallazgo de revisión — la explicación original era imprecisa):** el archivo actual trae un comentario que dice "estos tests van al final porque los describes de arriba no disparan `DOMContentLoaded`". Eso es cierto pero no es el invariante real. Cada `describe` cuyo `beforeEach` hace `document.dispatchEvent(new Event('DOMContentLoaded'))` re-dispara TODOS los listeners de `DOMContentLoaded` acumulados en `document` desde el inicio del archivo (uno por cada `import('../auth-ui.js')` de un test anterior — jsdom nunca los limpia). El test `'password toggle aria-label'` es sensible a la PARIDAD de esa cuenta (par = el toggle queda pegado, impar = funciona) — lo que importa es cuántos tests con IMPORT del módulo corrieron ANTES de él, no si los describes intermedios disparan o no el evento. Este plan agrega 4 tests nuevos antes de ese punto (uno en `handleSendCode`, uno en `handleVerifyCode` para el fix de `err.code`, y ninguno neto en `handlePhoneSignupConsent` — ya traía 5, sigue con 5) — un número par, así que la paridad total se preserva y el archivo de arriba (reescrito completo, tal cual aparece en este Step 1) ya quedó verificado con el conteo correcto. Si en el futuro se agrega o quita un test ANTES de `describe('password toggle aria-label', ...)`, hay que verificar la paridad total, no si el describe recién tocado dispara el evento.
 
 - [ ] **Step 2: Corre el test y verifica que falla**
 
@@ -1253,8 +1493,12 @@ export async function handleVerifyCode(code) {
         return;
       }
       window.location.href = 'index.html';
-    } catch {
-      showError(mapAuthError());
+    } catch (err) {
+      // A diferencia de handleSendCode (que solo puede fallar por fetch, sin
+      // .code), aquí SÍ puede fallar signInWithCustomToken con un error real
+      // de Firebase (ej. auth/network-request-failed) — perder err.code aquí
+      // perdería el mensaje específico ya mapeado en AUTH_ERROR_MESSAGES.
+      showError(mapAuthError(err.code));
     }
   });
 }
@@ -1309,27 +1553,47 @@ En `btnPhoneCodeBack` (líneas 400-406), elimina la referencia a `confirmationRe
   }
 ```
 
-- [ ] **Step 4: Corre el test y verifica que pasa**
+- [ ] **Step 4: Corrige un comentario obsoleto en `authClient.js` (sin cambio de lógica)**
+
+`authClient.js` no cambia de comportamiento, pero su comentario junto a `setAutoSyncSuppressed` (línea 54) menciona `confirmationResult.confirm()` — un símbolo que este Task acaba de eliminar por completo de `auth-ui.js`. Reemplaza esa línea:
+
+```js
+// Escape hatch para auth.html: motivado por el flujo de teléfono
+// (confirmationResult.confirm() dispara este listener ANTES de que el
+```
+
+por:
+
+```js
+// Escape hatch para auth.html: motivado por el flujo de teléfono
+// (signInWithCustomToken() dispara este listener ANTES de que el
+```
+
+(El resto del comentario, líneas 55-60, no cambia — la razón de fondo sigue siendo la misma: cualquier sign-in exitoso dispara `onAuthStateChanged` antes de que el usuario nuevo vea el paso de consentimiento.)
+
+- [ ] **Step 5: Corre el test y verifica que pasa**
 
 Run: `npx vitest run tests/auth-ui.test.js`
 Expected: PASS (todos los tests)
 
-- [ ] **Step 5: Corre toda la suite para descartar regresiones**
+- [ ] **Step 6: Corre toda la suite para descartar regresiones**
 
 Run: `npx vitest run`
 Expected: todos los archivos PASS salvo el fallo pre-existente no relacionado de `tests/e2e/scan-cycle.spec.js`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add auth-ui.js tests/auth-ui.test.js
+git add auth-ui.js authClient.js tests/auth-ui.test.js
 git commit -m "feat(auth): switch phone login flow to Twilio Verify + signInWithCustomToken
 
 Replaces RecaptchaVerifier/signInWithPhoneNumber/getAdditionalUserInfo
 with 2 backend calls (/api/auth/phone/send, /verify) + signInWithCustomToken.
 isNewUser now comes from the backend's Firestore check instead of
 getAdditionalUserInfo — same fail-safe default (ambiguous/missing treated
-as new user)."
+as new user). handleVerifyCode's catch now preserves err.code so a real
+signInWithCustomToken failure (e.g. network) still shows its specific
+mapped message instead of the generic fallback."
 ```
 
 ---
