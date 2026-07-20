@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireLogUserHistory, fireListUserHistory } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
+const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken } = require('./phoneAuth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
 
@@ -1355,6 +1356,81 @@ async function authSyncHandler(req, res) {
   }
 }
 
+const E164_RE = /^\+[1-9]\d{6,14}$/;
+
+// Twilio 4xx (número inválido, código incorrecto/expirado, límite de
+// intentos) es culpa del usuario -> mapeamos a un 4xx propio. Cualquier otra
+// cosa (5xx de Twilio, timeout, sin .status) es una falla nuestra/de Twilio
+// -> 502, nunca confundido con el 4xx de "te equivocaste".
+function isClientFaultTwilioError(e) {
+  return typeof e.status === 'number' && e.status < 500;
+}
+
+async function phoneSendHandler(req, res) {
+  const phone = req.body?.phone;
+  if (typeof phone !== 'string' || !E164_RE.test(phone)) {
+    return res.status(400).json({ error: 'invalid_phone' });
+  }
+  try {
+    const status = await sendVerificationCode(phone);
+    res.json({ status });
+  } catch (e) {
+    if (isClientFaultTwilioError(e)) return res.status(400).json({ error: 'invalid_phone' });
+    console.warn('[auth/phone/send] Twilio error:', e.message);
+    res.status(502).json({ error: 'send_failed' });
+  }
+}
+
+app.post('/api/auth/phone/send', phoneSendHandler);
+
+async function phoneVerifyHandler(req, res) {
+  const { phone, code } = req.body || {};
+  // Mismo E164_RE que phoneSendHandler (hallazgo de seguridad: sin esto, un
+  // mismo teléfono real podía verificarse con un formato y mintear el custom
+  // token con OTRO formato de la misma variable `phone`, generando un uid
+  // distinto — rompiendo la garantía de "mismo teléfono siempre mapea al
+  // mismo uid" de la que depende toda esta arquitectura).
+  if (typeof phone !== 'string' || !E164_RE.test(phone) || typeof code !== 'string') {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+
+  let status;
+  try {
+    status = await checkVerificationCode(phone, code);
+  } catch (e) {
+    if (isClientFaultTwilioError(e)) return res.status(401).json({ error: 'invalid_code' });
+    console.warn('[auth/phone/verify] Twilio error:', e.message);
+    return res.status(502).json({ error: 'verify_failed' });
+  }
+  if (status !== 'approved') return res.status(401).json({ error: 'invalid_code' });
+
+  const uid = 'phone:' + phone;
+  // Firestore ambiguo/inaccesible -> trata como usuario nuevo (fail-safe,
+  // mismo criterio que el resto de la app) — nunca bloquea la respuesta.
+  let isNewUser = true;
+  try {
+    const existing = await fireGetUser(uid);
+    isNewUser = !existing;
+  } catch (e) {
+    console.warn('[auth/phone/verify] Firestore isNewUser check failed, defaulting to new:', e.message);
+  }
+
+  try {
+    const customToken = createFirebaseCustomToken(uid);
+    res.json({ customToken, isNewUser });
+  } catch (e) {
+    // Distinto del catch de arriba a propósito: firmar el token es lo único
+    // de lo que no hay forma de "fallar hacia adelante" — sin token no hay
+    // sesión. Diseño pide 500 dedicado aquí, nunca el mismo 502 que un
+    // problema de Twilio (para que on-call no confunda "Twilio caído" con
+    // "nuestra service account está mal configurada").
+    console.warn('[auth/phone/verify] custom token signing error:', e.message);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+app.post('/api/auth/phone/verify', phoneVerifyHandler);
+
 app.post('/api/auth/sync', requireUser, authSyncHandler);
 
 async function getMeHandler(req, res) {
@@ -1763,6 +1839,8 @@ module.exports.ocrProcessHandler = ocrProcessHandler;
 module.exports.postHistoryHandler = postHistoryHandler;
 module.exports.getHistoryHandler = getHistoryHandler;
 module.exports.postScanHandler = postScanHandler;
+module.exports.phoneSendHandler = phoneSendHandler;
+module.exports.phoneVerifyHandler = phoneVerifyHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
