@@ -4,9 +4,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  getAdditionalUserInfo
+  signInWithCustomToken
 } from './firebase-init.js';
 import { setAutoSyncSuppressed } from './authClient.js';
 import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
@@ -45,13 +43,10 @@ const AUTH_ERROR_MESSAGES = {
   'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.',
   'auth/network-request-failed': 'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.',
   'auth/account-exists-with-different-credential': 'Ya tienes una cuenta con ese correo usando otro método de acceso (ej. Google). Usa ese método para entrar.',
-  'auth/invalid-phone-number': 'Número de teléfono inválido.',
-  'auth/missing-phone-number': 'Ingresa un número de teléfono.',
-  'auth/invalid-verification-code': 'Código incorrecto. Verifica e intenta de nuevo.',
-  'auth/code-expired': 'El código expiró. Solicita uno nuevo.',
-  'auth/quota-exceeded': 'Demasiados SMS solicitados. Intenta más tarde.',
-  'auth/captcha-check-failed': 'Verificación de seguridad falló. Intenta de nuevo.',
-  'auth/invalid-app-credential': 'Verificación de seguridad falló. Intenta de nuevo.'
+  'invalid_phone': 'Número de teléfono inválido.',
+  'send_failed': 'No se pudo enviar el código. Intenta más tarde.',
+  'invalid_code': 'Código incorrecto o expirado.',
+  'verify_failed': 'Ocurrió un error al verificar tu código. Intenta de nuevo.'
 };
 
 export function mapAuthError(code) {
@@ -85,9 +80,7 @@ async function withLoadingState(button, loadingText, fn) {
   }
 }
 
-let recaptchaVerifier = null;
-let confirmationResult = null;
-let pendingPhoneCredentialResult = null;
+let pendingPhone = null;
 let isSignupMode = false; // movido aquí desde dentro de DOMContentLoaded — ver nota arriba
 
 const VIEWS = ['login', 'phone-number', 'phone-code', 'phone-consent'];
@@ -109,16 +102,8 @@ export function setView(view) {
   document.getElementById('btn-phone-consent-confirm')?.classList.toggle('hidden', view !== 'phone-consent');
 }
 
-function getRecaptchaVerifier() {
-  if (!recaptchaVerifier) {
-    recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', { size: 'invisible' });
-  }
-  return recaptchaVerifier;
-}
-
 function clearPhoneFlowState() {
-  confirmationResult = null;
-  pendingPhoneCredentialResult = null;
+  pendingPhone = null;
 }
 
 export async function handleLogin(email, password) {
@@ -192,14 +177,21 @@ export async function handleSendCode(dialCode, localNumber) {
   const btn = document.getElementById('btn-send-code');
   return withLoadingState(btn, 'Enviando código…', async () => {
     try {
-      const phoneNumber = dialCode + localNumber.replace(/\D/g, '');
-      confirmationResult = await signInWithPhoneNumber(firebaseAuth, phoneNumber, getRecaptchaVerifier());
+      const phone = dialCode + localNumber.replace(/\D/g, '');
+      const res = await fetch('/api/auth/phone/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(mapAuthError(data.error));
+        return;
+      }
+      pendingPhone = phone;
       setView('phone-code');
-    } catch (err) {
-      showError(mapAuthError(err.code));
-      recaptchaVerifier?.clear();
-      recaptchaVerifier = null;
-      throw err;
+    } catch {
+      showError(mapAuthError());
     }
   });
 }
@@ -211,18 +203,28 @@ export async function handleVerifyCode(code) {
   const btn = document.getElementById('btn-verify-code');
   return withLoadingState(btn, 'Verificando…', async () => {
     try {
-      const result = await confirmationResult.confirm(code);
-      const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
-      if (isNewUser !== false) {
-        pendingPhoneCredentialResult = result;
+      const res = await fetch('/api/auth/phone/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: pendingPhone, code })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(mapAuthError(data.error));
+        return;
+      }
+      await signInWithCustomToken(firebaseAuth, data.customToken);
+      if (data.isNewUser !== false) {
         setView('phone-consent');
-        return result;
+        return;
       }
       window.location.href = 'index.html';
-      return result;
     } catch (err) {
+      // A diferencia de handleSendCode (que solo puede fallar por fetch, sin
+      // .code), aquí SÍ puede fallar signInWithCustomToken con un error real
+      // de Firebase (ej. auth/network-request-failed) — perder err.code aquí
+      // perdería el mensaje específico ya mapeado en AUTH_ERROR_MESSAGES.
       showError(mapAuthError(err.code));
-      throw err;
     }
   });
 }
@@ -237,7 +239,7 @@ export async function handlePhoneSignupConsent() {
   const btn = document.getElementById('btn-phone-consent-confirm');
   return withLoadingState(btn, 'Guardando…', async () => {
     try {
-      const token = await pendingPhoneCredentialResult.user.getIdToken();
+      const token = await firebaseAuth.currentUser.getIdToken();
       const res = await fetch('/api/auth/sync', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -377,8 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btnPhoneCancel.addEventListener('click', () => {
       clearError();
       clearPhoneFlowState();
-      recaptchaVerifier?.clear();
-      recaptchaVerifier = null;
       setView('login');
     });
   }
@@ -390,8 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnResendCode) {
     btnResendCode.addEventListener('click', () => {
-      recaptchaVerifier?.clear();
-      recaptchaVerifier = null;
       const dialCode = phoneCountrySelect.value;
       const localNumber = document.getElementById('phone-number').value;
       handleSendCode(dialCode, localNumber);
@@ -400,7 +398,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPhoneCodeBack) {
     btnPhoneCodeBack.addEventListener('click', () => {
       clearError();
-      confirmationResult = null;
       setView('phone-number');
     });
   }

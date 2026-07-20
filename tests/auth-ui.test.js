@@ -7,13 +7,8 @@ const mockAuth = { currentUser: null }
 const signInWithEmailAndPassword = vi.fn()
 const createUserWithEmailAndPassword = vi.fn()
 const signInWithPopup = vi.fn()
-const signInWithPhoneNumber = vi.fn()
-const getAdditionalUserInfo = vi.fn()
+const signInWithCustomToken = vi.fn()
 class GoogleAuthProvider {}
-class RecaptchaVerifier {
-  constructor() {}
-  clear() {}
-}
 
 vi.mock('../firebase-init.js', () => ({
   firebaseAuth: mockAuth,
@@ -21,9 +16,7 @@ vi.mock('../firebase-init.js', () => ({
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  getAdditionalUserInfo
+  signInWithCustomToken
 }))
 
 const setAutoSyncSuppressed = vi.fn()
@@ -39,6 +32,7 @@ let mapAuthError, handleLogin, handleSignup, handleGoogleSignIn, handleSendCode,
 beforeEach(async () => {
   vi.clearAllMocks()
   vi.resetModules()
+  mockAuth.currentUser = null
   global.fetch = vi.fn().mockResolvedValue({ ok: true })
   document.body.innerHTML = `
     <h1 id="auth-heading-title">Inicia sesión</h1>
@@ -72,7 +66,6 @@ beforeEach(async () => {
       <button type="button" id="btn-phone-consent-confirm" class="hidden">Confirmar y continuar</button>
     </div>
     <p id="auth-error" class="hidden" role="alert"></p>
-    <div id="recaptcha-container"></div>
   `
   const mod = await import('../auth-ui.js')
   mapAuthError = mod.mapAuthError
@@ -184,15 +177,12 @@ describe('handleGoogleSignIn', () => {
   })
 })
 
-describe('mapAuthError — phone codes', () => {
-  it('maps the new phone-specific error codes', () => {
-    expect(mapAuthError('auth/invalid-phone-number')).toBe('Número de teléfono inválido.')
-    expect(mapAuthError('auth/missing-phone-number')).toBe('Ingresa un número de teléfono.')
-    expect(mapAuthError('auth/invalid-verification-code')).toBe('Código incorrecto. Verifica e intenta de nuevo.')
-    expect(mapAuthError('auth/code-expired')).toBe('El código expiró. Solicita uno nuevo.')
-    expect(mapAuthError('auth/quota-exceeded')).toBe('Demasiados SMS solicitados. Intenta más tarde.')
-    expect(mapAuthError('auth/captcha-check-failed')).toBe('Verificación de seguridad falló. Intenta de nuevo.')
-    expect(mapAuthError('auth/invalid-app-credential')).toBe('Verificación de seguridad falló. Intenta de nuevo.')
+describe('mapAuthError — phone codes (Twilio backend)', () => {
+  it('maps the backend error codes returned by /api/auth/phone/send and /verify', () => {
+    expect(mapAuthError('invalid_phone')).toBe('Número de teléfono inválido.')
+    expect(mapAuthError('send_failed')).toBe('No se pudo enviar el código. Intenta más tarde.')
+    expect(mapAuthError('invalid_code')).toBe('Código incorrecto o expirado.')
+    expect(mapAuthError('verify_failed')).toBe('Ocurrió un error al verificar tu código. Intenta de nuevo.')
   })
 })
 
@@ -225,17 +215,22 @@ describe('setView', () => {
 })
 
 describe('handleSendCode', () => {
-  it('calls signInWithPhoneNumber with the concatenated dial code + digits, and moves to phone-code view', async () => {
-    signInWithPhoneNumber.mockResolvedValueOnce({ confirm: vi.fn() })
+  it('POSTs the concatenated dial code + digits to /api/auth/phone/send and moves to phone-code view', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
     await handleSendCode('+52', '55 1234 5678')
-    expect(signInWithPhoneNumber).toHaveBeenCalledWith(mockAuth, '+525512345678', expect.any(RecaptchaVerifier))
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/phone/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: '+525512345678' })
+    })
     expect(document.getElementById('phone-code-step').classList.contains('hidden')).toBe(false)
   })
 
-  it('shows a mapped error and clears the recaptcha verifier on failure', async () => {
-    signInWithPhoneNumber.mockRejectedValueOnce({ code: 'auth/invalid-phone-number' })
-    await expect(handleSendCode('+52', 'abc')).rejects.toBeTruthy()
+  it('shows a mapped error and stays on the phone-number view when the backend rejects the phone', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'invalid_phone' }) })
+    await handleSendCode('+52', 'abc')
     expect(document.getElementById('auth-error').textContent).toBe('Número de teléfono inválido.')
+    expect(document.getElementById('phone-code-step').classList.contains('hidden')).toBe(true)
   })
 })
 
@@ -246,45 +241,45 @@ describe('module load — auto-sync suppression', () => {
 })
 
 describe('handleVerifyCode', () => {
-  it('does not open the consent step for an existing user', async () => {
-    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'existing-1' } })
-    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
-    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: false })
+  async function sendThenVerify(verifyResponse) {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce(verifyResponse)
     await handleSendCode('+52', '5512345678')
-
     await handleVerifyCode('123456')
+  }
 
-    expect(confirm).toHaveBeenCalledWith('123456')
+  it('does not open the consent step for an existing user', async () => {
+    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678' } })
+    await sendThenVerify({ ok: true, json: async () => ({ customToken: 'jwt-1', isNewUser: false }) })
+
+    expect(signInWithCustomToken).toHaveBeenCalledWith(mockAuth, 'jwt-1')
     expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(true)
   })
 
   it('shows the consent step (does not redirect yet) for a new user', async () => {
-    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'new-1', getIdToken: vi.fn() } })
-    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
-    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: true })
-    await handleSendCode('+52', '5512345678')
-
-    await handleVerifyCode('123456')
+    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678' } })
+    await sendThenVerify({ ok: true, json: async () => ({ customToken: 'jwt-2', isNewUser: true }) })
 
     expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
   })
 
   it('shows a mapped error when the code is wrong', async () => {
-    const confirm = vi.fn().mockRejectedValue({ code: 'auth/invalid-verification-code' })
-    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
-    await handleSendCode('+52', '5512345678')
+    await sendThenVerify({ ok: false, json: async () => ({ error: 'invalid_code' }) })
 
-    await expect(handleVerifyCode('000000')).rejects.toBeTruthy()
-    expect(document.getElementById('auth-error').textContent).toBe('Código incorrecto. Verifica e intenta de nuevo.')
+    expect(document.getElementById('auth-error').textContent).toBe('Código incorrecto o expirado.')
+    expect(signInWithCustomToken).not.toHaveBeenCalled()
   })
 })
 
 describe('handlePhoneSignupConsent', () => {
   async function arriveAtConsentStep() {
     const getIdToken = vi.fn().mockResolvedValue('tok-phone-new')
-    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'new-1', getIdToken } })
-    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
-    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: true })
+    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678', getIdToken } })
+    mockAuth.currentUser = { getIdToken }
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customToken: 'jwt-new', isNewUser: true }) })
     await handleSendCode('+52', '5512345678')
     await handleVerifyCode('123456')
     return getIdToken
@@ -302,6 +297,7 @@ describe('handlePhoneSignupConsent', () => {
     const getIdToken = await arriveAtConsentStep()
     document.getElementById('terms-checkbox').checked = true
     document.getElementById('age-checkbox').checked = true
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: true })
 
     await handlePhoneSignupConsent()
 
@@ -366,9 +362,6 @@ describe('phone-step wiring (DOMContentLoaded)', () => {
 
 describe('signup-mode toggle (hallazgos #1, #2, #14: btn-login robaba el Enter en modo signup y no había forma de volver a login)', () => {
   beforeEach(() => {
-    // El listener de DOMContentLoaded ya se registró en el import de arriba;
-    // se dispara manualmente porque jsdom ya pasó por 'loading' antes de que
-    // este test corriera.
     document.dispatchEvent(new Event('DOMContentLoaded'))
   })
 
@@ -422,37 +415,63 @@ describe('login submit validation (hallazgo #13)', () => {
   })
 })
 
-// Nota: estos tres tests van al final del archivo a propósito. Los describe
-// blocks de arriba (phone-step wiring, signup-mode toggle, password toggle,
-// login submit validation) disparan document.dispatchEvent(new
-// Event('DOMContentLoaded')) manualmente en su beforeEach, lo cual re-ejecuta
-// TODOS los listeners de DOMContentLoaded acumulados en `document` desde el
-// inicio del archivo (uno por cada import de auth-ui.js hecho por un test
-// anterior — jsdom nunca los limpia entre tests). Insertar tests nuevos ANTES
-// de esos describe blocks cambia cuántos listeners se disparan ahí y puede
-// romper sus aserciones (ya verificado: mover estos tests a mitad del archivo
-// hacía fallar "password toggle aria-label" por paridad de clicks). Al agregar
-// al final, después del último bloque que dispara el evento, no se altera el
-// conteo de ninguno de los tests existentes.
+// Nota: estos tests van al final del archivo A PROPÓSITO — misma posición
+// exacta que ya tenían en el archivo original, sin fusionarlos en sus
+// describes "naturales" de arriba. Los describe blocks de arriba (phone-step
+// wiring, signup-mode toggle, password toggle, login submit validation)
+// disparan document.dispatchEvent(new Event('DOMContentLoaded')) en su
+// beforeEach, lo cual re-ejecuta TODOS los listeners de DOMContentLoaded
+// acumulados en `document` desde el inicio del archivo (uno por cada import
+// de auth-ui.js hecho por un test anterior — jsdom nunca los limpia). El test
+// 'password toggle aria-label' es sensible a la PARIDAD de esa cuenta (par =
+// el toggle queda pegado, impar = funciona) — lo que importa es cuántos tests
+// con import del módulo corrieron ANTES de él, no si los describes
+// intermedios disparan o no el evento. Verificado empíricamente: fusionar
+// estos 3 tests en handleSendCode/handleVerifyCode de arriba (ANTES de
+// 'phone-step wiring') rompe 'password toggle aria-label' por paridad
+// (confirmado corriendo la suite real). Dejarlos aquí, después del último
+// describe que dispara el evento, no altera el conteo de ningún test
+// existente.
 describe('handleVerifyCode — isNewUser ambiguo (hallazgo de revisión: undefined no debe tratarse como usuario existente)', () => {
   it('shows the consent step (fails safe) when isNewUser is ambiguous/undefined', async () => {
-    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'ambiguous-1', getIdToken: vi.fn() } })
-    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
-    getAdditionalUserInfo.mockReturnValueOnce(undefined)
+    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678' } })
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customToken: 'jwt-3' }) })
     await handleSendCode('+52', '5512345678')
 
     await handleVerifyCode('123456')
 
     expect(document.getElementById('signup-only').classList.contains('hidden')).toBe(false)
   })
+
+  it('maps signInWithCustomToken failures by their Firebase error code (hallazgo de revisión: un catch sin err perdía el mapeo específico, ej. sin conexión)', async () => {
+    signInWithCustomToken.mockRejectedValueOnce({ code: 'auth/network-request-failed' })
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customToken: 'jwt-4', isNewUser: false }) })
+    await handleSendCode('+52', '5512345678')
+
+    await handleVerifyCode('123456')
+
+    expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
+  })
+
+  it('shows a generic error when handleSendCode itself throws (network failure)', async () => {
+    global.fetch = vi.fn().mockRejectedValueOnce(new Error('offline'))
+    await handleSendCode('+52', '5512345678')
+    expect(document.getElementById('auth-error').textContent).toBe('Ocurrió un error. Intenta de nuevo.')
+  })
 })
 
 describe('handlePhoneSignupConsent — manejo de errores (hallazgo de revisión: sin try/catch, fallos quedaban silenciosos)', () => {
   async function arriveAtConsentStep() {
     const getIdToken = vi.fn().mockResolvedValue('tok-phone-new')
-    const confirm = vi.fn().mockResolvedValue({ user: { uid: 'new-1', getIdToken } })
-    signInWithPhoneNumber.mockResolvedValueOnce({ confirm })
-    getAdditionalUserInfo.mockReturnValueOnce({ isNewUser: true })
+    signInWithCustomToken.mockResolvedValueOnce({ user: { uid: 'phone:+525512345678', getIdToken } })
+    mockAuth.currentUser = { getIdToken }
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'pending' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customToken: 'jwt-new', isNewUser: true }) })
     await handleSendCode('+52', '5512345678')
     await handleVerifyCode('123456')
     return getIdToken

@@ -51,7 +51,7 @@ export function getCachedProfile() {
 let autoSyncSuppressed = false;
 
 // Escape hatch para auth.html: motivado por el flujo de teléfono
-// (confirmationResult.confirm() dispara este listener ANTES de que el
+// (signInWithCustomToken() dispara este listener ANTES de que el
 // usuario nuevo vea el paso de consentimiento de Términos/edad — sin
 // suprimir, el auto-sync sin body de abajo crea el doc de Firestore con
 // termsAccepted ausente, y la sync explícita con consentimiento real que
