@@ -17,6 +17,7 @@ beforeEach(async () => {
   window.getLocalHistory = vi.fn().mockReturnValue([
     { barcode: '111', name: 'Producto A', brand: 'Marca', image: '', rating: 'sano' }
   ])
+  window.shareResult = vi.fn()
   document.body.innerHTML = '<div id="history-root"></div>'
   const mod = await import('../history-ui.js')
   renderHistoryScreen = mod.renderHistoryScreen
@@ -62,5 +63,38 @@ describe('renderHistoryScreen — estructura visual', () => {
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     expect(root.querySelectorAll(':scope > .content-card').length).toBe(1)
+  })
+})
+
+describe('renderHistoryScreen — botón de compartir (usuario free, historial local)', () => {
+  it('cada row-card tiene un botón de compartir que llama a window.shareResult con name/verdict normalizados desde rating', async () => {
+    getCachedProfile.mockReturnValue({ plan: 'free' })
+    await renderHistoryScreen()
+    const root = document.getElementById('history-root')
+    const shareBtn = root.querySelector('.row-card .share-btn')
+    expect(shareBtn).toBeTruthy()
+    shareBtn.click()
+    expect(window.shareResult).toHaveBeenCalledWith({ name: 'Producto A', verdict: 'sano' }, shareBtn)
+  })
+})
+
+describe('renderHistoryScreen — botón de compartir (usuario premium, historial cloud)', () => {
+  it('cada row-card tiene un botón de compartir que llama a window.shareResult con name/verdict normalizados desde productName/verdict', async () => {
+    getCachedProfile.mockReturnValue({ plan: 'premium' })
+    getIdToken.mockResolvedValue('tok-1')
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ history: [
+        { barcode: '111', productName: 'Producto A', verdict: 'sano', scannedAt: '2026-07-15T10:00:00.000Z' }
+      ] })
+    })
+
+    await renderHistoryScreen()
+
+    const root = document.getElementById('history-root')
+    const shareBtn = root.querySelector('.row-card .share-btn')
+    expect(shareBtn).toBeTruthy()
+    shareBtn.click()
+    expect(window.shareResult).toHaveBeenCalledWith({ name: 'Producto A', verdict: 'sano' }, shareBtn)
   })
 })

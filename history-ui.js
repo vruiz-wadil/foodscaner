@@ -1,11 +1,20 @@
 import { getIdToken, getCachedProfile } from './authClient.js';
 
+function wireShareButtons(root) {
+  root.querySelectorAll('.share-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      window.shareResult({ name: btn.dataset.name, verdict: btn.dataset.verdict }, btn);
+    });
+  });
+}
+
 function renderLocalHistoryWithUpsell(root) {
   const localHistory = window.getLocalHistory ? window.getLocalHistory() : [];
   const itemsHtml = localHistory.map(h => `
     <div class="row-card">
       <span class="verdict-badge verdict-${h.rating}">${h.rating}</span>
-      <p>${h.name}</p>
+      <p class="history-item-name">${h.name}</p>
+      <button type="button" class="share-btn" data-name="${h.name}" data-verdict="${h.rating}" aria-label="Compartir">↗</button>
     </div>
   `).join('');
 
@@ -22,6 +31,7 @@ function renderLocalHistoryWithUpsell(root) {
       </div>
     </div>
   `;
+  wireShareButtons(root);
 }
 
 async function renderCloudHistory(root) {
@@ -35,10 +45,12 @@ async function renderCloudHistory(root) {
   const itemsHtml = history.map(h => `
     <div class="row-card">
       <span class="verdict-badge verdict-${h.verdict}">${h.verdict}</span>
-      <p>${h.productName}</p>
+      <p class="history-item-name">${h.productName}</p>
+      <button type="button" class="share-btn" data-name="${h.productName}" data-verdict="${h.verdict}" aria-label="Compartir">↗</button>
     </div>
   `).join('') || '<p class="account-empty">Aún no tienes escaneos.</p>';
   root.innerHTML = `<div class="content-card">${itemsHtml}</div>`;
+  wireShareButtons(root);
 }
 
 export async function renderHistoryScreen() {

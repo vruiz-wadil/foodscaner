@@ -626,6 +626,20 @@ body:has(.app-main.content-page) {
 }
 .row-card:first-child { border-top: none; padding-top: 0; }
 
+/* El nombre del producto ocupa el espacio disponible para que el botón de
+   compartir quede alineado al borde derecho de la row-card (hallazgo:
+   sin flex:1 aquí, .share-btn queda pegado al texto en vez de al borde). */
+.history-item-name { flex: 1; margin: 0; }
+.share-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--ink, #0d3d35);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
 .icon-wrap {
   width: 38px;
   height: 38px;
