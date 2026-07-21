@@ -1798,6 +1798,10 @@ function renderProductData(product, barcode) {
       verdictBanner.classList.add('verdict-reveal');
     }
   }
+  const btnShareResult = document.getElementById('btn-share-result');
+  if (btnShareResult) {
+    btnShareResult.onclick = () => window.shareResult({ name: product.name, verdict }, btnShareResult);
+  }
   cardAllergens.classList.add("hidden");
   analysisGrid.classList.add("hidden");
   saveToHistory(barcode, product.name, product.brand, product.image, verdict);
