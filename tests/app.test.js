@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -27,6 +27,40 @@ beforeAll(() => {
   renderPersonalizedDisclaimer = exports.renderPersonalizedDisclaimer
   logScanToCloudHistory = exports.logScanToCloudHistory
   incrementScanCounter = exports.incrementScanCounter
+  buildCameraConstraints = exports.buildCameraConstraints
+})
+
+// ─── buildCameraConstraints ────────────────────────────────
+// hallazgo de debugging: startScanningNative() pedía la cámara con
+// deviceId: {exact: cameraId} incondicionalmente. cameraId sale de
+// enumerateDevices() llamado ANTES de tener permiso — en Firefox (y en
+// algunos casos de Edge/Chromium) eso regresa un deviceId vacío/inválido,
+// y un constraint "exact" contra un id inválido nunca puede satisfacerse:
+// OverconstrainedError inmediato, sin llegar siquiera a pedir permiso.
+describe('buildCameraConstraints', () => {
+  it('uses an exact deviceId constraint when a real cameraId is provided', () => {
+    expect(buildCameraConstraints('abc123')).toEqual({
+      deviceId: { exact: 'abc123' },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    })
+  })
+
+  it('falls back to facingMode when cameraId is an empty string (pre-permission enumerateDevices on Firefox/Edge)', () => {
+    expect(buildCameraConstraints('')).toEqual({
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    })
+  })
+
+  it('falls back to facingMode when cameraId is undefined', () => {
+    expect(buildCameraConstraints(undefined)).toEqual({
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    })
+  })
 })
 
 // ─── isGlutenRelated ───────────────────────────────────────

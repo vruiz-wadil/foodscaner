@@ -519,6 +519,20 @@ function decodeZbar(imageData) {
   }
 }
 
+// hallazgo de debugging: enumerateDevices() llamado antes de tener permiso
+// de cámara regresa deviceId vacío/inválido en Firefox (y en algunos casos
+// de Edge/Chromium) — pedir la cámara con deviceId:{exact} contra un id así
+// nunca puede satisfacerse (OverconstrainedError inmediato, sin llegar
+// siquiera a mostrar el prompt de permiso). Si no hay un cameraId real,
+// se pide la cámara trasera genérica en su lugar — eso sí dispara el
+// prompt, y cameraId real seguirá funcionando igual que antes (Chrome).
+function buildCameraConstraints(cameraId) {
+  const base = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  return cameraId
+    ? { deviceId: { exact: cameraId }, ...base }
+    : { facingMode: { ideal: 'environment' }, ...base };
+}
+
 async function startScanningNative(cameraId) {
   if (!('BarcodeDetector' in window) && !(window.zbarWasm && typeof window.zbarWasm.scanImageData === 'function')) {
     renderError("Escáner no disponible todavía", "El escáner aún no está listo (puede tardar unos segundos en cargar). Ingresa el código de barras manualmente más abajo, o espera unos segundos y vuelve a intentar.");
@@ -528,7 +542,7 @@ async function startScanningNative(cameraId) {
   window._zbarFailed = false;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: cameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: buildCameraConstraints(cameraId)
     });
     nativeScanStream = stream;
     const track = stream.getVideoTracks()[0];
