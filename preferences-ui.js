@@ -2,6 +2,30 @@ import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 
 const ALLERGEN_CODES = ['cacahuate', 'lacteos', 'nueces', 'trigo', 'huevo', 'pescado', 'mariscos', 'soja'];
 const CONSENT_NOTICE_VERSION = 'v1';
+const ONBOARDING_PREFS_KEY = 'yomi_pending_preferences';
+
+function isOnboarding() {
+  return new URLSearchParams(window.location.search).get('onboarding') === '1';
+}
+
+export async function continueOnboardingPreferences() {
+  clearError();
+  clearConsentError();
+  const consentChecked = document.getElementById('consent-checkbox')?.checked;
+  if (!consentChecked) {
+    const message = 'Falta el consentimiento expreso para guardar datos de salud';
+    showConsentError(message);
+    throw new Error(message);
+  }
+  const payload = { ...buildPreferencesPayload(), consent: true, consentNoticeVersion: CONSENT_NOTICE_VERSION };
+  sessionStorage.setItem(ONBOARDING_PREFS_KEY, JSON.stringify(payload));
+  window.location.href = 'onboarding-membership.html';
+}
+
+export function skipOnboardingPreferences() {
+  sessionStorage.removeItem(ONBOARDING_PREFS_KEY);
+  window.location.href = 'onboarding-membership.html';
+}
 
 function showError(message) {
   const el = document.getElementById('preferences-error');
@@ -188,8 +212,8 @@ export async function savePreferences() {
       // hallazgo #6/#10: no existe checkout/pago en la app todavía — el CTA
       // no debe insinuar que hay una compra disponible que en realidad no
       // existe. Segunda oración honesta en vez de un link a un flujo falso.
-      showError(data.error === 'premium_required'
-        ? 'Esta función es solo para cuentas premium. Estamos por lanzar la suscripción — te avisaremos en cuanto esté disponible.'
+      showError(['membership_required', 'membership_expired'].includes(data.error)
+        ? 'Necesitas una membresía activa para guardar tus preferencias.'
         : 'No se pudo guardar. Intenta de nuevo.');
       throw new Error(data.error || 'save_failed');
     }
@@ -239,12 +263,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   loadPreferencesIntoForm();
   setupPreferenceTiles();
+  const onboarding = isOnboarding();
   const form = document.getElementById('preferences-form');
   const btnDelete = document.getElementById('btn-delete-preferences');
+  const btnSave = document.getElementById('btn-save-preferences');
+  const btnSkip = document.getElementById('btn-skip-preferences');
+  if (onboarding) {
+    if (btnSave) btnSave.textContent = 'Continuar';
+    btnDelete?.classList.add('hidden');
+    btnSkip?.classList.remove('hidden');
+    btnSkip?.addEventListener('click', () => skipOnboardingPreferences());
+  }
   if (form) {
     form.addEventListener('submit', e => {
       e.preventDefault();
-      savePreferences().catch(() => {});
+      (onboarding ? continueOnboardingPreferences() : savePreferences()).catch(() => {});
     });
   }
   if (btnDelete) {

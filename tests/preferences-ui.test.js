@@ -9,7 +9,7 @@ const syncUserProfile = vi.fn()
 
 vi.mock('../authClient.js', () => ({ getIdToken, getCachedProfile, syncUserProfile }))
 
-let loadPreferencesIntoForm, savePreferences, deletePreferences, setupPreferenceTiles
+let loadPreferencesIntoForm, savePreferences, deletePreferences, setupPreferenceTiles, continueOnboardingPreferences, skipOnboardingPreferences
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -46,6 +46,8 @@ beforeEach(async () => {
   savePreferences = mod.savePreferences
   deletePreferences = mod.deletePreferences
   setupPreferenceTiles = mod.setupPreferenceTiles
+  continueOnboardingPreferences = mod.continueOnboardingPreferences
+  skipOnboardingPreferences = mod.skipOnboardingPreferences
 })
 
 describe('loadPreferencesIntoForm', () => {
@@ -284,5 +286,43 @@ describe('setupPreferenceTiles — interacción de alergias', () => {
     expect(mildBtn.classList.contains('active')).toBe(false)
     expect(severeBtn.getAttribute('aria-checked')).toBe('true')
     expect(mildBtn.getAttribute('aria-checked')).toBe('false')
+  })
+})
+
+describe('onboarding mode (?onboarding=1)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    document.getElementById('consent-checkbox').checked = true
+  })
+
+  it('continueOnboardingPreferences stores the payload in sessionStorage and redirects to onboarding-membership.html without calling fetch', async () => {
+    document.querySelector('#dietary-tiles [data-dietary="vegan"]').classList.add('chosen')
+    delete window.location
+    window.location = { href: '' }
+
+    await continueOnboardingPreferences()
+
+    const stored = JSON.parse(sessionStorage.getItem('yomi_pending_preferences'))
+    expect(stored.dietary).toEqual(['vegan'])
+    expect(stored.consent).toBe(true)
+    expect(window.location.href).toBe('onboarding-membership.html')
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('continueOnboardingPreferences requires consent, same as the normal save flow', async () => {
+    document.getElementById('consent-checkbox').checked = false
+    await expect(continueOnboardingPreferences()).rejects.toThrow()
+    expect(sessionStorage.getItem('yomi_pending_preferences')).toBeNull()
+  })
+
+  it('skipOnboardingPreferences clears any pending selection and redirects without requiring consent', () => {
+    sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({ dietary: ['vegan'] }))
+    delete window.location
+    window.location = { href: '' }
+
+    skipOnboardingPreferences()
+
+    expect(sessionStorage.getItem('yomi_pending_preferences')).toBeNull()
+    expect(window.location.href).toBe('onboarding-membership.html')
   })
 })
