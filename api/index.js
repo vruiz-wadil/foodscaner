@@ -1124,41 +1124,18 @@ app.post('/api/products/nutrition', async (req, res) => {
 
 // Process ingredients from image using vision LLM (no Tesseract)
 // Process ingredients from image using vision LLM (no Tesseract)
-const OCR_FREE_DAILY_LIMIT = 5;
-
 async function ocrProcessHandler(req, res) {
   try {
     const { imageData } = req.body;
     if (!imageData) return res.status(400).json({ error: 'Missing imageData' });
 
-    let shouldCountUsage = false;
-
     if (req.user) {
-      // Fail-closed (hallazgo de revisión de seguridad): si el perfil todavía no
-      // se sincronizó (fireGetUser === null, ej. authSyncHandler falló o no corrió
-      // aún), se trata como plan free con 0 fotos usadas — NUNCA se salta el
-      // chequeo de cuota por falta de doc. Antes: `if (profile && ...)` dejaba
-      // pasar sin medir cuando profile era null (fail-open).
+      // Fail-closed: si el perfil todavía no se sincronizó (fireGetUser === null),
+      // se trata como membresía no activa — NUNCA se salta el gate por falta de doc.
       const profile = await fireGetUser(req.user.uid);
-      const plan = profile ? profile.plan : 'free';
-
-      // El chequeo de email verificado solo protege la cuota FREE (evita cuentas
-      // desechables sin verificar para saltarse el límite de 5/día) — se resuelve
-      // el plan primero (hallazgo de la 4a ronda de revisión, ver nota de producto
-      // arriba). Un premium con email no verificado ya pagó, no tiene cuota que
-      // saltarse, y bloquearlo solo le niega servicio sin ganar seguridad real.
-      if (plan !== 'premium' && !req.user.emailVerified && !req.user.phoneNumber) {
-        return res.status(403).json({ error: 'email_not_verified' });
-      }
-
-      if (plan !== 'premium') {
-        const today = new Date().toISOString().slice(0, 10);
-        const usage = profile && profile.usage;
-        const currentCount = (usage && usage.date === today) ? usage.ocrCount : 0;
-        if (currentCount >= OCR_FREE_DAILY_LIMIT) {
-          return res.status(429).json({ error: 'quota_exceeded', limit: OCR_FREE_DAILY_LIMIT });
-        }
-        shouldCountUsage = true;
+      const membershipStatus = profile ? profile.membershipStatus : 'pending';
+      if (membershipStatus !== 'active') {
+        return res.status(402).json({ error: membershipStatus === 'expired' ? 'membership_expired' : 'membership_required' });
       }
     }
 
@@ -1172,18 +1149,6 @@ Si no puedes leer los ingredientes, responde con texto vacío.`;
 
     const cleanedText = result.content.trim();
     console.log('[OCR Vision] Extracted:', cleanedText.substring(0, 100));
-
-    if (shouldCountUsage) {
-      // Await deliberado, NO fire-and-forget (hallazgo de revisión de seguridad):
-      // si esto se dispara sin esperar, requests OCR en paralelo del mismo usuario
-      // leen el mismo snapshot de ocrCount antes de que cualquiera se persista y
-      // todas pasan el chequeo de 429 — permite superar el límite de 5/día.
-      try {
-        await fireIncrementUsageCounter(req.user.uid, 'ocrCount');
-      } catch (e) {
-        console.warn('[OCR Vision] usage increment failed, uid:', req.user.uid, e.message);
-      }
-    }
 
     res.json({ status: 'ok', cleanedText });
   } catch (error) {
