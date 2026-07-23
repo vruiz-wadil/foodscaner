@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireLogUserHistory, fireListUserHistory } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken } = require('./phoneAuth');
 const { getGeoData } = require('./geo');
@@ -1395,19 +1395,40 @@ async function phoneVerifyHandler(req, res) {
   }
   if (status !== 'approved') return res.status(401).json({ error: 'invalid_code' });
 
-  const uid = 'phone:' + phone;
-  // Firestore ambiguo/inaccesible -> trata como usuario nuevo (fail-safe,
-  // mismo criterio que el resto de la app) — nunca bloquea la respuesta.
-  let isNewUser = true;
+  // Resuelve el uid estable de este teléfono: índice existente -> ese uid
+  // (usuario recurrente); si no hay índice, doc legado 'phone:'+phone -> lo
+  // adopta como uid permanente y rellena el índice (backfill perezoso, cero
+  // migración de datos); si no existe ninguno -> uid nuevo random. Firestore
+  // ambiguo/inaccesible en cualquier paso -> trata como usuario nuevo
+  // (fail-safe, MISMO criterio que ya usaba esta función — nunca bloquea la
+  // respuesta por un problema transitorio de Firestore).
+  let uid, isNewUser;
   try {
-    const existing = await fireGetUser(uid);
-    isNewUser = !existing;
+    const indexed = await fireGetPhoneIndex(phone);
+    if (indexed && indexed.uid) {
+      uid = indexed.uid;
+      isNewUser = false;
+    } else {
+      const legacyUid = 'phone:' + phone;
+      const legacyUser = await fireGetUser(legacyUid);
+      if (legacyUser) {
+        uid = legacyUid;
+        isNewUser = false;
+        await fireSetPhoneIndex(phone, uid);
+      } else {
+        uid = crypto.randomUUID();
+        isNewUser = true;
+        await fireSetPhoneIndex(phone, uid);
+      }
+    }
   } catch (e) {
-    console.warn('[auth/phone/verify] Firestore isNewUser check failed, defaulting to new:', e.message);
+    console.warn('[auth/phone/verify] phone index resolution failed, defaulting to new-user random uid:', e.message);
+    uid = crypto.randomUUID();
+    isNewUser = true;
   }
 
   try {
-    const customToken = createFirebaseCustomToken(uid);
+    const customToken = createFirebaseCustomToken(uid, { phone_number: phone });
     res.json({ customToken, isNewUser });
   } catch (e) {
     // Distinto del catch de arriba a propósito: firmar el token es lo único

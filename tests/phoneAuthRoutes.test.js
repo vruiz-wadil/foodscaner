@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createRequire } from 'module'
+import crypto from 'crypto'
 
 const requireFn = createRequire(import.meta.url)
 const phoneAuthModule = requireFn('../api/phoneAuth.js')
@@ -12,7 +13,11 @@ phoneAuthModule.createFirebaseCustomToken = createFirebaseCustomToken
 
 const firestoreModule = requireFn('../api/firestore.js')
 const fireGetUser = vi.fn()
+const fireGetPhoneIndex = vi.fn()
+const fireSetPhoneIndex = vi.fn()
 firestoreModule.fireGetUser = fireGetUser
+firestoreModule.fireGetPhoneIndex = fireGetPhoneIndex
+firestoreModule.fireSetPhoneIndex = fireSetPhoneIndex
 
 const { phoneSendHandler, phoneVerifyHandler } = await import('../api/index.js')
 
@@ -76,6 +81,8 @@ describe('phoneVerifyHandler', () => {
     checkVerificationCode.mockReset()
     createFirebaseCustomToken.mockReset()
     fireGetUser.mockReset()
+    fireGetPhoneIndex.mockReset()
+    fireSetPhoneIndex.mockReset()
   })
 
   it('400s on a missing/invalid phone, same E.164 check as phoneSendHandler (hallazgo de seguridad: sin esto, el mismo teléfono real podía mintear varios uids con formatos distintos)', async () => {
@@ -114,41 +121,65 @@ describe('phoneVerifyHandler', () => {
     expect(res.body).toEqual({ error: 'verify_failed' })
   })
 
-  it('mints a custom token for uid "phone:"+phone and reports isNewUser:true for a first-time phone', async () => {
+  it('teléfono con índice existente en phoneIndex -> usa ese uid, isNewUser:false, no consulta el doc legado', async () => {
     checkVerificationCode.mockResolvedValue('approved')
-    fireGetUser.mockResolvedValue(null)
+    fireGetPhoneIndex.mockResolvedValue({ uid: 'a1b2c3d4-uuid' })
     createFirebaseCustomToken.mockReturnValue('signed.jwt.token')
     const req = { body: { phone: '+525512345678', code: '123456' } }
     const res = makeRes()
     await phoneVerifyHandler(req, res)
-    expect(createFirebaseCustomToken).toHaveBeenCalledWith('phone:+525512345678')
-    expect(fireGetUser).toHaveBeenCalledWith('phone:+525512345678')
-    expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: true })
-  })
-
-  it('reports isNewUser:false when the user doc already exists', async () => {
-    checkVerificationCode.mockResolvedValue('approved')
-    fireGetUser.mockResolvedValue({ uid: 'phone:+525512345678' })
-    createFirebaseCustomToken.mockReturnValue('signed.jwt.token')
-    const req = { body: { phone: '+525512345678', code: '123456' } }
-    const res = makeRes()
-    await phoneVerifyHandler(req, res)
+    expect(fireGetUser).not.toHaveBeenCalled()
+    expect(fireSetPhoneIndex).not.toHaveBeenCalled()
+    expect(createFirebaseCustomToken).toHaveBeenCalledWith('a1b2c3d4-uuid', { phone_number: '+525512345678' })
     expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: false })
   })
 
-  it('defaults isNewUser to true (fail-safe) when the Firestore lookup itself fails, without blocking the response (diseño: Firestore ambiguo -> trata como nuevo)', async () => {
+  it('teléfono sin índice pero con doc legado "phone:"+telefono -> adopta ese uid, isNewUser:false, rellena el índice (backfill)', async () => {
     checkVerificationCode.mockResolvedValue('approved')
-    fireGetUser.mockRejectedValue(new Error('Firestore unavailable'))
+    fireGetPhoneIndex.mockResolvedValue(null)
+    fireGetUser.mockResolvedValue({ membershipStatus: 'active' })
+    fireSetPhoneIndex.mockResolvedValue(undefined)
     createFirebaseCustomToken.mockReturnValue('signed.jwt.token')
     const req = { body: { phone: '+525512345678', code: '123456' } }
     const res = makeRes()
     await phoneVerifyHandler(req, res)
-    expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: true })
+    expect(fireGetUser).toHaveBeenCalledWith('phone:+525512345678')
+    expect(fireSetPhoneIndex).toHaveBeenCalledWith('+525512345678', 'phone:+525512345678')
+    expect(createFirebaseCustomToken).toHaveBeenCalledWith('phone:+525512345678', { phone_number: '+525512345678' })
+    expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: false })
   })
 
-  it('500s (dedicated, not 502) when custom-token signing fails — distinct from a Twilio outage (diseño: falla firma de custom token -> 500)', async () => {
+  it('teléfono completamente nuevo (sin índice, sin doc legado) -> uid random nuevo, isNewUser:true, rellena el índice', async () => {
     checkVerificationCode.mockResolvedValue('approved')
+    fireGetPhoneIndex.mockResolvedValue(null)
     fireGetUser.mockResolvedValue(null)
+    fireSetPhoneIndex.mockResolvedValue(undefined)
+    createFirebaseCustomToken.mockReturnValue('signed.jwt.token')
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('brand-new-uuid')
+    const req = { body: { phone: '+525512345678', code: '123456' } }
+    const res = makeRes()
+    await phoneVerifyHandler(req, res)
+    expect(fireSetPhoneIndex).toHaveBeenCalledWith('+525512345678', 'brand-new-uuid')
+    expect(createFirebaseCustomToken).toHaveBeenCalledWith('brand-new-uuid', { phone_number: '+525512345678' })
+    expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: true })
+    crypto.randomUUID.mockRestore()
+  })
+
+  it('falla de Firestore en la resolución del índice -> cae a uid random nuevo, isNewUser:true (fail-safe, nunca bloquea la respuesta)', async () => {
+    checkVerificationCode.mockResolvedValue('approved')
+    fireGetPhoneIndex.mockRejectedValue(new Error('Firestore unavailable'))
+    createFirebaseCustomToken.mockReturnValue('signed.jwt.token')
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('fallback-uuid')
+    const req = { body: { phone: '+525512345678', code: '123456' } }
+    const res = makeRes()
+    await phoneVerifyHandler(req, res)
+    expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: true })
+    crypto.randomUUID.mockRestore()
+  })
+
+  it('500s (dedicated, not 502) when custom-token signing fails — distinto de una caída de Twilio', async () => {
+    checkVerificationCode.mockResolvedValue('approved')
+    fireGetPhoneIndex.mockResolvedValue({ uid: 'a1b2c3d4-uuid' })
     createFirebaseCustomToken.mockImplementation(() => { throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada') })
     const req = { body: { phone: '+525512345678', code: '123456' } }
     const res = makeRes()
