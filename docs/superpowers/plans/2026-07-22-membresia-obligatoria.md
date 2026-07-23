@@ -2135,6 +2135,152 @@ git commit -m "refactor(frontend): drop free-tier upsell banner, add onboarding 
 
 ---
 
+### Task 13: `app.js` — mandar Authorization en el fetch de OCR real + manejar 402
+
+**Contexto (agregado tras el whole-branch review):** las Tasks 1-12 gatearon `ocrProcessHandler` por `membershipStatus`, pero el review final encontró que el fetch REAL del modal de captura de ingredientes (`app.js`, dentro de `initOcrHandlers()`, el `fileInput.onchange`) nunca manda `Authorization` — así que todo scan real cae en la rama anónima (`req.user === null`) y el gate nunca se ejercita para usuarios logueados. Este task cierra ese hueco.
+
+**Files:**
+- Modify: `app.js` (función `initOcrHandlers()`, el bloque `fileInput.onchange` que llama a `fetch("/api/ocr/process", ...)`)
+- Test: `tests/app.test.js` (nuevo describe block)
+
+**Interfaces:**
+- Produces: nueva función `processOcrImage(imageData)` en `app.js`, exportada igual que las demás funciones que ya expone este archivo para test (revisa cómo `tests/app.test.js` importa funciones de `app.js` hoy — sigue ese mismo mecanismo, sea `export`/`module.exports`/adjuntar a un objeto de test, para no romper el patrón existente).
+- Consumes: `window.authClient.getIdToken()` (ya existe, mismo patrón que `logScanToCloudHistory`/`incrementScanCounter` en el propio `app.js`).
+
+- [ ] **Step 1: Escribir el test que falla**
+
+Agrega a `tests/app.test.js` (sigue el mismo patrón de mocks de `window.authClient` que ya usan los describe blocks de `logScanToCloudHistory`/`incrementScanCounter` en ese mismo archivo — revísalos antes de escribir estos):
+
+```js
+describe('processOcrImage', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn()
+  })
+
+  it('manda Authorization cuando hay sesión (window.authClient con token)', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok-123') }
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ cleanedText: 'harina, sal' }) })
+
+    await processOcrImage('base64imagedata')
+
+    const [, options] = global.fetch.mock.calls[0]
+    expect(options.headers.Authorization).toBe('Bearer tok-123')
+  })
+
+  it('no manda Authorization sin sesión (window.authClient ausente o sin token) — comportamiento anónimo intacto', async () => {
+    window.authClient = undefined
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ cleanedText: 'x' }) })
+
+    await processOcrImage('base64imagedata')
+
+    const [, options] = global.fetch.mock.calls[0]
+    expect(options.headers.Authorization).toBeUndefined()
+  })
+
+  it('lanza un error con .code="membership_required" cuando el backend responde 402 membership_required', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok-123') }
+    global.fetch.mockResolvedValue({ ok: false, json: async () => ({ error: 'membership_required' }) })
+
+    await expect(processOcrImage('x')).rejects.toMatchObject({ code: 'membership_required' })
+  })
+
+  it('lanza un error con .code="membership_expired" cuando el backend responde 402 membership_expired', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok-123') }
+    global.fetch.mockResolvedValue({ ok: false, json: async () => ({ error: 'membership_expired' }) })
+
+    await expect(processOcrImage('x')).rejects.toMatchObject({ code: 'membership_expired' })
+  })
+
+  it('regresa el data.cleanedText en éxito', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok') }
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ cleanedText: 'harina, sal' }) })
+
+    const result = await processOcrImage('x')
+
+    expect(result.cleanedText).toBe('harina, sal')
+  })
+})
+```
+
+- [ ] **Step 2: Correr el test y verificar que falla**
+
+Run: `npx vitest run tests/app.test.js -t processOcrImage`
+Expected: FAIL — `processOcrImage` no existe todavía.
+
+- [ ] **Step 3: Implementar en `app.js`**
+
+Extrae la lógica de fetch+respuesta del `fileInput.onchange` actual (dentro de `initOcrHandlers()`) a una función nueva, testeable de forma aislada (sin canvas/Image):
+
+```js
+async function processOcrImage(imageData) {
+  const headers = { "Content-Type": "application/json" };
+  if (typeof window !== 'undefined' && window.authClient) {
+    const token = await window.authClient.getIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch("/api/ocr/process", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ imageData })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const err = new Error(data.error || "Error al procesar");
+    err.code = data.error;
+    throw err;
+  }
+  return data;
+}
+```
+
+Reemplaza el bloque actual dentro de `fileInput.onchange` (el que hoy hace `const response = await fetch("/api/ocr/process", {...}); const data = await response.json(); if (!response.ok) throw ...;`) por una llamada a esta función:
+
+```js
+            const data = await processOcrImage(imageData);
+
+            const textArea = document.getElementById("ocr-result");
+            if (textArea) textArea.value = data.cleanedText || "";
+
+            document.getElementById("ocr-step-2").classList.add("hidden");
+            document.getElementById("ocr-step-3").classList.remove("hidden");
+```
+
+Y en el `catch` de ese mismo `onchange` (el que hoy hace `showModalStepError(step1, "Error al procesar imagen: " + (err?.message || err));`), agrega un mensaje específico para los 2 códigos de membresía — `showModalStepError` usa `.textContent` (no HTML), así que el mensaje debe ser texto plano, sin link:
+
+```js
+          } catch (err) {
+            console.error("[OCR Vision] Error:", err);
+            document.getElementById("ocr-step-2").classList.add("hidden");
+            const step1 = document.getElementById("ocr-step-1");
+            step1.classList.remove("hidden");
+            const message = (err?.code === 'membership_required' || err?.code === 'membership_expired')
+              ? "Necesitas una membresía activa para escanear ingredientes. Ve a Mi cuenta para activarla."
+              : "Error al procesar imagen: " + (err?.message || err);
+            showModalStepError(step1, message);
+          }
+```
+
+Exporta `processOcrImage` de la misma forma que el resto de funciones que `tests/app.test.js` ya importa de `app.js` (revisa el mecanismo real del archivo antes de asumir `export`/`module.exports`/objeto global — sigue exactamente ese patrón existente, no introduzcas uno nuevo).
+
+- [ ] **Step 4: Correr el test y verificar que pasa**
+
+Run: `npx vitest run tests/app.test.js -t processOcrImage`
+Expected: PASS
+
+- [ ] **Step 5: Correr la suite completa**
+
+Run: `npx vitest run`
+Expected: PASS (el único fallo esperado sigue siendo el preexistente de Playwright/e2e, no relacionado).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app.js tests/app.test.js
+git commit -m "fix(ocr): send auth token on real OCR fetch, handle 402 membership codes"
+```
+
+---
+
 ## Al terminar todas las tasks
 
 Correr la suite completa una última vez (`npx vitest run`) y usar `superpowers:finishing-a-development-branch` para decidir merge/PR — no se hace commit a `master`/producción sin instrucción explícita del usuario (regla de sesión: `develop` únicamente).
