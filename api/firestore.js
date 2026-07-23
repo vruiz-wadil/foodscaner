@@ -647,6 +647,37 @@ async function fireListUserHistory(uid, limit = 50) {
   return rows.filter(r => r.document).map(r => fromFirestoreFields(r.document.fields || {}));
 }
 
+// --- phoneIndex/{phone}: phone -> uid mapping ---
+async function fireGetPhoneIndex(phone) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const resp = await fetch(docPath('phoneIndex', phone), {
+      headers: { Authorization: 'Bearer ' + token },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (resp.status === 404) return null;
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return fromFirestoreFields(data.fields || {});
+  } catch (e) {
+    console.warn('[Firestore] getPhoneIndex error:', e.message);
+    return null;
+  }
+}
+
+async function fireSetPhoneIndex(phone, uid) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(docPath('phoneIndex', phone), {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: toFirestoreFields({ uid }) }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore set phone index failed: ${resp.status}`);
+}
+
 module.exports = {
   getAccessToken, getServiceAccount,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
@@ -655,5 +686,6 @@ module.exports = {
   fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
   fireGetUser, fireUpsertUser, firePatchUserFields,
   fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter,
-  fireLogUserHistory, fireListUserHistory
+  fireLogUserHistory, fireListUserHistory,
+  fireGetPhoneIndex, fireSetPhoneIndex
 };
