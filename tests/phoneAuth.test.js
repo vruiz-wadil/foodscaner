@@ -112,4 +112,19 @@ describe('createFirebaseCustomToken', () => {
     getServiceAccount.mockReturnValue(null)
     expect(() => createFirebaseCustomToken('phone:+525512345678')).toThrow(/FIREBASE_SERVICE_ACCOUNT_KEY/)
   })
+
+  it('includes an optional developer claims object under payload.claims when provided', () => {
+    const token = createFirebaseCustomToken('a1b2c3d4-uuid', { phone_number: '+525512345678' })
+    const [, payloadB64] = token.split('.')
+    const payload = b64urlJsonDecode(payloadB64)
+    expect(payload.claims).toEqual({ phone_number: '+525512345678' })
+    expect(payload.uid).toBe('a1b2c3d4-uuid')
+  })
+
+  it('omits payload.claims entirely when no claims argument is passed (backward compatible)', () => {
+    const token = createFirebaseCustomToken('phone:+525512345678')
+    const [, payloadB64] = token.split('.')
+    const payload = b64urlJsonDecode(payloadB64)
+    expect(payload.claims).toBeUndefined()
+  })
 })

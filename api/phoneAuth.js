@@ -54,14 +54,15 @@ function base64UrlJson(obj) {
   return Buffer.from(JSON.stringify(obj)).toString('base64url');
 }
 
-function createFirebaseCustomToken(uid) {
+function createFirebaseCustomToken(uid, claims) {
   const sa = getServiceAccount();
   if (!sa) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY no configurada');
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
   const payload = {
     iss: sa.client_email, sub: sa.client_email, aud: CUSTOM_TOKEN_AUD,
-    uid, iat: now, exp: now + 3600
+    uid, iat: now, exp: now + 3600,
+    ...(claims ? { claims } : {})
   };
   const signingInput = `${base64UrlJson(header)}.${base64UrlJson(payload)}`;
   const signer = crypto.createSign('RSA-SHA256');
