@@ -82,6 +82,27 @@ async function optionalUser(req, res, next) {
   next();
 }
 
+// Gate del "producto pagado" (OCR de ingredientes, preferencias, historial nube)
+// — se monta DESPUÉS de requireUser, nunca solo. Chequeo perezoso de
+// expiración: sin cron, la primera petición autenticada tras vencer la
+// membresía es la que la marca 'expired' en Firestore.
+async function requireActiveMembership(req, res, next) {
+  const user = await fireGetUser(req.user.uid);
+  if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+  if (user.membershipStatus === 'active') {
+    const expired = user.membershipExpiresAt && new Date(user.membershipExpiresAt) < new Date();
+    if (expired) {
+      await firePatchUserFields(req.user.uid, ['membershipStatus'], { membershipStatus: 'expired' });
+      return res.status(402).json({ error: 'membership_expired' });
+    }
+    req.membershipUser = user;
+    return next();
+  }
+
+  return res.status(402).json({ error: user.membershipStatus === 'expired' ? 'membership_expired' : 'membership_required' });
+}
+
 // --- Queue for Groq to avoid rate limiting ---
 let groqQueue = [];
 let groqProcessing = false;
@@ -1830,6 +1851,7 @@ module.exports.computeEnergyLevel = computeEnergyLevel;
 module.exports.detectGluten = detectGluten;
 module.exports.detectCasein = detectCasein;
 module.exports.requireUser = requireUser;
+module.exports.requireActiveMembership = requireActiveMembership;
 module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
