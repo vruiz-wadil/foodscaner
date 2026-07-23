@@ -87,20 +87,25 @@ async function optionalUser(req, res, next) {
 // expiración: sin cron, la primera petición autenticada tras vencer la
 // membresía es la que la marca 'expired' en Firestore.
 async function requireActiveMembership(req, res, next) {
-  const user = await fireGetUser(req.user.uid);
-  if (!user) return res.status(404).json({ error: 'user_not_found' });
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
 
-  if (user.membershipStatus === 'active') {
-    const expired = user.membershipExpiresAt && new Date(user.membershipExpiresAt) < new Date();
-    if (expired) {
-      await firePatchUserFields(req.user.uid, ['membershipStatus'], { membershipStatus: 'expired' });
-      return res.status(402).json({ error: 'membership_expired' });
+    if (user.membershipStatus === 'active') {
+      const expired = user.membershipExpiresAt && new Date(user.membershipExpiresAt) < new Date();
+      if (expired) {
+        await firePatchUserFields(req.user.uid, ['membershipStatus'], { membershipStatus: 'expired' });
+        return res.status(402).json({ error: 'membership_expired' });
+      }
+      req.membershipUser = user;
+      return next();
     }
-    req.membershipUser = user;
-    return next();
-  }
 
-  return res.status(402).json({ error: user.membershipStatus === 'expired' ? 'membership_expired' : 'membership_required' });
+    return res.status(402).json({ error: user.membershipStatus === 'expired' ? 'membership_expired' : 'membership_required' });
+  } catch (e) {
+    console.warn('[requireActiveMembership] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
 }
 
 // --- Queue for Groq to avoid rate limiting ---

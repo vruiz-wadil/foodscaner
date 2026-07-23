@@ -81,4 +81,15 @@ describe('requireActiveMembership', () => {
     expect(res.body).toEqual({ error: 'membership_expired' })
     expect(next).not.toHaveBeenCalled()
   })
+
+  it('responds 500 internal_error when fireGetUser throws (Firestore transient failure, fails closed)', async () => {
+    fireGetUser.mockRejectedValue(new Error('firestore unavailable'))
+    const req = { user: { uid: 'uid-6' } }
+    const res = makeRes()
+    const next = vi.fn()
+    await requireActiveMembership(req, res, next)
+    expect(res.statusCode).toBe(500)
+    expect(res.body).toEqual({ error: 'internal_error' })
+    expect(next).not.toHaveBeenCalled()
+  })
 })
