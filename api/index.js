@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
-const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken } = require('./phoneAuth');
+const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim } = require('./phoneAuth');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
 
@@ -1536,6 +1536,49 @@ async function payMembershipHandler(req, res) {
 
 app.post('/api/me/membership/pay', requireUser, payMembershipHandler);
 
+async function changePhoneHandler(req, res) {
+  const { phone, code } = req.body || {};
+  if (typeof phone !== 'string' || !E164_RE.test(phone) || typeof code !== 'string') {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+
+  let status;
+  try {
+    status = await checkVerificationCode(phone, code);
+  } catch (e) {
+    if (isClientFaultTwilioError(e)) return res.status(401).json({ error: 'invalid_code' });
+    console.warn('[me/phone/change] Twilio error:', e.message);
+    return res.status(502).json({ error: 'verify_failed' });
+  }
+  if (status !== 'approved') return res.status(401).json({ error: 'invalid_code' });
+
+  try {
+    const existingIndex = await fireGetPhoneIndex(phone);
+    if (existingIndex && existingIndex.uid && existingIndex.uid !== req.user.uid) {
+      return res.status(409).json({ error: 'phone_in_use' });
+    }
+  } catch (e) {
+    console.warn('[me/phone/change] phone index check failed, uid:', req.user.uid, e.message);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+
+  try {
+    if (req.user.phoneNumber && req.user.phoneNumber !== phone) {
+      await fireDeleteDoc('phoneIndex', req.user.phoneNumber).catch(e =>
+        console.warn('[me/phone/change] old phoneIndex cleanup failed (non-fatal), uid:', req.user.uid, e.message)
+      );
+    }
+    await fireSetPhoneIndex(phone, req.user.uid);
+    await setPhoneNumberClaim(req.user.uid, phone);
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[me/phone/change] error, uid:', req.user.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/phone/change', requireUser, changePhoneHandler);
+
 // Mismas claves que extractDietaryFromLabels en app.js, más glutenFree (spec de cuentas).
 const ALLOWED_DIETARY = ['vegan', 'vegetarian', 'keto', 'kosher', 'halal', 'organic', 'nonGmo', 'noAdditives', 'palmOilFree', 'fairTrade', 'caseinFree', 'glutenFree'];
 // Mismas claves que grupoClave() en app.js:2094.
@@ -1918,6 +1961,7 @@ module.exports.getHistoryHandler = getHistoryHandler;
 module.exports.postScanHandler = postScanHandler;
 module.exports.phoneSendHandler = phoneSendHandler;
 module.exports.phoneVerifyHandler = phoneVerifyHandler;
+module.exports.changePhoneHandler = changePhoneHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
