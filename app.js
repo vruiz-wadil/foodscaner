@@ -1715,7 +1715,7 @@ function renderNotRecommended(product) {
 
 // Preferencias del usuario logueado+premium para personalizar computeVerdict.
 // null si: no está logueado (window.authClient no existe o no hay perfil
-// cacheado todavía), si es plan "free", o si es premium pero aún no configuró
+// cacheado todavía), si membershipStatus !== 'active', o si es active pero aún no configuró
 // preferences (requiere consentimiento expreso — ver spec de privacidad).
 function getUserPreferencesForVerdict() {
   if (typeof window === 'undefined' || !window.authClient || typeof window.authClient.getCachedProfile !== 'function') {
@@ -1764,7 +1764,7 @@ async function logScanToCloudHistory(barcode, productName, verdict) {
 // Incrementa el contador de escaneos totales — a diferencia de
 // logScanToCloudHistory (premium-only), corre para CUALQUIER usuario
 // logueado: el stat "Escaneos" de account.html debe reflejar el uso real
-// del usuario sin importar su plan. Fire-and-forget, mismo motivo que la
+// del usuario sin importar su membershipStatus. Fire-and-forget, mismo motivo que la
 // función anterior.
 async function incrementScanCounter() {
   if (typeof window === 'undefined' || !window.authClient) return;
