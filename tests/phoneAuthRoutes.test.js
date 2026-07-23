@@ -165,6 +165,19 @@ describe('phoneVerifyHandler', () => {
     crypto.randomUUID.mockRestore()
   })
 
+  it('falla de escritura al rellenar el índice tras encontrar el doc legado -> conserva el uid YA resuelto, isNewUser:false (solo una falla de LECTURA debe caer a uid random)', async () => {
+    checkVerificationCode.mockResolvedValue('approved')
+    fireGetPhoneIndex.mockResolvedValue(null)
+    fireGetUser.mockResolvedValue({ membershipStatus: 'active' })
+    fireSetPhoneIndex.mockRejectedValue(new Error('Firestore write timeout'))
+    createFirebaseCustomToken.mockReturnValue('signed.jwt.token')
+    const req = { body: { phone: '+525512345678', code: '123456' } }
+    const res = makeRes()
+    await phoneVerifyHandler(req, res)
+    expect(createFirebaseCustomToken).toHaveBeenCalledWith('phone:+525512345678', { phone_number: '+525512345678' })
+    expect(res.body).toEqual({ customToken: 'signed.jwt.token', isNewUser: false })
+  })
+
   it('falla de Firestore en la resolución del índice -> cae a uid random nuevo, isNewUser:true (fail-safe, nunca bloquea la respuesta)', async () => {
     checkVerificationCode.mockResolvedValue('approved')
     fireGetPhoneIndex.mockRejectedValue(new Error('Firestore unavailable'))

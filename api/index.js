@@ -1414,11 +1414,19 @@ async function phoneVerifyHandler(req, res) {
       if (legacyUser) {
         uid = legacyUid;
         isNewUser = false;
-        await fireSetPhoneIndex(phone, uid);
       } else {
         uid = crypto.randomUUID();
         isNewUser = true;
+      }
+      // Backfill del índice — si esta escritura falla, seguimos con el uid YA
+      // resuelto (no perdemos la identidad de un usuario real por un problema
+      // transitorio de escritura); se reintenta solo en el próximo login. A
+      // diferencia de una falla de LECTURA (catch de abajo), aquí ya sabemos
+      // quién es el usuario — perder el índice es recuperable, perder su uid no.
+      try {
         await fireSetPhoneIndex(phone, uid);
+      } catch (e) {
+        console.warn('[auth/phone/verify] phone index backfill write failed (retried next login):', e.message);
       }
     }
   } catch (e) {
