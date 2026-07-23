@@ -1459,9 +1459,7 @@ async function getMeHandler(req, res) {
     if (!user) return res.status(404).json({ error: 'user_not_found' });
 
     const { preferences, ...rest } = user;
-    const body = { uid: req.user.uid, ...rest };
-    if (req.user.email !== undefined) body.email = req.user.email;
-    if (req.user.phoneNumber !== undefined) body.phoneNumber = req.user.phoneNumber;
+    const body = { uid: req.user.uid, ...rest, email: req.user.email, phoneNumber: req.user.phoneNumber };
     if (user.membershipStatus === 'active' && preferences) body.preferences = preferences;
     res.json(body);
   } catch (e) {

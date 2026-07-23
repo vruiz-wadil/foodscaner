@@ -26,12 +26,15 @@ describe('getMeHandler', () => {
 
   it('returns the profile without preferences for a pending-membership user', async () => {
     fireGetUser.mockResolvedValue({ email: 'a@b.com', membershipStatus: 'pending' })
-    const req = { user: { uid: 'uid-1' } }
+    const req = { user: { uid: 'uid-1', email: null, phoneNumber: null } }
     const res = makeRes()
 
     await getMeHandler(req, res)
 
-    expect(res.body).toEqual({ uid: 'uid-1', email: 'a@b.com', membershipStatus: 'pending' })
+    // email/phoneNumber now always come from req.user (the verified token claims),
+    // never from the Firestore-side spread — realistic req.user always has these
+    // keys (null, never undefined; see api/auth.js verifyFirebaseIdToken).
+    expect(res.body).toEqual({ uid: 'uid-1', email: null, phoneNumber: null, membershipStatus: 'pending' })
   })
 
   it('includes preferences for an active-membership user', async () => {
@@ -39,7 +42,7 @@ describe('getMeHandler', () => {
       email: 'a@b.com', membershipStatus: 'active',
       preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] }
     })
-    const req = { user: { uid: 'uid-2' } }
+    const req = { user: { uid: 'uid-2', email: 'a@b.com', phoneNumber: null } }
     const res = makeRes()
 
     await getMeHandler(req, res)
@@ -49,7 +52,7 @@ describe('getMeHandler', () => {
 
   it('never includes preferences for an expired-membership user even if present in the doc (defensive)', async () => {
     fireGetUser.mockResolvedValue({ email: 'a@b.com', membershipStatus: 'expired', preferences: { dietary: ['vegan'] } })
-    const req = { user: { uid: 'uid-3' } }
+    const req = { user: { uid: 'uid-3', email: 'a@b.com', phoneNumber: null } }
     const res = makeRes()
 
     await getMeHandler(req, res)
@@ -59,7 +62,7 @@ describe('getMeHandler', () => {
 
   it('responds 404 when the user document does not exist', async () => {
     fireGetUser.mockResolvedValue(null)
-    const req = { user: { uid: 'uid-missing' } }
+    const req = { user: { uid: 'uid-missing', email: null, phoneNumber: null } }
     const res = makeRes()
 
     await getMeHandler(req, res)
@@ -77,5 +80,21 @@ describe('getMeHandler', () => {
 
     expect(res.body.email).toBe('new@example.com')
     expect(res.body.phoneNumber).toBe('+525512345678')
+  })
+
+  it('uses the live null email/phoneNumber from a phone-login token, ignoring a stale non-null value stored in Firestore', async () => {
+    // Real-world regression scenario: user originally signed up with email,
+    // Firestore still has that email/phone on file, but the CURRENT session
+    // is a phone-login token where req.user.email/phoneNumber are null. The
+    // live token value must win — NOT be silently replaced by the stale
+    // Firestore value via `||`-style fallback logic (the exact bug this task fixes).
+    fireGetUser.mockResolvedValue({ email: 'stale-old@example.com', phoneNumber: '+525500000000', membershipStatus: 'active' })
+    const req = { user: { uid: 'uid-10', email: null, phoneNumber: null } }
+    const res = makeRes()
+
+    await getMeHandler(req, res)
+
+    expect(res.body.email).toBeNull()
+    expect(res.body.phoneNumber).toBeNull()
   })
 })
