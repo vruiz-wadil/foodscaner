@@ -128,3 +128,70 @@ describe('createFirebaseCustomToken', () => {
     expect(payload.claims).toBeUndefined()
   })
 })
+
+describe('setPhoneNumberClaim', () => {
+  const ORIGINAL_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV
+
+  function fakeAuthServiceAccountKey(privateKey) {
+    return JSON.stringify({
+      project_id: 'foodscaner-dev',
+      client_email: 'firebase-adminsdk@foodscaner-dev.iam.gserviceaccount.com',
+      private_key: privateKey
+    })
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = ORIGINAL_KEY
+  })
+
+  it('calls Identity Toolkit accounts:update with localId and customAttributes containing the phone claim', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+
+    let capturedUrl, capturedBody
+    vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      capturedUrl = url
+      capturedBody = JSON.parse(options.body)
+      return { ok: true, status: 200 }
+    }))
+
+    const { setPhoneNumberClaim } = await import('../api/phoneAuth.js')
+    await setPhoneNumberClaim('a1b2c3d4-uuid', '+525512345678')
+
+    expect(capturedUrl).toBe('https://identitytoolkit.googleapis.com/v1/projects/foodscaner-dev/accounts:update')
+    expect(capturedBody.localId).toBe('a1b2c3d4-uuid')
+    expect(JSON.parse(capturedBody.customAttributes)).toEqual({ phone_number: '+525512345678' })
+  })
+
+  it('throws when FIREBASE_SERVICE_ACCOUNT_KEY_DEV is missing', async () => {
+    delete process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV
+    const { setPhoneNumberClaim } = await import('../api/phoneAuth.js')
+    await expect(setPhoneNumberClaim('uid', '+525512345678')).rejects.toThrow('FIREBASE_SERVICE_ACCOUNT_KEY_DEV')
+  })
+
+  it('throws when Identity Toolkit responds non-ok', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      return { ok: false, status: 400 }
+    }))
+
+    const { setPhoneNumberClaim } = await import('../api/phoneAuth.js')
+    await expect(setPhoneNumberClaim('uid', '+525512345678')).rejects.toThrow('accounts:update failed: 400')
+  })
+})
