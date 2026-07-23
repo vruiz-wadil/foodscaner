@@ -40,21 +40,23 @@ describe('renderAccountHub', () => {
     expect(window.location.href).toBe('auth.html')
   })
 
-  it('muestra el badge "Pendiente" y el CTA para activar membresía, sin botón de editar preferencias', () => {
+  it('muestra el badge "Pendiente" y el CTA para activar membresía, con botón de editar preferencias (unconditional desde Task 11)', () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
     renderAccountHub()
     const root = document.getElementById('account-root')
     expect(root.querySelector('.account-plan-pending')).toBeTruthy()
     expect(root.textContent).toMatch(/Completa tu membresía/)
+    expect(root.querySelector('a[href="preferences.html"]').textContent).toMatch(/[Ee]ditar preferencias/)
   })
 
-  it('muestra el badge "Expirada" y el CTA de renovar cuando la membresía venció', () => {
+  it('muestra el badge "Expirada" y el CTA de renovar cuando la membresía venció, con botón de editar preferencias (unconditional desde Task 11)', () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'expired' })
     renderAccountHub()
     const root = document.getElementById('account-root')
     expect(root.querySelector('.account-plan-expired')).toBeTruthy()
     expect(root.textContent).toMatch(/Tu membresía venció/)
     expect(document.getElementById('btn-renew-membership').textContent).toMatch(/Renovar membresía/)
+    expect(root.querySelector('a[href="preferences.html"]').textContent).toMatch(/[Ee]ditar preferencias/)
   })
 
   it('muestra el número de teléfono en vez de vacío cuando el perfil no tiene email (cuenta creada por SMS)', () => {
@@ -130,5 +132,38 @@ describe('handleRenewMembership', () => {
 
     expect(global.fetch).toHaveBeenCalledWith('/api/me/membership/pay', expect.objectContaining({ method: 'POST' }))
     expect(syncUserProfile).toHaveBeenCalled()
+  })
+
+  it('deja el botón en su texto original y habilitado si el pago responde no-ok, en vez de trabado en "Procesando…"', async () => {
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'expired' })
+    document.body.innerHTML = '<div id="account-root"></div><button id="btn-renew-membership">Renovar membresía</button><p id="account-renew-error" class="hidden"></p>'
+
+    await expect(handleRenewMembership()).rejects.toThrow()
+
+    const btn = document.getElementById('btn-renew-membership')
+    expect(btn.textContent).not.toMatch(/Procesando/)
+    expect(btn.textContent).toBe('Renovar membresía')
+    expect(btn.disabled).toBe(false)
+    expect(syncUserProfile).not.toHaveBeenCalled()
+    const errorEl = document.getElementById('account-renew-error')
+    expect(errorEl.classList.contains('hidden')).toBe(false)
+    expect(errorEl.textContent).toMatch(/No se pudo procesar el pago/)
+  })
+
+  it('deja el botón en su texto original y habilitado si el fetch rechaza (error de red)', async () => {
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'expired' })
+    document.body.innerHTML = '<div id="account-root"></div><button id="btn-renew-membership">Renovar membresía</button><p id="account-renew-error" class="hidden"></p>'
+
+    await expect(handleRenewMembership()).rejects.toThrow('network down')
+
+    const btn = document.getElementById('btn-renew-membership')
+    expect(btn.textContent).not.toMatch(/Procesando/)
+    expect(btn.textContent).toBe('Renovar membresía')
+    expect(btn.disabled).toBe(false)
+    expect(syncUserProfile).not.toHaveBeenCalled()
   })
 })

@@ -13,6 +13,18 @@
     .account-plan-pending{background:rgba(255,255,255,0.15);color:#fff}
     .account-plan-active{background:#2DBC9E;color:#fff}
     .account-plan-expired{background:#c0392b;color:#fff}
+    /* mismo tratamiento visual que #preferences-error/#consent-error en
+       preferences.html — error legible cuando falla el pago simulado de
+       renovación, no solo texto plano perdido en la página. */
+    #account-renew-error {
+      background: #fdecec;
+      border: 1px solid #e79a9a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 10px 0 0;
+      color: #8a1f1f;
+      font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>

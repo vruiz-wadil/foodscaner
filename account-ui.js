@@ -60,6 +60,7 @@ export function renderAccountHub() {
           <div>
             <p class="about-text">${renewCta.text}</p>
             <button type="button" id="btn-renew-membership" class="btn btn-primary">${renewCta.btn}</button>
+            <p id="account-renew-error" class="hidden"></p>
           </div>
         </div>` : ''}
       <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
@@ -67,19 +68,39 @@ export function renderAccountHub() {
   `;
 
   document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
-  document.getElementById('btn-renew-membership')?.addEventListener('click', () => handleRenewMembership());
+  document.getElementById('btn-renew-membership')?.addEventListener('click', () => {
+    handleRenewMembership().catch(() => {});
+  });
+}
+
+function showRenewError(message) {
+  const el = document.getElementById('account-renew-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
 }
 
 export async function handleRenewMembership() {
   const btn = document.getElementById('btn-renew-membership');
+  const originalText = btn ? btn.textContent : null;
   if (btn) { btn.disabled = true; btn.textContent = 'Procesando…'; }
   try {
     const token = await getIdToken();
-    await fetch('/api/me/membership/pay', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch('/api/me/membership/pay', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      throw new Error('renew_failed');
+    }
     await syncUserProfile();
     renderAccountHub();
-  } finally {
-    if (btn) btn.disabled = false;
+  } catch (err) {
+    // El botón NUNCA debe quedarse mostrando "Procesando…" — ya sea por un
+    // res.ok:false del pago simulado o por un fetch que rechaza (red caída),
+    // se restaura el texto/estado original y se avisa al usuario, siguiendo
+    // el mismo patrón de showError que preferences-ui.js/onboarding-membership-ui.js.
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+    showRenewError('No se pudo procesar el pago. Intenta de nuevo.');
+    console.warn('[account] no se pudo renovar la membresía:', err.message);
+    throw err;
   }
 }
 
