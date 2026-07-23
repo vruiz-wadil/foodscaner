@@ -80,6 +80,22 @@ describe('loadPreferencesIntoForm', () => {
     loadPreferencesIntoForm()
     expect(document.querySelector('[data-dietary="vegan"]').classList.contains('chosen')).toBe(false)
   })
+
+  it('premarca consent-checkbox cuando las preferencias guardadas ya tienen consentGivenAt (hallazgo: sin esto, el usuario tenía que re-marcarlo cada vez que entraba a la pantalla aunque ya hubiera consentido antes)', () => {
+    getCachedProfile.mockReturnValue({
+      preferences: { dietary: ['vegan'], allergens: [], healthConditions: [], consentGivenAt: '2026-07-15T00:00:00.000Z' }
+    })
+    loadPreferencesIntoForm()
+    expect(document.getElementById('consent-checkbox').checked).toBe(true)
+  })
+
+  it('deja consent-checkbox sin marcar si las preferencias existen pero no tienen consentGivenAt (dato antiguo/incompleto — sigue exigiendo consentimiento explícito)', () => {
+    getCachedProfile.mockReturnValue({
+      preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] }
+    })
+    loadPreferencesIntoForm()
+    expect(document.getElementById('consent-checkbox').checked).toBe(false)
+  })
 })
 
 describe('savePreferences', () => {

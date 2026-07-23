@@ -99,6 +99,14 @@ export function loadPreferencesIntoForm() {
   const prefs = profile && profile.preferences;
   if (!prefs) return;
 
+  // hallazgo: sin esto, el checkbox de consentimiento siempre volvía a
+  // aparecer sin marcar aunque el usuario ya hubiera consentido antes (el
+  // servidor sigue exigiendo consent:true en cada PUT, esto solo evita que
+  // el usuario tenga que re-tickearlo a mano cada vez que solo quiere ver o
+  // ajustar una preferencia ya guardada).
+  const consentCheckbox = document.getElementById('consent-checkbox');
+  if (consentCheckbox && prefs.consentGivenAt) consentCheckbox.checked = true;
+
   (prefs.dietary || []).forEach(key => {
     const el = document.querySelector(`#dietary-tiles [data-dietary="${key}"]`);
     if (el) { el.classList.add('chosen'); el.setAttribute('aria-pressed', 'true'); }
