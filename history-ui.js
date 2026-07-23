@@ -58,7 +58,7 @@ export async function renderHistoryScreen() {
   if (!root) return;
   const profile = getCachedProfile();
 
-  if (!profile || profile.plan !== 'premium') {
+  if (!profile || profile.membershipStatus !== 'active') {
     renderLocalHistoryWithUpsell(root);
     return;
   }

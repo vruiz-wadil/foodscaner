@@ -25,7 +25,7 @@ beforeEach(async () => {
 
 describe('renderHistoryScreen — usuario free', () => {
   it('muestra el historial local real (sin blur) + un bloque de upsell bloqueado, sin llamar al backend', async () => {
-    getCachedProfile.mockReturnValue({ plan: 'free' })
+    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     expect(root.textContent).toMatch(/Producto A/)
@@ -37,7 +37,7 @@ describe('renderHistoryScreen — usuario free', () => {
 
 describe('renderHistoryScreen — usuario premium', () => {
   it('pide GET /api/me/history con Bearer token y renderiza la lista completa de la nube, sin bloque de upsell', async () => {
-    getCachedProfile.mockReturnValue({ plan: 'premium' })
+    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,
@@ -59,7 +59,7 @@ describe('renderHistoryScreen — usuario premium', () => {
 
 describe('renderHistoryScreen — estructura visual', () => {
   it('envuelve el contenido en un único .content-card, no en cards sueltas (hallazgo de reskin visual)', async () => {
-    getCachedProfile.mockReturnValue({ plan: 'free' })
+    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     expect(root.querySelectorAll(':scope > .content-card').length).toBe(1)
@@ -68,7 +68,7 @@ describe('renderHistoryScreen — estructura visual', () => {
 
 describe('renderHistoryScreen — botón de compartir (usuario free, historial local)', () => {
   it('cada row-card tiene un botón de compartir que llama a window.shareResult con name/verdict normalizados desde rating', async () => {
-    getCachedProfile.mockReturnValue({ plan: 'free' })
+    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     const shareBtn = root.querySelector('.row-card .share-btn')
@@ -80,7 +80,7 @@ describe('renderHistoryScreen — botón de compartir (usuario free, historial l
 
 describe('renderHistoryScreen — botón de compartir (usuario premium, historial cloud)', () => {
   it('cada row-card tiene un botón de compartir que llama a window.shareResult con name/verdict normalizados desde productName/verdict', async () => {
-    getCachedProfile.mockReturnValue({ plan: 'premium' })
+    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,

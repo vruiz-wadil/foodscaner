@@ -621,18 +621,18 @@ describe('getUserPreferencesForVerdict', () => {
   })
 
   it('regresa null cuando el usuario es "free" (aunque tenga preferences)', () => {
-    window.authClient = { getCachedProfile: () => ({ plan: 'free', preferences: { dietary: ['vegan'] } }) }
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'pending', preferences: { dietary: ['vegan'] } }) }
     expect(getUserPreferencesForVerdict()).toBeNull()
   })
 
   it('regresa preferences cuando el usuario es "premium" y tiene preferences', () => {
     const prefs = { dietary: ['vegan'], allergens: [], healthConditions: [] }
-    window.authClient = { getCachedProfile: () => ({ plan: 'premium', preferences: prefs }) }
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active', preferences: prefs }) }
     expect(getUserPreferencesForVerdict()).toEqual(prefs)
   })
 
   it('regresa null cuando el usuario es "premium" pero preferences está ausente (sin consentimiento aún)', () => {
-    window.authClient = { getCachedProfile: () => ({ plan: 'premium' }) }
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active' }) }
     expect(getUserPreferencesForVerdict()).toBeNull()
   })
 })
@@ -677,14 +677,14 @@ describe('logScanToCloudHistory', () => {
     await logScanToCloudHistory('111', 'Producto A', 'sano')
     expect(global.fetch).not.toHaveBeenCalled()
 
-    window.authClient = { getCachedProfile: () => ({ plan: 'free' }), getIdToken: vi.fn() }
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'pending' }), getIdToken: vi.fn() }
     await logScanToCloudHistory('111', 'Producto A', 'sano')
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('POSTea a /api/me/history con Bearer token para un usuario premium', async () => {
     window.authClient = {
-      getCachedProfile: () => ({ plan: 'premium' }),
+      getCachedProfile: () => ({ membershipStatus: 'active' }),
       getIdToken: vi.fn().mockResolvedValue('tok-789')
     }
     await logScanToCloudHistory('111', 'Producto A', 'sano')
@@ -697,7 +697,7 @@ describe('logScanToCloudHistory', () => {
 
   it('no lanza si fetch falla (fire-and-forget)', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
-    window.authClient = { getCachedProfile: () => ({ plan: 'premium' }), getIdToken: vi.fn().mockResolvedValue('tok') }
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active' }), getIdToken: vi.fn().mockResolvedValue('tok') }
     await expect(logScanToCloudHistory('111', 'Producto A', 'sano')).resolves.not.toThrow()
   })
 })

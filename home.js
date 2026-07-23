@@ -77,48 +77,14 @@ function escHtml(s) {
 // Navigate to scanner
 function goScan() { window.location.href = 'scan.html?scan=1'; }
 
-const HOME_UPSELL_DISMISS_KEY = 'yomiUpsellDismiss';
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Trigger de intención real (equipo Growth+UX): NO es un banner permanente.
-// Dispara solo cuando tocó el límite de OCR gratis hoy — momento de fricción
-// real, no venta genérica. (Un "Trigger A" basado en preferencias declaradas
-// se eliminó del diseño original: es lógicamente inalcanzable para un usuario
-// free — PUT /api/me/preferences es premium-only y GET /api/me nunca regresa
-// `preferences` para un plan no-premium, ver nota de la 4a ronda de revisión.)
-function shouldShowHomeUpsell(profile) {
-  if (!profile || profile.plan === 'premium') return false;
-
-  const dismiss = JSON.parse(localStorage.getItem(HOME_UPSELL_DISMISS_KEY) || '{}');
-  const now = Date.now();
-  if (dismiss.count >= 2 && now - dismiss.lastAt < 30 * DAY_MS) return false;
-  if (dismiss.lastAt && now - dismiss.lastAt < 3 * DAY_MS) return false;
-
-  const today = new Date().toISOString().slice(0, 10);
-  const usage = profile.usage;
-  return !!(usage && usage.date === today && usage.ocrCount >= 5);
-}
-
-// Copy y trigger definidos por el equipo Growth Hacker en la sesión de revisión.
-function renderHomeUpsellBanner() {
-  const el = document.getElementById('home-upsell-banner');
-  if (!el) return;
-  const profile = (typeof window !== 'undefined' && window.authClient) ? window.authClient.getCachedProfile() : null;
-  if (!shouldShowHomeUpsell(profile)) {
-    el.classList.add('hidden');
-    return;
-  }
-  el.innerHTML = `
-    <p>¿Esto es seguro para ti o para tu hijo? Actívalo con tu perfil.</p>
-    <a href="preferences.html" class="btn-primary">Activar mis alertas</a>
-    <button type="button" id="btn-dismiss-upsell" aria-label="Cerrar">✕</button>
-  `;
-  el.classList.remove('hidden');
-  document.getElementById('btn-dismiss-upsell')?.addEventListener('click', () => {
-    const dismiss = JSON.parse(localStorage.getItem(HOME_UPSELL_DISMISS_KEY) || '{}');
-    localStorage.setItem(HOME_UPSELL_DISMISS_KEY, JSON.stringify({ count: (dismiss.count || 0) + 1, lastAt: Date.now() }));
-    el.classList.add('hidden');
-  });
+// Evita que un usuario a medio onboarding llegue a index.html navegando
+// directo por URL (ej. cerró la pestaña de onboarding-membership.html y
+// volvió a abrir la app) — lo manda de vuelta al paso que le falta.
+function redirectTargetForIncompleteOnboarding(profile) {
+  if (!profile) return null;
+  if (!profile.profile || !profile.profile.completedAt) return 'onboarding-profile.html';
+  if (profile.membershipStatus === 'pending') return 'onboarding-membership.html';
+  return null;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -151,6 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // await explícito (mismo motivo que preferences-ui.js, Task 15): no depender
   // de que el auto-sync de authClient.js ya haya resuelto para este frame.
-  if (window.authClient) await window.authClient.syncUserProfile();
-  renderHomeUpsellBanner();
+  const profile = window.authClient ? await window.authClient.syncUserProfile() : null;
+  const redirectTarget = redirectTargetForIncompleteOnboarding(profile);
+  if (redirectTarget) window.location.href = redirectTarget;
 });

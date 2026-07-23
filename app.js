@@ -1722,7 +1722,7 @@ function getUserPreferencesForVerdict() {
     return null;
   }
   const profile = window.authClient.getCachedProfile();
-  if (!profile || profile.plan !== 'premium' || !profile.preferences) return null;
+  if (!profile || profile.membershipStatus !== 'active' || !profile.preferences) return null;
   return profile.preferences;
 }
 
@@ -1747,7 +1747,7 @@ function renderPersonalizedDisclaimer(userPreferences) {
 async function logScanToCloudHistory(barcode, productName, verdict) {
   if (typeof window === 'undefined' || !window.authClient) return;
   const profile = window.authClient.getCachedProfile();
-  if (!profile || profile.plan !== 'premium') return;
+  if (!profile || profile.membershipStatus !== 'active') return;
 
   try {
     const token = await window.authClient.getIdToken();

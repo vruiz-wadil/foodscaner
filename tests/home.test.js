@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -9,55 +9,35 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const homeCode = fs.readFileSync(path.join(__dirname, '..', 'home.js'), 'utf8')
 
-let shouldShowHomeUpsell
+let redirectTargetForIncompleteOnboarding
 
 beforeAll(() => {
-  const fn = new Function(homeCode + '\nreturn { shouldShowHomeUpsell }')
-  const exports = fn()
-  shouldShowHomeUpsell = exports.shouldShowHomeUpsell
+  const fn = new Function(homeCode + '\nreturn { redirectTargetForIncompleteOnboarding }')
+  redirectTargetForIncompleteOnboarding = fn().redirectTargetForIncompleteOnboarding
 })
 
-describe('shouldShowHomeUpsell', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'))
-  })
-  afterEach(() => { vi.useRealTimers() })
-
-  it('nunca se muestra para plan premium', () => {
-    expect(shouldShowHomeUpsell({ plan: 'premium', preferences: { dietary: ['vegan'] } })).toBe(false)
+describe('redirectTargetForIncompleteOnboarding', () => {
+  it('regresa null sin perfil (no logueado — home.js ya maneja ese caso por separado)', () => {
+    expect(redirectTargetForIncompleteOnboarding(null)).toBeNull()
   })
 
-  it('nunca se muestra sin perfil (no logueado)', () => {
-    expect(shouldShowHomeUpsell(null)).toBe(false)
+  it('regresa onboarding-profile.html cuando profile.completedAt aún no existe', () => {
+    const profile = { profile: { completedAt: null }, membershipStatus: 'pending' }
+    expect(redirectTargetForIncompleteOnboarding(profile)).toBe('onboarding-profile.html')
   })
 
-  it('caso base: usuario free normal, sin tope de OCR, sin descartes previos → no se muestra (el estado más común, hallazgo de cobertura de la 4a ronda)', () => {
-    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 1 } }
-    expect(shouldShowHomeUpsell(profile)).toBe(false)
+  it('regresa onboarding-membership.html cuando el perfil ya está completo pero la membresía sigue pending', () => {
+    const profile = { profile: { completedAt: '2026-07-22T00:00:00.000Z' }, membershipStatus: 'pending' }
+    expect(redirectTargetForIncompleteOnboarding(profile)).toBe('onboarding-membership.html')
   })
 
-  it('Trigger (único, tras eliminar el "Trigger A" inalcanzable — ver nota arriba): se muestra si ya usó 5/5 OCR hoy', () => {
-    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
-    expect(shouldShowHomeUpsell(profile)).toBe(true)
+  it('regresa null cuando el perfil está completo y la membresía está activa (nada que redirigir)', () => {
+    const profile = { profile: { completedAt: '2026-07-22T00:00:00.000Z' }, membershipStatus: 'active' }
+    expect(redirectTargetForIncompleteOnboarding(profile)).toBeNull()
   })
 
-  it('se oculta si fue descartado hace menos de 3 días', () => {
-    localStorage.setItem('yomiUpsellDismiss', JSON.stringify({ count: 1, lastAt: Date.now() - 1 * 24 * 60 * 60 * 1000 }))
-    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
-    expect(shouldShowHomeUpsell(profile)).toBe(false)
-  })
-
-  it('reaparece después de 3 días de un solo descarte', () => {
-    localStorage.setItem('yomiUpsellDismiss', JSON.stringify({ count: 1, lastAt: Date.now() - 4 * 24 * 60 * 60 * 1000 }))
-    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
-    expect(shouldShowHomeUpsell(profile)).toBe(true)
-  })
-
-  it('se oculta 30 días tras 2 descartes', () => {
-    localStorage.setItem('yomiUpsellDismiss', JSON.stringify({ count: 2, lastAt: Date.now() - 10 * 24 * 60 * 60 * 1000 }))
-    const profile = { plan: 'free', usage: { date: '2026-07-15', ocrCount: 5 } }
-    expect(shouldShowHomeUpsell(profile)).toBe(false)
+  it('regresa null cuando la membresía está expired — expirado NO se manda de vuelta al onboarding, se maneja en account.html', () => {
+    const profile = { profile: { completedAt: '2026-07-22T00:00:00.000Z' }, membershipStatus: 'expired' }
+    expect(redirectTargetForIncompleteOnboarding(profile)).toBeNull()
   })
 })
