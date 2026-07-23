@@ -69,7 +69,7 @@ describe('users/{uid} data layer', () => {
     })
   })
 
-  it('fireUpsertUser creates a new doc with plan:"free" when none exists (no updateMask — creación completa)', async () => {
+  it('fireUpsertUser creates a new doc with membershipStatus:"pending" when none exists (no updateMask — creación completa)', async () => {
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
     const patchCalls = []
     vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
@@ -82,10 +82,16 @@ describe('users/{uid} data layer', () => {
 
     expect(patchCalls.length).toBe(1)
     expect(patchCalls[0].url).not.toContain('updateMask')
-    expect(patchCalls[0].body.fields.plan.stringValue).toBe('free')
-    expect(patchCalls[0].body.fields.usage.mapValue.fields.ocrCount.integerValue).toBe('0')
+    expect(patchCalls[0].body.fields.membershipStatus.stringValue).toBe('pending')
+    expect(patchCalls[0].body.fields.membershipExpiresAt).toEqual({ nullValue: null })
+    expect(patchCalls[0].body.fields.lastPaymentAt).toEqual({ nullValue: null })
+    expect(patchCalls[0].body.fields.profile.mapValue.fields.displayName).toEqual({ nullValue: null })
+    expect(patchCalls[0].body.fields.profile.mapValue.fields.completedAt).toEqual({ nullValue: null })
+    expect(patchCalls[0].body.fields.usage.mapValue.fields.ocrCount).toBeUndefined()
+    expect(patchCalls[0].body.fields.usage.mapValue.fields.cacheRefreshCount.integerValue).toBe('0')
     expect(patchCalls[0].body.fields.billing.mapValue.fields.isFounderPricing.booleanValue).toBe(false)
-    expect(patchCalls[0].body.fields.billing.mapValue.fields.billingCycle).toEqual({ nullValue: null })
+    expect(patchCalls[0].body.fields.plan).toBeUndefined()
+    expect(patchCalls[0].body.fields.disabled).toBeUndefined()
   })
 
   it('fireUpsertUser stores phoneNumber on the creation doc', async () => {
@@ -133,6 +139,7 @@ describe('users/{uid} data layer', () => {
     expect(patchCalls[0].url).toContain('updateMask.fieldPaths=lastLoginAt')
     expect(patchCalls[0].url).toContain('updateMask.fieldPaths=providers')
     expect(patchCalls[0].body.fields.plan).toBeUndefined()
+    expect(patchCalls[0].body.fields.membershipStatus).toBeUndefined()
   })
 
   it('firePatchUserFields sends an explicit updateMask.fieldPaths for only the given fields', async () => {

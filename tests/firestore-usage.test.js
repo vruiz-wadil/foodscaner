@@ -40,7 +40,11 @@ describe('fireIncrementUsageCounter', () => {
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY = ORIGINAL_KEY
   })
 
-  it('resets counters to 0 before incrementing when usage.date is not today (UTC)', async () => {
+  it('rejects an unknown field name', async () => {
+    await expect(fireIncrementUsageCounter('uid-1', 'ocrCount')).rejects.toThrow('Campo de uso inválido: ocrCount')
+  })
+
+  it('resets cacheRefreshCount to 0 before incrementing when usage.date is not today (UTC)', async () => {
     let patchBody
     vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
       if (!options.method) {
@@ -48,7 +52,7 @@ describe('fireIncrementUsageCounter', () => {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-14' }, ocrCount: { integerValue: '5' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
+              date: { stringValue: '2026-07-14' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
             } } } },
             updateTime: '2026-07-14T23:00:00.000000Z'
           })
@@ -58,9 +62,9 @@ describe('fireIncrementUsageCounter', () => {
       return { ok: true, status: 200 }
     }))
 
-    const result = await fireIncrementUsageCounter('uid-1', 'ocrCount')
+    const result = await fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')
 
-    expect(result).toEqual({ date: '2026-07-15', ocrCount: 1, cacheRefreshCount: 0, totalScans: 20 })
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 1, totalScans: 20 })
     expect(patchBody.currentDocument.updateTime).toBe('2026-07-14T23:00:00.000000Z')
   })
 
@@ -71,7 +75,7 @@ describe('fireIncrementUsageCounter', () => {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-15' }, ocrCount: { integerValue: '2' }, cacheRefreshCount: { integerValue: '0' }, totalScans: { integerValue: '20' }
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '2' }, totalScans: { integerValue: '20' }
             } } } },
             updateTime: '2026-07-15T10:00:00.000000Z'
           })
@@ -80,9 +84,9 @@ describe('fireIncrementUsageCounter', () => {
       return { ok: true, status: 200 }
     }))
 
-    const result = await fireIncrementUsageCounter('uid-1', 'ocrCount')
+    const result = await fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')
 
-    expect(result).toEqual({ date: '2026-07-15', ocrCount: 3, cacheRefreshCount: 0, totalScans: 20 })
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 3, totalScans: 20 })
   })
 
   it('retries with backoff on a 409 conflict and succeeds on the next attempt', async () => {
@@ -93,7 +97,7 @@ describe('fireIncrementUsageCounter', () => {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-15' }, ocrCount: { integerValue: '0' }, cacheRefreshCount: { integerValue: '0' }
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '0' }
             } } } },
             updateTime: '2026-07-15T10:00:00.000000Z'
           })
@@ -103,12 +107,12 @@ describe('fireIncrementUsageCounter', () => {
       if (patchAttempts === 1) return { ok: false, status: 409 }
       return { ok: true, status: 200 }
     }))
-    vi.useRealTimers() // el backoff usa setTimeout real de 10-50ms
+    vi.useRealTimers()
 
-    const result = await fireIncrementUsageCounter('uid-1', 'ocrCount')
+    const result = await fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')
 
     expect(patchAttempts).toBe(2)
-    expect(result.ocrCount).toBe(1)
+    expect(result.cacheRefreshCount).toBe(1)
   })
 
   it('gives up after repeated 409 conflicts and throws', async () => {
@@ -118,7 +122,7 @@ describe('fireIncrementUsageCounter', () => {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-15' }, ocrCount: { integerValue: '0' }, cacheRefreshCount: { integerValue: '0' }
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '0' }
             } } } },
             updateTime: '2026-07-15T10:00:00.000000Z'
           })
@@ -128,7 +132,7 @@ describe('fireIncrementUsageCounter', () => {
     }))
     vi.useRealTimers()
 
-    await expect(fireIncrementUsageCounter('uid-1', 'ocrCount')).rejects.toThrow()
+    await expect(fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')).rejects.toThrow()
   })
 
   it('throws when the user document does not exist', async () => {
@@ -137,17 +141,17 @@ describe('fireIncrementUsageCounter', () => {
       return { ok: true, status: 200 }
     }))
 
-    await expect(fireIncrementUsageCounter('uid-missing', 'ocrCount')).rejects.toThrow()
+    await expect(fireIncrementUsageCounter('uid-missing', 'totalScans')).rejects.toThrow()
   })
 
-  it('incrementa totalScans sin resetearlo aunque usage.date no sea hoy (a diferencia de ocrCount/cacheRefreshCount, es de por vida)', async () => {
+  it('incrementa totalScans sin resetearlo aunque usage.date no sea hoy (a diferencia de cacheRefreshCount, es de por vida)', async () => {
     vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
       if (!options.method) {
         return {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-14' }, ocrCount: { integerValue: '5' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
+              date: { stringValue: '2026-07-14' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
             } } } },
             updateTime: '2026-07-14T23:00:00.000000Z'
           })
@@ -158,7 +162,7 @@ describe('fireIncrementUsageCounter', () => {
 
     const result = await fireIncrementUsageCounter('uid-1', 'totalScans')
 
-    expect(result).toEqual({ date: '2026-07-15', ocrCount: 0, cacheRefreshCount: 0, totalScans: 21 })
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 0, totalScans: 21 })
   })
 
   it('trata totalScans ausente como 0 (perfil creado antes de este campo)', async () => {
@@ -168,7 +172,7 @@ describe('fireIncrementUsageCounter', () => {
           ok: true, status: 200,
           json: async () => ({
             fields: { usage: { mapValue: { fields: {
-              date: { stringValue: '2026-07-15' }, ocrCount: { integerValue: '0' }, cacheRefreshCount: { integerValue: '0' }
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '0' }
             } } } },
             updateTime: '2026-07-15T10:00:00.000000Z'
           })
@@ -179,6 +183,6 @@ describe('fireIncrementUsageCounter', () => {
 
     const result = await fireIncrementUsageCounter('uid-1', 'totalScans')
 
-    expect(result).toEqual({ date: '2026-07-15', ocrCount: 0, cacheRefreshCount: 0, totalScans: 1 })
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 0, totalScans: 1 })
   })
 })
