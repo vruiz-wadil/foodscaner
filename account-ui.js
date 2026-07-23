@@ -75,6 +75,29 @@ export function renderAccountHub() {
           <button type="submit" class="btn btn-primary">Guardar nombre</button>
           <p id="edit-name-error" class="hidden" role="alert"></p>
         </form>
+        <form id="form-edit-phone">
+          ${profile.email ? `
+            <div class="form-field">
+              <label for="input-edit-phone-contact">Teléfono</label>
+              <input id="input-edit-phone-contact" class="form-input" type="tel" value="${profile.phoneNumber || (profile.profile && profile.profile.phone) || ''}">
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar teléfono</button>
+          ` : `
+            <div id="phone-login-flow">
+              <div class="form-field">
+                <label for="input-new-phone">Nuevo número</label>
+                <input id="input-new-phone" class="form-input" type="tel" placeholder="+525512345678">
+              </div>
+              <button type="button" id="btn-phone-send-code" class="btn btn-secondary">Enviar código</button>
+              <div class="form-field">
+                <label for="input-phone-code">Código de verificación</label>
+                <input id="input-phone-code" class="form-input" type="text" inputmode="numeric" maxlength="6">
+              </div>
+              <button type="button" id="btn-phone-confirm-change" class="btn btn-primary">Confirmar cambio</button>
+            </div>
+          `}
+          <p id="edit-phone-error" class="hidden" role="alert"></p>
+        </form>
       </div>
       <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
     </div>
@@ -90,6 +113,16 @@ export function renderAccountHub() {
   document.getElementById('form-edit-name')?.addEventListener('submit', e => {
     e.preventDefault();
     submitNameEdit().catch(() => {});
+  });
+  document.getElementById('form-edit-phone')?.addEventListener('submit', e => {
+    e.preventDefault();
+    submitPhoneContactEdit().catch(() => {});
+  });
+  document.getElementById('btn-phone-send-code')?.addEventListener('click', () => {
+    submitPhoneSendCode().catch(() => {});
+  });
+  document.getElementById('btn-phone-confirm-change')?.addEventListener('click', () => {
+    submitPhoneChangeConfirm().catch(() => {});
   });
 }
 
@@ -149,6 +182,70 @@ export async function submitNameEdit() {
   if (!res.ok) {
     showNameError('No se pudo guardar tu nombre. Intenta de nuevo.');
     throw new Error('save_failed');
+  }
+  await syncUserProfile();
+  renderAccountHub();
+}
+
+function showPhoneError(message) {
+  const el = document.getElementById('edit-phone-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+export async function submitPhoneContactEdit() {
+  const input = document.getElementById('input-edit-phone-contact');
+  const phone = input ? input.value.trim() : '';
+  const token = await getIdToken();
+  const res = await fetch('/api/me/profile', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone })
+  });
+  if (!res.ok) {
+    showPhoneError('No se pudo guardar tu teléfono. Intenta de nuevo.');
+    throw new Error('save_failed');
+  }
+  await syncUserProfile();
+  renderAccountHub();
+}
+
+export async function submitPhoneSendCode() {
+  const input = document.getElementById('input-new-phone');
+  const phone = input ? input.value.trim() : '';
+  const res = await fetch('/api/auth/phone/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone })
+  });
+  if (!res.ok) {
+    showPhoneError('No se pudo enviar el código. Intenta de nuevo.');
+    throw new Error('send_failed');
+  }
+}
+
+const PHONE_CHANGE_ERROR_MESSAGES = {
+  invalid_code: 'Código incorrecto o expirado.',
+  phone_in_use: 'Ese número ya está en uso por otra cuenta.',
+  verify_failed: 'No se pudo verificar el código. Intenta más tarde.'
+};
+
+export async function submitPhoneChangeConfirm() {
+  const phoneInput = document.getElementById('input-new-phone');
+  const codeInput = document.getElementById('input-phone-code');
+  const phone = phoneInput ? phoneInput.value.trim() : '';
+  const code = codeInput ? codeInput.value.trim() : '';
+  const token = await getIdToken();
+  const res = await fetch('/api/me/phone/change', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, code })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    showPhoneError(PHONE_CHANGE_ERROR_MESSAGES[data.error] || 'No se pudo cambiar tu teléfono. Intenta de nuevo.');
+    throw new Error(data.error || 'change_failed');
   }
   await syncUserProfile();
   renderAccountHub();

@@ -13,6 +13,7 @@ vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdToken }))
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
+let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm
 let originalLocation
 
 beforeEach(async () => {
@@ -28,6 +29,9 @@ beforeEach(async () => {
   computeAlertsActive = mod.computeAlertsActive
   handleRenewMembership = mod.handleRenewMembership
   submitNameEdit = mod.submitNameEdit
+  submitPhoneContactEdit = mod.submitPhoneContactEdit
+  submitPhoneSendCode = mod.submitPhoneSendCode
+  submitPhoneChangeConfirm = mod.submitPhoneChangeConfirm
 })
 
 afterEach(() => {
@@ -222,5 +226,83 @@ describe('toggle de edición + submitNameEdit', () => {
     expect(syncUserProfile).not.toHaveBeenCalled()
     const errorEl = document.getElementById('edit-name-error')
     expect(errorEl.classList.contains('hidden')).toBe(false)
+  })
+})
+
+describe('sub-form Teléfono — cuenta CON email (contacto, sin SMS)', () => {
+  it('renderiza un solo input + botón Guardar cuando profile.email existe', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    renderAccountHub()
+    expect(document.getElementById('input-edit-phone-contact')).toBeTruthy()
+    expect(document.getElementById('phone-login-flow')).toBeNull()
+  })
+
+  it('submitPhoneContactEdit llama PUT /api/me/profile con { phone } y re-sincroniza', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    document.getElementById('input-edit-phone-contact').value = '+525512345678'
+
+    await submitPhoneContactEdit()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/me/profile')
+    expect(JSON.parse(options.body)).toEqual({ phone: '+525512345678' })
+    expect(syncUserProfile).toHaveBeenCalled()
+  })
+})
+
+describe('sub-form Teléfono — cuenta SIN email (phone-login, requiere SMS)', () => {
+  it('renderiza el flujo de 2 pasos (enviar código / confirmar) cuando no hay profile.email', () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
+    renderAccountHub()
+    expect(document.getElementById('phone-login-flow')).toBeTruthy()
+    expect(document.getElementById('input-edit-phone-contact')).toBeNull()
+  })
+
+  it('submitPhoneSendCode llama /api/auth/phone/send con el número nuevo', async () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
+    renderAccountHub()
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'pending' }) })
+    document.getElementById('input-new-phone').value = '+525512345678'
+
+    await submitPhoneSendCode()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/auth/phone/send')
+    expect(JSON.parse(options.body)).toEqual({ phone: '+525512345678' })
+  })
+
+  it('submitPhoneChangeConfirm llama POST /api/me/phone/change con phone+code y re-sincroniza', async () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    document.getElementById('input-new-phone').value = '+525512345678'
+    document.getElementById('input-phone-code').value = '123456'
+
+    await submitPhoneChangeConfirm()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/me/phone/change')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+    expect(JSON.parse(options.body)).toEqual({ phone: '+525512345678', code: '123456' })
+    expect(syncUserProfile).toHaveBeenCalled()
+  })
+
+  it('submitPhoneChangeConfirm muestra "phone_in_use" de forma legible si el 409 ocurre', async () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: 'phone_in_use' }) })
+    document.getElementById('input-new-phone').value = '+525512345678'
+    document.getElementById('input-phone-code').value = '123456'
+
+    await expect(submitPhoneChangeConfirm()).rejects.toThrow()
+
+    expect(syncUserProfile).not.toHaveBeenCalled()
+    const errorEl = document.getElementById('edit-phone-error')
+    expect(errorEl.textContent).toMatch(/ya está en uso/)
   })
 })
