@@ -1779,6 +1779,30 @@ async function incrementScanCounter() {
   }
 }
 
+// Fetch real de OCR de ingredientes — extraído de initOcrHandlers() (whole-branch
+// review: el fetch inline nunca mandaba Authorization, así que el gate de
+// membershipStatus del backend nunca se ejercitaba para usuarios logueados).
+// Mismo patrón de token que logScanToCloudHistory/incrementScanCounter.
+async function processOcrImage(imageData) {
+  const headers = { "Content-Type": "application/json" };
+  if (typeof window !== 'undefined' && window.authClient) {
+    const token = await window.authClient.getIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch("/api/ocr/process", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ imageData })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const err = new Error(data.error || "Error al procesar");
+    err.code = data.error;
+    throw err;
+  }
+  return data;
+}
+
 // Render dynamic results onto success screen
 function renderProductData(product, barcode) {
   if (!product.isFood) {
@@ -2790,14 +2814,7 @@ function initOcrHandlers() {
             const imageData = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
             console.log('[OCR Vision] Sending image', canvas.width, 'x', canvas.height);
 
-            const response = await fetch("/api/ocr/process", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ imageData })
-            });
-
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || "Error al procesar");
+            const data = await processOcrImage(imageData);
 
             const textArea = document.getElementById("ocr-result");
             if (textArea) textArea.value = data.cleanedText || "";
@@ -2809,7 +2826,10 @@ function initOcrHandlers() {
             document.getElementById("ocr-step-2").classList.add("hidden");
             const step1 = document.getElementById("ocr-step-1");
             step1.classList.remove("hidden");
-            showModalStepError(step1, "Error al procesar imagen: " + (err?.message || err));
+            const message = (err?.code === 'membership_required' || err?.code === 'membership_expired')
+              ? "Necesitas una membresía activa para escanear ingredientes. Ve a Mi cuenta para activarla."
+              : "Error al procesar imagen: " + (err?.message || err);
+            showModalStepError(step1, message);
           }
         };
         img.src = imgUrl;

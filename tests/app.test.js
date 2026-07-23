@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -28,6 +28,7 @@ beforeAll(() => {
   logScanToCloudHistory = exports.logScanToCloudHistory
   incrementScanCounter = exports.incrementScanCounter
   buildCameraConstraints = exports.buildCameraConstraints
+  processOcrImage = exports.processOcrImage
 })
 
 // ─── buildCameraConstraints ────────────────────────────────
@@ -735,5 +736,63 @@ describe('incrementScanCounter', () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
     window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok') }
     await expect(incrementScanCounter()).resolves.not.toThrow()
+  })
+})
+
+// ─── processOcrImage (fetch real de OCR — envío de Authorization + 402) ───
+// hallazgo del whole-branch review: el fetch real a /api/ocr/process nunca
+// mandaba Authorization, así que el gate de membershipStatus del backend
+// (ocrProcessHandler) nunca se ejercitaba para usuarios logueados.
+
+describe('processOcrImage', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn()
+  })
+
+  afterEach(() => {
+    delete window.authClient
+  })
+
+  it('manda Authorization cuando hay sesión (window.authClient con token)', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok-123') }
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ cleanedText: 'harina, sal' }) })
+
+    await processOcrImage('base64imagedata')
+
+    const [, options] = global.fetch.mock.calls[0]
+    expect(options.headers.Authorization).toBe('Bearer tok-123')
+  })
+
+  it('no manda Authorization sin sesión (window.authClient ausente o sin token) — comportamiento anónimo intacto', async () => {
+    window.authClient = undefined
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ cleanedText: 'x' }) })
+
+    await processOcrImage('base64imagedata')
+
+    const [, options] = global.fetch.mock.calls[0]
+    expect(options.headers.Authorization).toBeUndefined()
+  })
+
+  it('lanza un error con .code="membership_required" cuando el backend responde 402 membership_required', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok-123') }
+    global.fetch.mockResolvedValue({ ok: false, json: async () => ({ error: 'membership_required' }) })
+
+    await expect(processOcrImage('x')).rejects.toMatchObject({ code: 'membership_required' })
+  })
+
+  it('lanza un error con .code="membership_expired" cuando el backend responde 402 membership_expired', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok-123') }
+    global.fetch.mockResolvedValue({ ok: false, json: async () => ({ error: 'membership_expired' }) })
+
+    await expect(processOcrImage('x')).rejects.toMatchObject({ code: 'membership_expired' })
+  })
+
+  it('regresa el data.cleanedText en éxito', async () => {
+    window.authClient = { getIdToken: vi.fn().mockResolvedValue('tok') }
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ cleanedText: 'harina, sal' }) })
+
+    const result = await processOcrImage('x')
+
+    expect(result.cleanedText).toBe('harina, sal')
   })
 })
