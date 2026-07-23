@@ -114,13 +114,24 @@ describe('savePreferences', () => {
     })
   })
 
-  it('muestra el error del backend cuando PUT falla (ej. 403 premium_required)', async () => {
+  it('muestra el mensaje específico de membresía cuando el backend responde membership_required', async () => {
     document.getElementById('consent-checkbox').checked = true
     getIdToken.mockResolvedValue('tok-123')
-    global.fetch.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'premium_required' }) })
+    global.fetch.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'membership_required' }) })
 
     await expect(savePreferences()).rejects.toThrow()
     expect(document.getElementById('preferences-error').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('preferences-error').textContent).toBe('Necesitas una membresía activa para guardar tus preferencias.')
+  })
+
+  it('muestra el mensaje específico de membresía cuando el backend responde membership_expired', async () => {
+    document.getElementById('consent-checkbox').checked = true
+    getIdToken.mockResolvedValue('tok-123')
+    global.fetch.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'membership_expired' }) })
+
+    await expect(savePreferences()).rejects.toThrow()
+    expect(document.getElementById('preferences-error').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('preferences-error').textContent).toBe('Necesitas una membresía activa para guardar tus preferencias.')
   })
 
   it('deshabilita el botón de guardar mientras dura la petición (hallazgo UX)', async () => {
