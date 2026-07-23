@@ -9,7 +9,7 @@ const getCachedProfile = vi.fn()
 
 vi.mock('../authClient.js', () => ({ getIdToken, syncUserProfile, getCachedProfile }))
 
-let renderMissingFields, submitProfile
+let renderMissingFields, submitProfile, initOnboardingProfilePage
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -26,6 +26,7 @@ beforeEach(async () => {
   const mod = await import('../onboarding-profile-ui.js')
   renderMissingFields = mod.renderMissingFields
   submitProfile = mod.submitProfile
+  initOnboardingProfilePage = mod.initOnboardingProfilePage
   getIdToken.mockResolvedValue('tok')
   global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
 })
@@ -83,9 +84,7 @@ describe('DOMContentLoaded completedAt guard', () => {
     delete window.location
     window.location = { href: '' }
 
-    document.dispatchEvent(new Event('DOMContentLoaded'))
-    await new Promise(resolve => setTimeout(resolve, 0))
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await initOnboardingProfilePage()
 
     expect(syncUserProfile).toHaveBeenCalled()
     expect(window.location.href).toBe('index.html')

@@ -64,7 +64,7 @@ export async function submitProfile() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+export async function initOnboardingProfilePage() {
   await syncUserProfile();
   const profile = getCachedProfile();
   if (!profile) {
@@ -80,4 +80,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     e.preventDefault();
     submitProfile().catch(() => {});
   });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initOnboardingProfilePage();
 });
