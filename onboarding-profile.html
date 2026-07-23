@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Completa tu perfil</title>
+  <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2DBC9E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>.hidden{display:none!important}</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+    </header>
+    <main class="app-main content-page">
+      <section class="section-heading">
+        <h1 class="heading-title">Completa tu perfil</h1>
+        <p class="heading-sub">Nos falta un poco de información para tu cuenta.</p>
+      </section>
+      <div class="content-card">
+        <form id="profile-form" novalidate>
+          <div class="form-field" id="field-name">
+            <label for="input-name">Nombre</label>
+            <input id="input-name" class="form-input" type="text" autocomplete="name" placeholder="Tu nombre">
+          </div>
+          <div class="form-field" id="field-phone">
+            <label for="input-phone">Teléfono</label>
+            <input id="input-phone" class="form-input" type="tel" autocomplete="tel" placeholder="+525512345678">
+          </div>
+          <div class="form-field" id="field-email">
+            <label for="input-email">Correo electrónico</label>
+            <input id="input-email" class="form-input" type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com">
+          </div>
+          <button type="submit" id="btn-continue-profile" class="btn btn-primary">Continuar</button>
+          <p id="profile-error" class="hidden" role="alert"></p>
+        </form>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="onboarding-profile-ui.js"></script>
+</body>
+</html>

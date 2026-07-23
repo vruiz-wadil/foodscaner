@@ -148,7 +148,7 @@ export async function handleSignup(email, password) {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ termsAccepted: true, ageConfirmed: true, termsVersion: TERMS_VERSION })
       });
-      window.location.href = 'index.html';
+      window.location.href = 'onboarding-profile.html';
       return result;
     } catch (err) {
       showError(mapAuthError(err.code));
@@ -163,7 +163,7 @@ export async function handleGoogleSignIn() {
   return withLoadingState(btn, 'Conectando con Google…', async () => {
     try {
       const result = await signInWithPopup(firebaseAuth, googleProvider);
-      window.location.href = 'index.html';
+      window.location.href = 'onboarding-profile.html';
       return result;
     } catch (err) {
       showError(mapAuthError(err.code));
@@ -249,7 +249,7 @@ export async function handlePhoneSignupConsent() {
         showError(mapAuthError());
         return;
       }
-      window.location.href = 'index.html';
+      window.location.href = 'onboarding-profile.html';
     } catch (err) {
       showError(mapAuthError(err.code));
     }
