@@ -63,6 +63,19 @@ export function renderAccountHub() {
             <p id="account-renew-error" class="hidden"></p>
           </div>
         </div>` : ''}
+      <div class="row-card">
+        <button type="button" id="btn-toggle-edit" class="btn btn-secondary">Editar mis datos</button>
+      </div>
+      <div id="account-edit-section" class="hidden">
+        <form id="form-edit-name">
+          <div class="form-field">
+            <label for="input-edit-name">Nombre</label>
+            <input id="input-edit-name" class="form-input" type="text" value="${(profile.profile && profile.profile.displayName) || profile.displayName || ''}">
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar nombre</button>
+          <p id="edit-name-error" class="hidden" role="alert"></p>
+        </form>
+      </div>
       <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
     </div>
   `;
@@ -70,6 +83,13 @@ export function renderAccountHub() {
   document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
   document.getElementById('btn-renew-membership')?.addEventListener('click', () => {
     handleRenewMembership().catch(() => {});
+  });
+  document.getElementById('btn-toggle-edit')?.addEventListener('click', () => {
+    document.getElementById('account-edit-section')?.classList.toggle('hidden');
+  });
+  document.getElementById('form-edit-name')?.addEventListener('submit', e => {
+    e.preventDefault();
+    submitNameEdit().catch(() => {});
   });
 }
 
@@ -102,6 +122,36 @@ export async function handleRenewMembership() {
     console.warn('[account] no se pudo renovar la membresía:', err.message);
     throw err;
   }
+}
+
+function showNameError(message) {
+  const el = document.getElementById('edit-name-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+export async function submitNameEdit() {
+  const input = document.getElementById('input-edit-name');
+  const name = input ? input.value.trim() : '';
+  const errorEl = document.getElementById('edit-name-error');
+  if (errorEl) { errorEl.textContent = ''; errorEl.classList.add('hidden'); }
+  if (!name) {
+    showNameError('Escribe tu nombre.');
+    throw new Error('invalid_display_name');
+  }
+  const token = await getIdToken();
+  const res = await fetch('/api/me/profile', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ displayName: name })
+  });
+  if (!res.ok) {
+    showNameError('No se pudo guardar tu nombre. Intenta de nuevo.');
+    throw new Error('save_failed');
+  }
+  await syncUserProfile();
+  renderAccountHub();
 }
 
 export async function handleLogout() {

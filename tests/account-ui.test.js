@@ -12,7 +12,7 @@ const getIdToken = vi.fn()
 vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdToken }))
 
-let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership
+let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
 let originalLocation
 
 beforeEach(async () => {
@@ -27,6 +27,7 @@ beforeEach(async () => {
   handleLogout = mod.handleLogout
   computeAlertsActive = mod.computeAlertsActive
   handleRenewMembership = mod.handleRenewMembership
+  submitNameEdit = mod.submitNameEdit
 })
 
 afterEach(() => {
@@ -165,5 +166,61 @@ describe('handleRenewMembership', () => {
     expect(btn.textContent).toBe('Renovar membresía')
     expect(btn.disabled).toBe(false)
     expect(syncUserProfile).not.toHaveBeenCalled()
+  })
+})
+
+describe('toggle de edición + submitNameEdit', () => {
+  it('el botón "Editar mis datos" muestra la sección oculta al hacer click', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    renderAccountHub()
+    const section = document.getElementById('account-edit-section')
+    expect(section.classList.contains('hidden')).toBe(true)
+    document.getElementById('btn-toggle-edit').click()
+    expect(section.classList.contains('hidden')).toBe(false)
+  })
+
+  it('precarga el nombre actual en el input (profile.profile.displayName)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', profile: { displayName: 'Ana Ruiz' } })
+    renderAccountHub()
+    expect(document.getElementById('input-edit-name').value).toBe('Ana Ruiz')
+  })
+
+  it('submitNameEdit rechaza un nombre vacío sin llamar a fetch', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    renderAccountHub()
+    global.fetch = vi.fn()
+    document.getElementById('input-edit-name').value = '   '
+    await expect(submitNameEdit()).rejects.toThrow()
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('submitNameEdit llama PUT /api/me/profile con el nombre y re-sincroniza', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    document.getElementById('input-edit-name').value = 'Ana Ruiz'
+
+    await submitNameEdit()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/me/profile')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ displayName: 'Ana Ruiz' })
+    expect(syncUserProfile).toHaveBeenCalled()
+  })
+
+  it('submitNameEdit muestra error y no re-sincroniza si el PUT falla', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
+    document.getElementById('input-edit-name').value = 'Ana Ruiz'
+
+    await expect(submitNameEdit()).rejects.toThrow()
+
+    expect(syncUserProfile).not.toHaveBeenCalled()
+    const errorEl = document.getElementById('edit-name-error')
+    expect(errorEl.classList.contains('hidden')).toBe(false)
   })
 })
