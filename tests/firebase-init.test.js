@@ -30,6 +30,12 @@ const signInWithPopup = vi.fn()
 const signOut = vi.fn()
 class GoogleAuthProvider {}
 const signInWithCustomToken = vi.fn()
+const updatePassword = vi.fn()
+const verifyBeforeUpdateEmail = vi.fn()
+const reauthenticateWithCredential = vi.fn()
+class EmailAuthProvider {
+  static credential(email, password) { return { email, password } }
+}
 
 vi.mock(APP_URL, () => ({ initializeApp }))
 vi.mock(APP_CHECK_URL, () => ({ initializeAppCheck, ReCaptchaV3Provider }))
@@ -41,7 +47,11 @@ vi.mock(AUTH_URL, () => ({
   signInWithPopup,
   signOut,
   GoogleAuthProvider,
-  signInWithCustomToken
+  signInWithCustomToken,
+  updatePassword,
+  verifyBeforeUpdateEmail,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 }))
 
 describe('firebase-init.js', () => {
@@ -77,6 +87,10 @@ describe('firebase-init.js', () => {
     expect(mod.signInWithPopup).toBe(signInWithPopup)
     expect(mod.GoogleAuthProvider).toBe(GoogleAuthProvider)
     expect(mod.signInWithCustomToken).toBe(signInWithCustomToken)
+    expect(mod.updatePassword).toBe(updatePassword)
+    expect(mod.verifyBeforeUpdateEmail).toBe(verifyBeforeUpdateEmail)
+    expect(mod.reauthenticateWithCredential).toBe(reauthenticateWithCredential)
+    expect(mod.EmailAuthProvider).toBe(EmailAuthProvider)
   })
 
   it('skips App Check init when the site key placeholder was never injected at build time', async () => {
