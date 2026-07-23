@@ -24,19 +24,19 @@ function makeRes() {
 describe('getMeHandler', () => {
   beforeEach(() => { fireGetUser.mockReset() })
 
-  it('returns the profile without preferences for a free-plan user', async () => {
-    fireGetUser.mockResolvedValue({ email: 'a@b.com', plan: 'free' })
+  it('returns the profile without preferences for a pending-membership user', async () => {
+    fireGetUser.mockResolvedValue({ email: 'a@b.com', membershipStatus: 'pending' })
     const req = { user: { uid: 'uid-1' } }
     const res = makeRes()
 
     await getMeHandler(req, res)
 
-    expect(res.body).toEqual({ uid: 'uid-1', email: 'a@b.com', plan: 'free' })
+    expect(res.body).toEqual({ uid: 'uid-1', email: 'a@b.com', membershipStatus: 'pending' })
   })
 
-  it('includes preferences for a premium-plan user', async () => {
+  it('includes preferences for an active-membership user', async () => {
     fireGetUser.mockResolvedValue({
-      email: 'a@b.com', plan: 'premium',
+      email: 'a@b.com', membershipStatus: 'active',
       preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] }
     })
     const req = { user: { uid: 'uid-2' } }
@@ -47,8 +47,8 @@ describe('getMeHandler', () => {
     expect(res.body.preferences).toEqual({ dietary: ['vegan'], allergens: [], healthConditions: [] })
   })
 
-  it('never includes preferences for a free-plan user even if present in the doc (defensive)', async () => {
-    fireGetUser.mockResolvedValue({ email: 'a@b.com', plan: 'free', preferences: { dietary: ['vegan'] } })
+  it('never includes preferences for an expired-membership user even if present in the doc (defensive)', async () => {
+    fireGetUser.mockResolvedValue({ email: 'a@b.com', membershipStatus: 'expired', preferences: { dietary: ['vegan'] } })
     const req = { user: { uid: 'uid-3' } }
     const res = makeRes()
 

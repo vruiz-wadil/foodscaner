@@ -1466,7 +1466,7 @@ async function getMeHandler(req, res) {
 
     const { preferences, ...rest } = user;
     const body = { uid: req.user.uid, ...rest };
-    if (user.plan === 'premium' && preferences) body.preferences = preferences;
+    if (user.membershipStatus === 'active' && preferences) body.preferences = preferences;
     res.json(body);
   } catch (e) {
     console.warn('[GET /api/me] Firestore error, uid:', req.user?.uid, e.message);
