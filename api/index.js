@@ -1522,6 +1522,26 @@ async function putProfileHandler(req, res) {
 
 app.put('/api/me/profile', requireUser, putProfileHandler);
 
+const MEMBERSHIP_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function payMembershipHandler(req, res) {
+  try {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + MEMBERSHIP_PERIOD_MS).toISOString();
+    await firePatchUserFields(req.user.uid, ['membershipStatus', 'membershipExpiresAt', 'lastPaymentAt'], {
+      membershipStatus: 'active',
+      membershipExpiresAt: expiresAt,
+      lastPaymentAt: now.toISOString()
+    });
+    res.json({ ok: true, membershipStatus: 'active', membershipExpiresAt: expiresAt });
+  } catch (e) {
+    console.warn('[POST /api/me/membership/pay] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/membership/pay', requireUser, payMembershipHandler);
+
 // Mismas claves que extractDietaryFromLabels en app.js, más glutenFree (spec de cuentas).
 const ALLOWED_DIETARY = ['vegan', 'vegetarian', 'keto', 'kosher', 'halal', 'organic', 'nonGmo', 'noAdditives', 'palmOilFree', 'fairTrade', 'caseinFree', 'glutenFree'];
 // Mismas claves que grupoClave() en app.js:2094.
@@ -1906,6 +1926,7 @@ module.exports.requireActiveMembership = requireActiveMembership;
 module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
 module.exports.putProfileHandler = putProfileHandler;
+module.exports.payMembershipHandler = payMembershipHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
 module.exports.deletePreferencesHandler = deletePreferencesHandler;
 module.exports.optionalUser = optionalUser;
