@@ -1460,6 +1460,8 @@ async function getMeHandler(req, res) {
 
     const { preferences, ...rest } = user;
     const body = { uid: req.user.uid, ...rest };
+    if (req.user.email !== undefined) body.email = req.user.email;
+    if (req.user.phoneNumber !== undefined) body.phoneNumber = req.user.phoneNumber;
     if (user.membershipStatus === 'active' && preferences) body.preferences = preferences;
     res.json(body);
   } catch (e) {

@@ -67,4 +67,15 @@ describe('getMeHandler', () => {
     expect(res.statusCode).toBe(404)
     expect(res.body).toEqual({ error: 'user_not_found' })
   })
+
+  it('reflects the live req.user.email/phoneNumber from the verified token, not the possibly-stale Firestore copy', async () => {
+    fireGetUser.mockResolvedValue({ email: 'old@example.com', phoneNumber: null, membershipStatus: 'active' })
+    const req = { user: { uid: 'uid-9', email: 'new@example.com', phoneNumber: '+525512345678' } }
+    const res = makeRes()
+
+    await getMeHandler(req, res)
+
+    expect(res.body.email).toBe('new@example.com')
+    expect(res.body.phoneNumber).toBe('+525512345678')
+  })
 })
