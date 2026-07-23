@@ -27,17 +27,7 @@ function makeRes() {
 describe('postHistoryHandler', () => {
   beforeEach(() => { fireGetUser.mockReset(); fireLogUserHistory.mockReset() })
 
-  it('responds 403 for a free-plan user, does not write', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'free' })
-    const req = { user: { uid: 'uid-1' }, body: { barcode: '111', productName: 'A', verdict: 'sano' } }
-    const res = makeRes()
-    await postHistoryHandler(req, res)
-    expect(res.statusCode).toBe(403)
-    expect(fireLogUserHistory).not.toHaveBeenCalled()
-  })
-
   it('logs the entry for a premium user with a server-set scannedAt', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     fireLogUserHistory.mockResolvedValue({ id: 'abc' })
     const req = { user: { uid: 'uid-2' }, body: { barcode: '111', productName: 'A', verdict: 'sano' } }
     const res = makeRes()
@@ -50,16 +40,7 @@ describe('postHistoryHandler', () => {
 describe('getHistoryHandler', () => {
   beforeEach(() => { fireGetUser.mockReset(); fireListUserHistory.mockReset() })
 
-  it('responds 403 for a free-plan user', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'free' })
-    const req = { user: { uid: 'uid-1' } }
-    const res = makeRes()
-    await getHistoryHandler(req, res)
-    expect(res.statusCode).toBe(403)
-  })
-
   it('returns the entry list for a premium user', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     fireListUserHistory.mockResolvedValue([{ barcode: '111', productName: 'A', verdict: 'sano', scannedAt: 't' }])
     const req = { user: { uid: 'uid-2' } }
     const res = makeRes()

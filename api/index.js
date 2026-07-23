@@ -1552,10 +1552,6 @@ const ALLOWED_SEVERITY = ['severe', 'mild'];
 
 async function putPreferencesHandler(req, res) {
   try {
-    const user = await fireGetUser(req.user.uid);
-    if (!user) return res.status(404).json({ error: 'user_not_found' });
-    if (user.plan !== 'premium') return res.status(403).json({ error: 'premium_required' });
-
     const { dietary, allergens, healthConditions, consent, consentNoticeVersion } = req.body || {};
     if (!Array.isArray(dietary) || !Array.isArray(allergens) || !Array.isArray(healthConditions)) {
       return res.status(400).json({ error: 'invalid_preferences' });
@@ -1598,7 +1594,7 @@ async function putPreferencesHandler(req, res) {
   }
 }
 
-app.put('/api/me/preferences', requireUser, putPreferencesHandler);
+app.put('/api/me/preferences', requireUser, requireActiveMembership, putPreferencesHandler);
 
 async function deletePreferencesHandler(req, res) {
   try {
@@ -1612,7 +1608,7 @@ async function deletePreferencesHandler(req, res) {
   }
 }
 
-app.delete('/api/me/preferences', requireUser, deletePreferencesHandler);
+app.delete('/api/me/preferences', requireUser, requireActiveMembership, deletePreferencesHandler);
 
 // Mismos 3 valores que devuelve computeVerdict (Task 13) — validado como enum
 // (no string libre) para evitar guardar XSS almacenado que un futuro history.html
@@ -1623,10 +1619,6 @@ const MAX_PRODUCT_NAME_LEN = 200;
 
 async function postHistoryHandler(req, res) {
   try {
-    const user = await fireGetUser(req.user.uid);
-    if (!user) return res.status(404).json({ error: 'user_not_found' });
-    if (user.plan !== 'premium') return res.status(403).json({ error: 'premium_required' });
-
     const { barcode, productName, verdict } = req.body || {};
     if (!barcode || !productName || !verdict) return res.status(400).json({ error: 'invalid_history_entry' });
     if (typeof barcode !== 'string' || barcode.length > MAX_BARCODE_LEN) {
@@ -1651,10 +1643,6 @@ async function postHistoryHandler(req, res) {
 
 async function getHistoryHandler(req, res) {
   try {
-    const user = await fireGetUser(req.user.uid);
-    if (!user) return res.status(404).json({ error: 'user_not_found' });
-    if (user.plan !== 'premium') return res.status(403).json({ error: 'premium_required' });
-
     const history = await fireListUserHistory(req.user.uid, 50);
     res.json({ history });
   } catch (e) {
@@ -1663,8 +1651,8 @@ async function getHistoryHandler(req, res) {
   }
 }
 
-app.post('/api/me/history', requireUser, postHistoryHandler);
-app.get('/api/me/history', requireUser, getHistoryHandler);
+app.post('/api/me/history', requireUser, requireActiveMembership, postHistoryHandler);
+app.get('/api/me/history', requireUser, requireActiveMembership, getHistoryHandler);
 
 // Contador de escaneos totales — a diferencia de /api/me/history, SIN gate
 // premium: el stat "Escaneos" de account.html debe reflejar el total real

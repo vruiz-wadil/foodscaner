@@ -29,20 +29,7 @@ describe('putPreferencesHandler', () => {
     firePatchUserFields.mockReset()
   })
 
-  it('responds 403 premium_required for a free-plan user', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'free' })
-    const req = { user: { uid: 'uid-1' }, body: { dietary: ['vegan'], allergens: [], healthConditions: [] } }
-    const res = makeRes()
-
-    await putPreferencesHandler(req, res)
-
-    expect(res.statusCode).toBe(403)
-    expect(res.body).toEqual({ error: 'premium_required' })
-    expect(firePatchUserFields).not.toHaveBeenCalled()
-  })
-
   it('updates preferences with an explicit nested updateMask for a premium user', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     firePatchUserFields.mockResolvedValue(true)
     const req = {
       user: { uid: 'uid-2' },
@@ -73,7 +60,6 @@ describe('putPreferencesHandler', () => {
   })
 
   it('rejects an unknown dietary key with 400', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     const req = { user: { uid: 'uid-3' }, body: { dietary: ['not-a-real-diet'], allergens: [], healthConditions: [], consent: true } }
     const res = makeRes()
 
@@ -84,7 +70,6 @@ describe('putPreferencesHandler', () => {
   })
 
   it('rejects an allergen with an invalid severity with 400', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     const req = {
       user: { uid: 'uid-4' },
       body: { dietary: [], allergens: [{ code: 'leche', severity: 'extreme' }], healthConditions: [], consent: true }
@@ -97,7 +82,6 @@ describe('putPreferencesHandler', () => {
   })
 
   it('never merges the raw body directly — a spurious "plan" field cannot reach Firestore', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     firePatchUserFields.mockResolvedValue(true)
     const req = {
       user: { uid: 'uid-5' },
@@ -112,7 +96,6 @@ describe('putPreferencesHandler', () => {
   })
 
   it('responds 400 consent_required when consent is missing or false (hallazgo de revisión legal/seguridad: el checkbox de preferences-ui.js solo valida en cliente — el servidor debe exigirlo también)', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     const req = {
       user: { uid: 'uid-6' },
       body: { dietary: ['vegan'], allergens: [], healthConditions: [], consent: false }
@@ -127,7 +110,6 @@ describe('putPreferencesHandler', () => {
   })
 
   it('stores consentGivenAt and consentNoticeVersion as evidence of expreso consent when consent is true', async () => {
-    fireGetUser.mockResolvedValue({ plan: 'premium' })
     firePatchUserFields.mockResolvedValue(true)
     const req = {
       user: { uid: 'uid-7' },
