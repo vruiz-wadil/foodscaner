@@ -1476,6 +1476,52 @@ async function getMeHandler(req, res) {
 
 app.get('/api/me', requireUser, getMeHandler);
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function putProfileHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    const { displayName, phone, email } = req.body || {};
+    const fieldPaths = [];
+    const profile = { ...(user.profile || {}) };
+
+    if (displayName !== undefined) {
+      const clean = typeof displayName === 'string' ? displayName.trim().slice(0, 100) : '';
+      if (!clean) return res.status(400).json({ error: 'invalid_display_name' });
+      profile.displayName = clean;
+      fieldPaths.push('profile.displayName');
+    }
+    if (phone !== undefined) {
+      if (typeof phone !== 'string' || !E164_RE.test(phone)) return res.status(400).json({ error: 'invalid_phone' });
+      profile.phone = phone;
+      fieldPaths.push('profile.phone');
+    }
+    if (email !== undefined) {
+      const clean = typeof email === 'string' ? email.trim().slice(0, 200) : '';
+      if (!EMAIL_RE.test(clean)) return res.status(400).json({ error: 'invalid_email' });
+      profile.email = clean;
+      fieldPaths.push('profile.email');
+    }
+    if (fieldPaths.length === 0) return res.status(400).json({ error: 'no_fields' });
+
+    const hasAll = !!(profile.displayName || user.displayName) && !!(profile.phone || user.phoneNumber) && !!(profile.email || user.email);
+    if (hasAll && !profile.completedAt) {
+      profile.completedAt = new Date().toISOString();
+      fieldPaths.push('profile.completedAt');
+    }
+
+    await firePatchUserFields(req.user.uid, fieldPaths, { profile });
+    res.json({ ok: true, profile });
+  } catch (e) {
+    console.warn('[PUT /api/me/profile] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.put('/api/me/profile', requireUser, putProfileHandler);
+
 // Mismas claves que extractDietaryFromLabels en app.js, más glutenFree (spec de cuentas).
 const ALLOWED_DIETARY = ['vegan', 'vegetarian', 'keto', 'kosher', 'halal', 'organic', 'nonGmo', 'noAdditives', 'palmOilFree', 'fairTrade', 'caseinFree', 'glutenFree'];
 // Mismas claves que grupoClave() en app.js:2094.
@@ -1859,6 +1905,7 @@ module.exports.requireUser = requireUser;
 module.exports.requireActiveMembership = requireActiveMembership;
 module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
+module.exports.putProfileHandler = putProfileHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
 module.exports.deletePreferencesHandler = deletePreferencesHandler;
 module.exports.optionalUser = optionalUser;
