@@ -263,27 +263,27 @@ async function callGroq(prompt, model = 'openai/gpt-oss-120b', max_tokens = 3000
   return { content: data.choices?.[0]?.message?.content || "", model: "Groq: " + model };
 }
 
-async function callGroqVision(imageBase64, prompt, model = 'meta-llama/llama-4-scout-17b-16e-instruct', max_tokens = 500) {
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+async function callGeminiVision(imageBase64, prompt, mimeType = 'image/jpeg') {
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model, max_tokens, temperature: 0.1,
-      messages: [{ role: 'user', content: [
-        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
-        { type: 'text', text: prompt }
-      ]}]
+      contents: [{ parts: [
+        { inlineData: { mimeType, data: imageBase64 } },
+        { text: prompt }
+      ]}],
+      generationConfig: { temperature: 0.1 }
     }),
     signal: AbortSignal.timeout(8000)
   });
-  if (response.status === 429) throw new Error("Límite de velocidad excedido en Groq.");
+  if (response.status === 429) throw new Error("Límite de velocidad excedido en Gemini.");
   if (!response.ok) {
     const errBody = await response.text();
-    console.error('[Groq Vision] Error body:', errBody.substring(0, 500));
-    throw new Error(`Groq vision error: ${response.status}`);
+    console.error('[Gemini Vision] Error body:', errBody.substring(0, 500));
+    throw new Error(`Gemini vision error: ${response.status}`);
   }
   const data = await response.json();
-  return { content: data.choices?.[0]?.message?.content || "" };
+  return { content: data.candidates?.[0]?.content?.parts?.[0]?.text || "" };
 }
 
 async function callOpenRouter(prompt) {
@@ -1144,7 +1144,7 @@ Devuelve el texto tal como aparece, incluyendo ingredientes y cualquier declarac
 Corrige errores obvios de lectura pero no inventes texto ni omitas secciones.
 Si no puedes leer los ingredientes, responde con texto vacío.`;
 
-    const result = await callGroqVision(imageData, prompt);
+    const result = await callGeminiVision(imageData, prompt);
     if (!result?.content) throw new Error("No response from vision LLM");
 
     const cleanedText = result.content.trim();
@@ -1180,8 +1180,8 @@ Ejemplo: {"calorias": "150 kcal", "grasas": "2 g", "proteinas": "5 g", "sodio": 
 
 RESPUESTA (SOLO JSON):`;
 
-    console.log('[Nutrition Vision] Calling Groq vision...');
-    const result = await callGroqVision(imageData, prompt);
+    console.log('[Nutrition Vision] Calling Gemini vision...');
+    const result = await callGeminiVision(imageData, prompt);
 
     if (!result?.content) throw new Error("No response from vision LLM");
 

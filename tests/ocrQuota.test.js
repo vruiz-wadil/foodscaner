@@ -69,8 +69,8 @@ describe('ocrProcessHandler — gate de membresía', () => {
 
   it('usuario no logueado pasa sin restricción (comportamiento actual sin cambios, fuera de alcance)', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url) => {
-      if (url.includes('api.groq.com')) {
-        return { ok: true, json: async () => ({ choices: [{ message: { content: 'ingredientes: harina' } }] }) }
+      if (url.includes('generativelanguage.googleapis.com')) {
+        return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ingredientes: harina' } ] } }] }) }
       }
       return { ok: true, status: 200 }
     }))
@@ -80,16 +80,16 @@ describe('ocrProcessHandler — gate de membresía', () => {
     expect(res.body.status).toBe('ok')
   })
 
-  it('usuario logueado con membershipStatus "pending" → 402 membership_required, no llama a Groq', async () => {
+  it('usuario logueado con membershipStatus "pending" → 402 membership_required, no llama a Gemini', async () => {
     const token = signRS256({}, privateKey)
-    let groqCalled = false
+    let geminiCalled = false
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
       if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
       if (url.includes('firestore.googleapis.com')) {
         return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'pending' }), updateTime: 't' }) }
       }
-      if (url.includes('api.groq.com')) { groqCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'x' } }] }) } }
+      if (url.includes('generativelanguage.googleapis.com')) { geminiCalled = true; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'x' }] } }] }) } }
       return { ok: true, status: 200 }
     }))
     const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
@@ -97,19 +97,19 @@ describe('ocrProcessHandler — gate de membresía', () => {
     await runOcrRoute(req, res)
     expect(res.statusCode).toBe(402)
     expect(res.body).toEqual({ error: 'membership_required' })
-    expect(groqCalled).toBe(false)
+    expect(geminiCalled).toBe(false)
   })
 
-  it('usuario logueado con membershipStatus "expired" → 402 membership_expired, no llama a Groq', async () => {
+  it('usuario logueado con membershipStatus "expired" → 402 membership_expired, no llama a Gemini', async () => {
     const token = signRS256({}, privateKey)
-    let groqCalled = false
+    let geminiCalled = false
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
       if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
       if (url.includes('firestore.googleapis.com')) {
         return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'expired' }), updateTime: 't' }) }
       }
-      if (url.includes('api.groq.com')) { groqCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'x' } }] }) } }
+      if (url.includes('generativelanguage.googleapis.com')) { geminiCalled = true; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'x' }] } }] }) } }
       return { ok: true, status: 200 }
     }))
     const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
@@ -117,7 +117,7 @@ describe('ocrProcessHandler — gate de membresía', () => {
     await runOcrRoute(req, res)
     expect(res.statusCode).toBe(402)
     expect(res.body).toEqual({ error: 'membership_expired' })
-    expect(groqCalled).toBe(false)
+    expect(geminiCalled).toBe(false)
   })
 
   it('usuario logueado con membershipStatus "active" → procesa normal, sin límite', async () => {
@@ -128,7 +128,7 @@ describe('ocrProcessHandler — gate de membresía', () => {
       if (url.includes('firestore.googleapis.com')) {
         return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'active' }), updateTime: 't' }) }
       }
-      if (url.includes('api.groq.com')) return { ok: true, json: async () => ({ choices: [{ message: { content: 'ingredientes: harina' } }] }) }
+      if (url.includes('generativelanguage.googleapis.com')) return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ingredientes: harina' }] } }] }) }
       return { ok: true, status: 200 }
     }))
     const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
