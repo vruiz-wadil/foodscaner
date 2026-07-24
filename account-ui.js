@@ -13,9 +13,90 @@ const PROFILE_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 22 22" fill="
 
 const BADGE_LABEL = { active: 'Activa', pending: 'Pendiente', expired: 'Expirada' };
 
+function escapeHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function hasPasswordProvider() {
   const user = firebaseAuth.currentUser;
   return !!(user && Array.isArray(user.providerData) && user.providerData.some(p => p.providerId === 'password'));
+}
+
+// Solo una fila (nombre o teléfono-con-email) puede estar en edición inline
+// a la vez — correo/teléfono-SMS/contraseña son multi-paso y usan el modal
+// en su lugar, así que no compiten por este estado.
+let editingRow = null; // 'name' | 'phone' | null
+
+function renderNameRow(displayName) {
+  if (editingRow === 'name') {
+    return `
+      <div class="account-data-row account-data-row-editing" data-row="name">
+        <input id="input-edit-name" class="form-input" type="text" value="${escapeHtml(displayName)}">
+        <button type="button" id="btn-save-name" class="row-icon-btn" aria-label="Guardar nombre">✔️</button>
+        <button type="button" id="btn-cancel-name" class="row-icon-btn" aria-label="Cancelar edición de nombre">✖️</button>
+      </div>
+      <p id="edit-name-error" class="hidden modal-inline-error" role="alert"></p>
+    `;
+  }
+  return `
+    <div class="account-data-row" data-row="name">
+      <div class="account-data-info">
+        <div class="account-data-label">Nombre</div>
+        <div class="account-data-value">${escapeHtml(displayName) || 'Sin nombre'}</div>
+      </div>
+      <button type="button" id="btn-edit-name" class="row-icon-btn" aria-label="Editar nombre">✏️</button>
+    </div>
+  `;
+}
+
+function renderPhoneRow(profile, phoneContact) {
+  const hasEmailLogin = !!profile.email;
+
+  if (!hasEmailLogin) {
+    // Login por teléfono: cambiar el número real requiere verificar un
+    // código SMS (2 pasos), así que va al modal en vez de edición inline.
+    return `
+      <div class="account-data-row" data-row="phone">
+        <div class="account-data-info">
+          <div class="account-data-label">Teléfono</div>
+          <div class="account-data-value">${escapeHtml(phoneContact)}</div>
+        </div>
+        <button type="button" id="btn-open-phone-modal" class="row-icon-btn" aria-label="Cambiar teléfono">✏️</button>
+      </div>
+    `;
+  }
+
+  if (editingRow === 'phone') {
+    return `
+      <div class="account-data-row account-data-row-editing" data-row="phone">
+        <input id="input-edit-phone-contact" class="form-input" type="tel" value="${escapeHtml(phoneContact)}">
+        <button type="button" id="btn-save-phone" class="row-icon-btn" aria-label="Guardar teléfono">✔️</button>
+        <button type="button" id="btn-cancel-phone" class="row-icon-btn" aria-label="Cancelar edición de teléfono">✖️</button>
+      </div>
+      <p id="edit-phone-error" class="hidden modal-inline-error" role="alert"></p>
+    `;
+  }
+  return `
+    <div class="account-data-row" data-row="phone">
+      <div class="account-data-info">
+        <div class="account-data-label">Teléfono</div>
+        <div class="account-data-value">${escapeHtml(phoneContact) || 'Sin teléfono'}</div>
+      </div>
+      <button type="button" id="btn-edit-phone" class="row-icon-btn" aria-label="Editar teléfono">✏️</button>
+    </div>
+  `;
+}
+
+function renderEmailRow(profile) {
+  return `
+    <div class="account-data-row" data-row="email">
+      <div class="account-data-info">
+        <div class="account-data-label">Correo</div>
+        <div class="account-data-value">${escapeHtml(profile.email)}</div>
+      </div>
+      <button type="button" id="btn-edit-email" class="row-icon-btn" aria-label="Editar correo">✏️</button>
+    </div>
+  `;
 }
 
 export function renderAccountHub() {
@@ -34,6 +115,8 @@ export function renderAccountHub() {
   const hasPrefs = prefs && ((prefs.dietary || []).length || (prefs.allergens || []).length || (prefs.healthConditions || []).length);
   const totalScans = (profile.usage && profile.usage.totalScans) || 0;
   const alertsActive = computeAlertsActive(prefs);
+  const displayName = (profile.profile && profile.profile.displayName) || profile.displayName || '';
+  const phoneContact = profile.phoneNumber || (profile.profile && profile.profile.phone) || '';
 
   const summaryHtml = hasPrefs
     ? `<p class="account-summary">Tu perfil: ${[...(prefs.dietary || []), ...(prefs.allergens || []).map(a => a.code), ...(prefs.healthConditions || [])].join(', ')}</p>`
@@ -48,7 +131,7 @@ export function renderAccountHub() {
       <div class="hero-card-dark">
         <div class="icon-wrap">${PROFILE_ICON_SVG}</div>
         <div>
-          <p class="account-email">${profile.email || profile.phoneNumber || ''}</p>
+          <p class="account-email">${escapeHtml(profile.email || profile.phoneNumber || '')}</p>
           <span class="account-plan-badge account-plan-${status}">${BADGE_LABEL[status] || 'Pendiente'}</span>
         </div>
       </div>
@@ -69,105 +152,186 @@ export function renderAccountHub() {
             <p id="account-renew-error" class="hidden"></p>
           </div>
         </div>` : ''}
-      <div class="row-card">
-        <button type="button" id="btn-toggle-edit" class="btn btn-secondary">Editar mis datos</button>
-      </div>
-      <div id="account-edit-section" class="hidden">
-        <form id="form-edit-name">
-          <div class="form-field">
-            <label for="input-edit-name">Nombre</label>
-            <input id="input-edit-name" class="form-input" type="text" value="${(profile.profile && profile.profile.displayName) || profile.displayName || ''}">
-          </div>
-          <button type="submit" class="btn btn-primary">Guardar nombre</button>
-          <p id="edit-name-error" class="hidden" role="alert"></p>
-        </form>
-        <form id="form-edit-phone">
-          ${profile.email ? `
-            <div class="form-field">
-              <label for="input-edit-phone-contact">Teléfono</label>
-              <input id="input-edit-phone-contact" class="form-input" type="tel" value="${profile.phoneNumber || (profile.profile && profile.profile.phone) || ''}">
-            </div>
-            <button type="submit" class="btn btn-primary">Guardar teléfono</button>
-          ` : `
-            <div id="phone-login-flow">
-              <div class="form-field">
-                <label for="input-new-phone">Nuevo número</label>
-                <input id="input-new-phone" class="form-input" type="tel" placeholder="+525512345678">
-              </div>
-              <button type="button" id="btn-phone-send-code" class="btn btn-secondary">Enviar código</button>
-              <div class="form-field">
-                <label for="input-phone-code">Código de verificación</label>
-                <input id="input-phone-code" class="form-input" type="text" inputmode="numeric" maxlength="6">
-              </div>
-              <button type="button" id="btn-phone-confirm-change" class="btn btn-primary">Confirmar cambio</button>
-            </div>
-          `}
-          <p id="edit-phone-error" class="hidden" role="alert"></p>
-        </form>
+      <div class="account-data-section">
+        ${renderNameRow(displayName)}
+        ${renderPhoneRow(profile, phoneContact)}
+        ${hasPasswordProvider() ? renderEmailRow(profile) : ''}
         ${hasPasswordProvider() ? `
-          <form id="form-edit-email">
-            <div class="form-field">
-              <label for="input-edit-email">Correo nuevo</label>
-              <input id="input-edit-email" class="form-input" type="email" placeholder="${profile.email || ''}">
-            </div>
-            <div class="form-field">
-              <label for="input-email-current-password">Confirma tu contraseña actual</label>
-              <input id="input-email-current-password" class="form-input" type="password">
-            </div>
-            <button type="submit" class="btn btn-primary">Guardar correo</button>
-            <p id="edit-email-error" class="hidden" role="alert"></p>
-            <p id="edit-email-success" class="hidden" role="status"></p>
-          </form>
-        ` : ''}
-        ${hasPasswordProvider() ? `
-          <form id="form-edit-password">
-            <div class="form-field">
-              <label for="input-current-password">Contraseña actual</label>
-              <input id="input-current-password" class="form-input" type="password">
-            </div>
-            <div class="form-field">
-              <label for="input-new-password">Nueva contraseña</label>
-              <input id="input-new-password" class="form-input" type="password" minlength="6">
-            </div>
-            <div class="form-field">
-              <label for="input-confirm-password">Confirmar nueva contraseña</label>
-              <input id="input-confirm-password" class="form-input" type="password" minlength="6">
-            </div>
-            <button type="submit" class="btn btn-primary">Guardar contraseña</button>
-            <p id="edit-password-error" class="hidden" role="alert"></p>
-            <p id="edit-password-success" class="hidden" role="status"></p>
-          </form>
-        ` : ''}
+          <div class="account-data-row account-password-row">
+            <button type="button" id="btn-open-password-modal" class="account-link-btn">Cambiar contraseña</button>
+          </div>` : ''}
       </div>
       <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
     </div>
   `;
 
+  wireAccountHubEvents(profile);
+}
+
+function wireAccountHubEvents(profile) {
   document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
   document.getElementById('btn-renew-membership')?.addEventListener('click', () => {
     handleRenewMembership().catch(() => {});
   });
-  document.getElementById('btn-toggle-edit')?.addEventListener('click', () => {
-    document.getElementById('account-edit-section')?.classList.toggle('hidden');
+
+  document.getElementById('btn-edit-name')?.addEventListener('click', () => {
+    editingRow = 'name';
+    renderAccountHub();
   });
-  document.getElementById('form-edit-name')?.addEventListener('submit', e => {
-    e.preventDefault();
+  document.getElementById('btn-cancel-name')?.addEventListener('click', () => {
+    editingRow = null;
+    renderAccountHub();
+  });
+  document.getElementById('btn-save-name')?.addEventListener('click', () => {
     submitNameEdit().catch(() => {});
   });
-  document.getElementById('form-edit-phone')?.addEventListener('submit', e => {
-    e.preventDefault();
+
+  document.getElementById('btn-edit-phone')?.addEventListener('click', () => {
+    editingRow = 'phone';
+    renderAccountHub();
+  });
+  document.getElementById('btn-cancel-phone')?.addEventListener('click', () => {
+    editingRow = null;
+    renderAccountHub();
+  });
+  document.getElementById('btn-save-phone')?.addEventListener('click', () => {
     submitPhoneContactEdit().catch(() => {});
   });
+  document.getElementById('btn-open-phone-modal')?.addEventListener('click', () => {
+    openPhoneChangeModal();
+  });
+
+  document.getElementById('btn-edit-email')?.addEventListener('click', () => {
+    openEmailModal(profile);
+  });
+  document.getElementById('btn-open-password-modal')?.addEventListener('click', () => {
+    openPasswordModal();
+  });
+}
+
+// === Modal genérico (correo / teléfono-SMS / contraseña) ===
+// app.js ya tiene un helper equivalente (openModalA11y/closeModalA11y,
+// compartido por los modales de OCR/nutrición/reporte) pero app.js es un
+// script clásico que scan.html carga y account.html no — no es importable
+// desde este módulo, así que account-ui.js tiene su propia copia mínima,
+// reusando las mismas clases CSS (.modal/.modal-content/...) de styles.css.
+let _lastFocusedBeforeModal = null;
+
+function trapModalTabKey(e) {
+  if (e.key !== 'Tab') return;
+  const modalEl = e.currentTarget;
+  const focusable = Array.from(modalEl.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ));
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+function openModal(innerHtml) {
+  closeModal();
+  const modalEl = document.createElement('div');
+  modalEl.id = 'account-modal';
+  modalEl.className = 'modal';
+  modalEl.innerHTML = `<div class="modal-overlay"></div><div class="modal-content">${innerHtml}</div>`;
+  document.body.appendChild(modalEl);
+
+  modalEl.querySelector('.modal-overlay').addEventListener('click', closeModal);
+  modalEl.querySelector('.modal-close')?.addEventListener('click', closeModal);
+
+  _lastFocusedBeforeModal = document.activeElement;
+  const heading = modalEl.querySelector('h2, h3');
+  if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus(); }
+  modalEl._escHandler = (e) => { if (e.key === 'Escape') closeModal(); };
+  modalEl.addEventListener('keydown', modalEl._escHandler);
+  modalEl.addEventListener('keydown', trapModalTabKey);
+
+  return modalEl;
+}
+
+function closeModal() {
+  const modalEl = document.getElementById('account-modal');
+  if (!modalEl) return;
+  modalEl.removeEventListener('keydown', trapModalTabKey);
+  if (modalEl._escHandler) modalEl.removeEventListener('keydown', modalEl._escHandler);
+  modalEl.remove();
+  if (_lastFocusedBeforeModal && typeof _lastFocusedBeforeModal.focus === 'function') {
+    _lastFocusedBeforeModal.focus();
+  }
+  _lastFocusedBeforeModal = null;
+}
+
+function openPhoneChangeModal() {
+  openModal(`
+    <div class="modal-header"><h2>Cambiar teléfono</h2><button type="button" class="modal-close" aria-label="Cerrar">×</button></div>
+    <div id="phone-login-flow">
+      <div class="form-field">
+        <label for="input-new-phone">Nuevo número</label>
+        <input id="input-new-phone" class="form-input" type="tel" placeholder="+525512345678">
+      </div>
+      <button type="button" id="btn-phone-send-code" class="btn btn-secondary">Enviar código</button>
+      <div class="form-field">
+        <label for="input-phone-code">Código de verificación</label>
+        <input id="input-phone-code" class="form-input" type="text" inputmode="numeric" maxlength="6">
+      </div>
+      <button type="button" id="btn-phone-confirm-change" class="btn btn-primary">Confirmar cambio</button>
+    </div>
+    <p id="edit-phone-error" class="hidden modal-inline-error" role="alert"></p>
+  `);
   document.getElementById('btn-phone-send-code')?.addEventListener('click', () => {
     submitPhoneSendCode().catch(() => {});
   });
   document.getElementById('btn-phone-confirm-change')?.addEventListener('click', () => {
-    submitPhoneChangeConfirm().catch(() => {});
+    submitPhoneChangeConfirm().then(() => closeModal()).catch(() => {});
   });
+}
+
+function openEmailModal(profile) {
+  openModal(`
+    <div class="modal-header"><h2>Cambiar correo</h2><button type="button" class="modal-close" aria-label="Cerrar">×</button></div>
+    <form id="form-edit-email">
+      <div class="form-field">
+        <label for="input-edit-email">Correo nuevo</label>
+        <input id="input-edit-email" class="form-input" type="email" placeholder="${escapeHtml(profile.email)}">
+      </div>
+      <div class="form-field">
+        <label for="input-email-current-password">Confirma tu contraseña actual</label>
+        <input id="input-email-current-password" class="form-input" type="password">
+      </div>
+      <button type="submit" class="btn btn-primary">Guardar correo</button>
+      <p id="edit-email-error" class="hidden modal-inline-error" role="alert"></p>
+      <p id="edit-email-success" class="hidden" role="status"></p>
+    </form>
+  `);
   document.getElementById('form-edit-email')?.addEventListener('submit', e => {
     e.preventDefault();
     submitEmailEdit().catch(() => {});
   });
+}
+
+function openPasswordModal() {
+  openModal(`
+    <div class="modal-header"><h2>Cambiar contraseña</h2><button type="button" class="modal-close" aria-label="Cerrar">×</button></div>
+    <form id="form-edit-password">
+      <div class="form-field">
+        <label for="input-current-password">Contraseña actual</label>
+        <input id="input-current-password" class="form-input" type="password">
+      </div>
+      <div class="form-field">
+        <label for="input-new-password">Nueva contraseña</label>
+        <input id="input-new-password" class="form-input" type="password" minlength="6">
+      </div>
+      <div class="form-field">
+        <label for="input-confirm-password">Confirmar nueva contraseña</label>
+        <input id="input-confirm-password" class="form-input" type="password" minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary">Guardar contraseña</button>
+      <p id="edit-password-error" class="hidden modal-inline-error" role="alert"></p>
+      <p id="edit-password-success" class="hidden" role="status"></p>
+    </form>
+  `);
   document.getElementById('form-edit-password')?.addEventListener('submit', e => {
     e.preventDefault();
     submitPasswordEdit().catch(() => {});
@@ -194,10 +358,6 @@ export async function handleRenewMembership() {
     await syncUserProfile();
     renderAccountHub();
   } catch (err) {
-    // El botón NUNCA debe quedarse mostrando "Procesando…" — ya sea por un
-    // res.ok:false del pago simulado o por un fetch que rechaza (red caída),
-    // se restaura el texto/estado original y se avisa al usuario, siguiendo
-    // el mismo patrón de showError que preferences-ui.js/onboarding-membership-ui.js.
     if (btn) { btn.disabled = false; btn.textContent = originalText; }
     showRenewError('No se pudo procesar el pago. Intenta de nuevo.');
     console.warn('[account] no se pudo renovar la membresía:', err.message);
@@ -231,6 +391,7 @@ export async function submitNameEdit() {
     showNameError('No se pudo guardar tu nombre. Intenta de nuevo.');
     throw new Error('save_failed');
   }
+  editingRow = null;
   await syncUserProfile();
   renderAccountHub();
 }
@@ -255,6 +416,7 @@ export async function submitPhoneContactEdit() {
     showPhoneError('No se pudo guardar tu teléfono. Intenta de nuevo.');
     throw new Error('save_failed');
   }
+  editingRow = null;
   await syncUserProfile();
   renderAccountHub();
 }

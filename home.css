@@ -551,6 +551,49 @@ body {
 .account-email { font-weight: 600; color: var(--ink); margin: 0; }
 .account-summary, .account-empty { font-size: 0.85rem; color: var(--ink-3); margin: 0; }
 
+/* Filas de "Mis datos" en Mi cuenta — reemplaza el bloque de 4 forms
+   apilados con 4 botones "Guardar" simultáneos (hallazgo UX). Nombre y
+   teléfono (cuando el login es por correo) se editan inline aquí mismo;
+   correo, teléfono-por-SMS y contraseña abren el modal genérico (reusa
+   .modal/.modal-content ya definidos en styles.css para los modales de
+   OCR/nutrición/reporte). */
+.account-data-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.account-data-row:first-child { border-top: none; padding-top: 0; }
+
+.account-data-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.account-data-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-3); }
+.account-data-value {
+  font-size: 0.95rem;
+  color: var(--ink);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-data-row-editing { gap: 8px; }
+.account-data-row-editing .form-input { flex: 1; margin: 0; }
+
+.row-icon-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.account-password-row { justify-content: flex-start; padding-top: 14px; }
+.account-link-btn { color: var(--ink); font-weight: 600; text-decoration: underline; cursor: pointer; background: none; border: none; padding: 0; font-size: 0.9rem; }
+
 /* auth/preferences/account/history reusan .app-main pero NO son la pantalla
    Home de 2 columnas — sin este reset, la media query de arriba (pensada
    solo para .home-left/.home-right) partía su contenido en un grid de
