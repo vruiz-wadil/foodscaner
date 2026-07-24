@@ -9,11 +9,13 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const homeCode = fs.readFileSync(path.join(__dirname, '..', 'home.js'), 'utf8')
 
-let redirectTargetForIncompleteOnboarding
+let redirectTargetForIncompleteOnboarding, greetingSubtitle
 
 beforeAll(() => {
-  const fn = new Function(homeCode + '\nreturn { redirectTargetForIncompleteOnboarding }')
-  redirectTargetForIncompleteOnboarding = fn().redirectTargetForIncompleteOnboarding
+  const fn = new Function(homeCode + '\nreturn { redirectTargetForIncompleteOnboarding, greetingSubtitle }')
+  const exported = fn()
+  redirectTargetForIncompleteOnboarding = exported.redirectTargetForIncompleteOnboarding
+  greetingSubtitle = exported.greetingSubtitle
 })
 
 describe('redirectTargetForIncompleteOnboarding', () => {
@@ -39,5 +41,23 @@ describe('redirectTargetForIncompleteOnboarding', () => {
   it('regresa null cuando la membresía está expired — expirado NO se manda de vuelta al onboarding, se maneja en account.html', () => {
     const profile = { profile: { completedAt: '2026-07-22T00:00:00.000Z' }, membershipStatus: 'expired' }
     expect(redirectTargetForIncompleteOnboarding(profile)).toBeNull()
+  })
+})
+
+describe('greetingSubtitle', () => {
+  it('regresa null sin perfil (no logueado — el subtítulo genérico de index.html no se toca)', () => {
+    expect(greetingSubtitle(null)).toBeNull()
+  })
+
+  it('regresa null si el perfil no tiene displayName todavía', () => {
+    expect(greetingSubtitle({ email: 'a@b.com' })).toBeNull()
+  })
+
+  it('usa profile.profile.displayName cuando existe', () => {
+    expect(greetingSubtitle({ profile: { displayName: 'Ana Ruiz' } })).toBe('Hola Ana Ruiz, escanea y lo sabrás en segundos.')
+  })
+
+  it('cae a profile.displayName si profile.profile no lo tiene', () => {
+    expect(greetingSubtitle({ displayName: 'Luis' })).toBe('Hola Luis, escanea y lo sabrás en segundos.')
   })
 })

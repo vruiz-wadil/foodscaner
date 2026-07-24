@@ -87,6 +87,11 @@ function redirectTargetForIncompleteOnboarding(profile) {
   return null;
 }
 
+function greetingSubtitle(profile) {
+  const displayName = profile && ((profile.profile && profile.profile.displayName) || profile.displayName || '');
+  return displayName ? `Hola ${displayName}, escanea y lo sabrás en segundos.` : null;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   renderGrid();
 
@@ -118,6 +123,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // await explícito (mismo motivo que preferences-ui.js, Task 15): no depender
   // de que el auto-sync de authClient.js ya haya resuelto para este frame.
   const profile = window.authClient ? await window.authClient.syncUserProfile() : null;
+
+  const greeting = greetingSubtitle(profile);
+  if (greeting) {
+    const headingSub = document.querySelector('.heading-sub');
+    if (headingSub) headingSub.textContent = greeting;
+  }
+
   const redirectTarget = redirectTargetForIncompleteOnboarding(profile);
   if (redirectTarget) window.location.href = redirectTarget;
 });
