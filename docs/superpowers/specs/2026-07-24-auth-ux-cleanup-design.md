@@ -22,7 +22,7 @@ Arreglo: mover la regla `.link-button { ... }` del `<style>` inline de `auth.htm
 
 Causa raíz: en `auth.html`, el bloque `<div id="signup-only">` (checkboxes de Términos/edad + botón de teléfono) vive físicamente **después** del `</form>` que contiene `#btn-signup` (el botón que `auth-ui.js` renombra a "Confirmar creación de cuenta" en modo signup). Visualmente: email, contraseña, botón de confirmar, *luego* los checkboxes.
 
-Arreglo: mover el `<div id="signup-only">` dentro de `<form id="login-form">`, justo antes de los botones (`btn-login`/`btn-back-to-login`/`btn-signup`). Es un reordenamiento de markup puro — `auth-ui.js` ya alterna la visibilidad de `#signup-only` vía `classList.toggle('hidden', ...)`, ese comportamiento no cambia con la nueva posición en el DOM.
+Arreglo: dado que `#signup-only` también se usa (como pantalla independiente) para el consentimiento del flujo de teléfono — donde `#login-view` completo está oculto — no puede anidarse dentro de `#login-view` sin romper esa pantalla. En vez de eso, los botones (`btn-login`/`btn-back-to-login`/`btn-signup`) se extraen a su propio bloque hermano `#login-actions`, colocado *después* de `#signup-only` en el DOM (usando el atributo HTML `form="login-form"` en `#btn-login` para que el submit nativo del formulario siga funcionando pese a vivir fuera de `<form>`). `setView()` gana una línea para ocultar/mostrar `#login-actions` igual que ya hace con `#login-view`.
 
 ### 3. Confirmar contraseña al crear cuenta
 
