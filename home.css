@@ -704,7 +704,8 @@ body:has(.app-main.content-page) {
   margin-bottom: 14px;
 }
 .hero-card-dark .icon-wrap { background: rgba(75,197,171,0.2); }
-.hero-card-dark .account-email { color: #fff; margin: 0; font-weight: 600; font-size: 0.9rem; }
+.hero-card-dark .account-name { color: #fff; margin: 0; font-weight: 700; font-size: 0.95rem; }
+.hero-card-dark .account-email { color: rgba(255,255,255,0.7); margin: 0; font-weight: 500; font-size: 0.78rem; }
 
 .stat-row { display: flex; gap: 10px; margin-bottom: 14px; }
 .stat-tile {

@@ -78,6 +78,20 @@ describe('renderAccountHub', () => {
     expect(root.querySelector('.account-email').textContent).toBe('+525512345678')
   })
 
+  it('muestra el nombre del usuario en el cuadro superior sin importar el método de acceso (Google/teléfono/email)', () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525512345678', membershipStatus: 'active', profile: { displayName: 'Ana Ruiz' } })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('.hero-card-dark .account-name').textContent).toBe('Ana Ruiz')
+  })
+
+  it('muestra "Sin nombre" en el cuadro superior si el perfil todavía no tiene nombre guardado', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('.hero-card-dark .account-name').textContent).toBe('Sin nombre')
+  })
+
   it('muestra el resumen del perfil dietético/alérgico y botón editar preferencias para membresía activa', () => {
     getCachedProfile.mockReturnValue({
       email: 'a@b.com', membershipStatus: 'active',

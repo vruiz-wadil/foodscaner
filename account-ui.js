@@ -131,6 +131,7 @@ export function renderAccountHub() {
       <div class="hero-card-dark">
         <div class="icon-wrap">${PROFILE_ICON_SVG}</div>
         <div>
+          <p class="account-name">${escapeHtml(displayName) || 'Sin nombre'}</p>
           <p class="account-email">${escapeHtml(profile.email || profile.phoneNumber || '')}</p>
           <span class="account-plan-badge account-plan-${status}">${BADGE_LABEL[status] || 'Pendiente'}</span>
         </div>
