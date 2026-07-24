@@ -520,11 +520,11 @@
       </div>
       <span class="nav-label">Escanear</span>
     </button>
-    <button class="nav-item nav-disabled" aria-label="Análisis (próximamente)" aria-disabled="true" tabindex="-1">
+    <button class="nav-item" id="nav-history" aria-label="Análisis">
       <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
       <span class="nav-label">Análisis</span>
     </button>
-    <button class="nav-item nav-disabled" aria-label="Perfil (próximamente)" aria-disabled="true" tabindex="-1">
+    <button class="nav-item" id="nav-profile" aria-label="Perfil">
       <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
       <span class="nav-label">Perfil</span>
     </button>
@@ -656,6 +656,7 @@
   <!-- App Main Javascript -->
   <script src="share.js?v=1"></script>
   <script src="app.js?v=74" defer></script>
+  <script src="nav.js"></script>
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="authClient.js"></script>
 </body>
