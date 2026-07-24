@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireRecordMembershipPayment, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim } = require('./phoneAuth');
 const { getGeoData } = require('./geo');
@@ -1516,18 +1516,10 @@ async function putProfileHandler(req, res) {
 
 app.put('/api/me/profile', requireUser, putProfileHandler);
 
-const MEMBERSHIP_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
-
 async function payMembershipHandler(req, res) {
   try {
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + MEMBERSHIP_PERIOD_MS).toISOString();
-    await firePatchUserFields(req.user.uid, ['membershipStatus', 'membershipExpiresAt', 'lastPaymentAt'], {
-      membershipStatus: 'active',
-      membershipExpiresAt: expiresAt,
-      lastPaymentAt: now.toISOString()
-    });
-    res.json({ ok: true, membershipStatus: 'active', membershipExpiresAt: expiresAt });
+    const result = await fireRecordMembershipPayment(req.user.uid);
+    res.json({ ok: true, membershipStatus: result.membershipStatus, membershipExpiresAt: result.membershipExpiresAt });
   } catch (e) {
     console.warn('[POST /api/me/membership/pay] Firestore error, uid:', req.user?.uid, e.message);
     res.status(500).json({ error: 'internal_error' });
@@ -1535,6 +1527,36 @@ async function payMembershipHandler(req, res) {
 }
 
 app.post('/api/me/membership/pay', requireUser, payMembershipHandler);
+
+async function cancelMembershipHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (user.membershipStatus !== 'active') return res.status(409).json({ error: 'not_active' });
+    await firePatchUserFields(req.user.uid, ['autoRenew'], { autoRenew: false });
+    res.json({ ok: true, autoRenew: false });
+  } catch (e) {
+    console.warn('[POST /api/me/membership/cancel] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/membership/cancel', requireUser, cancelMembershipHandler);
+
+async function reactivateMembershipHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (user.membershipStatus !== 'active') return res.status(409).json({ error: 'not_active' });
+    await firePatchUserFields(req.user.uid, ['autoRenew'], { autoRenew: true });
+    res.json({ ok: true, autoRenew: true });
+  } catch (e) {
+    console.warn('[POST /api/me/membership/reactivate] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/membership/reactivate', requireUser, reactivateMembershipHandler);
 
 async function changePhoneHandler(req, res) {
   const { phone, code } = req.body || {};
@@ -1952,6 +1974,8 @@ module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
 module.exports.putProfileHandler = putProfileHandler;
 module.exports.payMembershipHandler = payMembershipHandler;
+module.exports.cancelMembershipHandler = cancelMembershipHandler;
+module.exports.reactivateMembershipHandler = reactivateMembershipHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
 module.exports.deletePreferencesHandler = deletePreferencesHandler;
 module.exports.optionalUser = optionalUser;

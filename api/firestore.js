@@ -498,6 +498,8 @@ async function fireUpsertUser(uid, data) {
       membershipStatus: 'pending',
       membershipExpiresAt: null,
       lastPaymentAt: null,
+      autoRenew: false,
+      paymentHistory: [],
       termsAcceptedAt: data.termsAccepted ? nowIso : null,
       termsVersion: data.termsAccepted ? (data.termsVersion || 'v1') : null,
       ageConfirmedAt: data.ageConfirmed ? nowIso : null,
@@ -610,6 +612,43 @@ async function fireIncrementUsageCounter(uid, field) {
   throw new Error('No se pudo incrementar usage tras reintentos por conflictos de concurrencia');
 }
 
+const MEMBERSHIP_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function fireRecordMembershipPayment(uid) {
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const doc = await fireGetUserRaw(uid);
+    if (!doc) throw new Error('Usuario no encontrado: ' + uid);
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + MEMBERSHIP_PERIOD_MS).toISOString();
+    const paymentHistory = [...(doc.fields.paymentHistory || []), { date: now.toISOString(), amount: 0, method: 'simulado' }];
+    const update = {
+      membershipStatus: 'active',
+      membershipExpiresAt: expiresAt,
+      lastPaymentAt: now.toISOString(),
+      autoRenew: true,
+      paymentHistory
+    };
+
+    const resp = await firePatchUserFieldsWithPrecondition(
+      uid,
+      ['membershipStatus', 'membershipExpiresAt', 'lastPaymentAt', 'autoRenew', 'paymentHistory'],
+      update,
+      doc.updateTime
+    );
+    if (resp.ok) return update;
+    if (resp.status === 409) {
+      const backoffMs = 10 + Math.floor(Math.random() * 40); // 10-50ms
+      await sleep(backoffMs);
+      continue;
+    }
+    throw new Error(`Firestore record membership payment failed: ${resp.status}`);
+  }
+  throw new Error('No se pudo registrar el pago de membresía tras reintentos por conflictos de concurrencia');
+}
+
 async function fireLogUserHistory(uid, entry) {
   const token = await getAccessToken();
   if (!token) throw new Error('No Firestore access token');
@@ -685,7 +724,7 @@ module.exports = {
   fireGetNutritionOcr, fireSetNutritionOcr,
   fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
   fireGetUser, fireUpsertUser, firePatchUserFields,
-  fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter,
+  fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter, fireRecordMembershipPayment,
   fireLogUserHistory, fireListUserHistory,
   fireGetPhoneIndex, fireSetPhoneIndex
 };

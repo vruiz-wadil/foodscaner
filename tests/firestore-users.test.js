@@ -85,6 +85,8 @@ describe('users/{uid} data layer', () => {
     expect(patchCalls[0].body.fields.membershipStatus.stringValue).toBe('pending')
     expect(patchCalls[0].body.fields.membershipExpiresAt).toEqual({ nullValue: null })
     expect(patchCalls[0].body.fields.lastPaymentAt).toEqual({ nullValue: null })
+    expect(patchCalls[0].body.fields.autoRenew).toEqual({ booleanValue: false })
+    expect(patchCalls[0].body.fields.paymentHistory).toEqual({ arrayValue: { values: [] } })
     expect(patchCalls[0].body.fields.profile.mapValue.fields.displayName).toEqual({ nullValue: null })
     expect(patchCalls[0].body.fields.profile.mapValue.fields.completedAt).toEqual({ nullValue: null })
     expect(patchCalls[0].body.fields.usage.mapValue.fields.ocrCount).toBeUndefined()
