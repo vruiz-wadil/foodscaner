@@ -130,6 +130,19 @@ describe('savePreferences', () => {
     })
   })
 
+  it('muestra un toast de confirmación tras guardar exitosamente', async () => {
+    document.getElementById('consent-checkbox').checked = true
+    getIdToken.mockResolvedValue('tok-123')
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+
+    await savePreferences()
+
+    const toast = document.getElementById('app-toast')
+    expect(toast).toBeTruthy()
+    expect(toast.classList.contains('visible')).toBe(true)
+    expect(toast.textContent).toMatch(/guardad/i)
+  })
+
   it('muestra el mensaje específico de membresía cuando el backend responde membership_required', async () => {
     document.getElementById('consent-checkbox').checked = true
     getIdToken.mockResolvedValue('tok-123')

@@ -762,3 +762,25 @@ body:has(.app-main.content-page) {
 @media (max-width: 500px) {
   #preferences-form .allergen-item { flex: 0 0 calc(33.333% - 6px); }
 }
+
+/* Toast reusable (toast.js) — flotante, se oculta sola, sin marcado en cada
+   página (el elemento lo crea showToast() en el DOM). */
+#app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(20px);
+  background: #0d5c37;
+  color: #eafaf3;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+}
+#app-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
