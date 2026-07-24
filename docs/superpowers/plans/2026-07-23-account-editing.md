@@ -1392,6 +1392,96 @@ git commit -m "feat(account): add password edit sub-form (reauth + updatePasswor
 
 ---
 
+---
+
+### Task 9: gatear el form de correo a solo cuentas con provider `password`
+
+**Contexto (agregado tras el whole-branch review):** el form de correo (Task 7) se renderiza para CUALQUIER cuenta, pero `submitEmailEdit` siempre reautentica con `EmailAuthProvider.credential(user.email, currentPassword)` — un mecanismo que exige una contraseña. Cuentas Google (sin contraseña) o phone-login (sin `user.email`) ven el form igual, y el flujo nunca puede completarse ahí (falla en seco, sin riesgo de seguridad, pero es UI rota/engañosa). El spec original pedía una rama de reauth con popup de Google para ese caso — no se construyó. Fix mínimo acordado con el usuario: ocultar el form de correo también, igual que ya hace el de contraseña, hasta que se diseñe esa rama por separado.
+
+**Files:**
+- Modify: `account-ui.js` (envolver el form de correo en el mismo gate que ya usa el de contraseña)
+- Test: `tests/account-ui.test.js`
+
+**Interfaces:**
+- Produces: el form de correo (`#form-edit-email`) usa la MISMA condición `hasPasswordProvider()` ya definida en `account-ui.js` (no se duplica ni se crea una nueva).
+
+- [ ] **Step 1: Escribir los tests que fallan**
+
+En `tests/account-ui.test.js`, dentro del `describe('sub-form Correo', ...)`:
+
+1. Corrige las 3 pruebas existentes para fijar `mockAuth.currentUser` (con `providerData: [{ providerId: 'password' }]`) ANTES de llamar `renderAccountHub()` — hoy lo fijan después, lo cual dejará de funcionar en cuanto el form quede gateado (si `renderAccountHub()` corre antes de que `mockAuth.currentUser` tenga el provider, el form ni siquiera existe en el DOM). Ejemplo para la primera:
+
+```js
+  it('renderiza el input de correo nuevo + input de contraseña actual para reautenticar', () => {
+    getCachedProfile.mockReturnValue({ email: 'old@example.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'old@example.com', providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    expect(document.getElementById('input-edit-email')).toBeTruthy()
+    expect(document.getElementById('input-email-current-password')).toBeTruthy()
+  })
+```
+
+Aplica el mismo cambio (mover el `mockAuth.currentUser = {...}` antes de `renderAccountHub()`, agregando `providerData: [{ providerId: 'password' }]`) a las otras 2 pruebas de ese describe (`'submitEmailEdit reautentica y llama verifyBeforeUpdateEmail...'` y `'submitEmailEdit muestra error de contraseña incorrecta...'`).
+
+2. Agrega una prueba nueva, mismo patrón que la del form de contraseña:
+
+```js
+  it('NO se renderiza para una cuenta sin provider password (Google o phone-login)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'google.com' }] }
+    renderAccountHub()
+    expect(document.getElementById('form-edit-email')).toBeNull()
+  })
+```
+
+- [ ] **Step 2: Correr el test y verificar que falla**
+
+Run: `npx vitest run tests/account-ui.test.js`
+Expected: FAIL — el form de correo hoy se renderiza siempre, la prueba nueva de ausencia falla.
+
+- [ ] **Step 3: Implementar en `account-ui.js`**
+
+Envuelve el `<form id="form-edit-email">...</form>` completo (líneas 107-119 actuales, el bloque entero desde `<form id="form-edit-email">` hasta su `</form>` de cierre) en el mismo patrón ternario que ya usa el form de contraseña:
+
+```js
+        ${hasPasswordProvider() ? `
+          <form id="form-edit-email">
+            <div class="form-field">
+              <label for="input-edit-email">Correo nuevo</label>
+              <input id="input-edit-email" class="form-input" type="email" placeholder="${profile.email || ''}">
+            </div>
+            <div class="form-field">
+              <label for="input-email-current-password">Confirma tu contraseña actual</label>
+              <input id="input-email-current-password" class="form-input" type="password">
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar correo</button>
+            <p id="edit-email-error" class="hidden" role="alert"></p>
+            <p id="edit-email-success" class="hidden" role="status"></p>
+          </form>
+        ` : ''}
+```
+
+(El wiring del `addEventListener('submit', ...)` para `form-edit-email` no cambia — sigue usando `?.addEventListener`, que ya maneja correctamente el caso de que el elemento no exista.)
+
+- [ ] **Step 4: Correr el test y verificar que pasa**
+
+Run: `npx vitest run tests/account-ui.test.js`
+Expected: PASS (todas, incluidas las de `renderAccountHub`/`handleRenewMembership`/nombre/teléfono/contraseña de tasks anteriores)
+
+- [ ] **Step 5: Correr la suite completa**
+
+Run: `npx vitest run`
+Expected: PASS (único fallo esperado: el preexistente de Playwright/e2e).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add account-ui.js tests/account-ui.test.js
+git commit -m "fix(account): hide email edit form for accounts without a password provider"
+```
+
+---
+
 ## Al terminar todas las tasks
 
 Correr la suite completa una última vez (`npx vitest run`) y usar `superpowers:finishing-a-development-branch` para decidir merge/PR — no se hace commit a `master`/producción sin instrucción explícita del usuario (regla de sesión: `develop` únicamente). Antes de dar por cerrado, considerar un smoke test manual: cambio de contraseña, cambio de correo (revisar que llegue el link de confirmación), y cambio de teléfono en una cuenta phone-login real (confirmar que el claim se refleja tras un refresh de sesión) — ninguno de los 3 es automatizable con vitest solo.
