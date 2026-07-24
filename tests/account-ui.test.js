@@ -9,11 +9,16 @@ const getCachedProfile = vi.fn()
 const syncUserProfile = vi.fn()
 const getIdToken = vi.fn()
 
-vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut }))
+const reauthenticateWithCredential = vi.fn()
+const verifyBeforeUpdateEmail = vi.fn()
+class EmailAuthProvider {
+  static credential(email, password) { return { email, password } }
+}
+vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, EmailAuthProvider }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdToken }))
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
-let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm
+let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit
 let originalLocation
 
 beforeEach(async () => {
@@ -32,6 +37,7 @@ beforeEach(async () => {
   submitPhoneContactEdit = mod.submitPhoneContactEdit
   submitPhoneSendCode = mod.submitPhoneSendCode
   submitPhoneChangeConfirm = mod.submitPhoneChangeConfirm
+  submitEmailEdit = mod.submitEmailEdit
 })
 
 afterEach(() => {
@@ -304,5 +310,47 @@ describe('sub-form Teléfono — cuenta SIN email (phone-login, requiere SMS)', 
     expect(syncUserProfile).not.toHaveBeenCalled()
     const errorEl = document.getElementById('edit-phone-error')
     expect(errorEl.textContent).toMatch(/ya está en uso/)
+  })
+})
+
+describe('sub-form Correo', () => {
+  it('renderiza el input de correo nuevo + input de contraseña actual para reautenticar', () => {
+    getCachedProfile.mockReturnValue({ email: 'old@example.com', membershipStatus: 'active' })
+    renderAccountHub()
+    expect(document.getElementById('input-edit-email')).toBeTruthy()
+    expect(document.getElementById('input-email-current-password')).toBeTruthy()
+  })
+
+  it('submitEmailEdit reautentica y llama verifyBeforeUpdateEmail, muestra el mensaje de "revisa tu correo"', async () => {
+    getCachedProfile.mockReturnValue({ email: 'old@example.com', membershipStatus: 'active' })
+    renderAccountHub()
+    mockAuth.currentUser = { email: 'old@example.com' }
+    reauthenticateWithCredential.mockResolvedValue({})
+    verifyBeforeUpdateEmail.mockResolvedValue(undefined)
+    document.getElementById('input-edit-email').value = 'new@example.com'
+    document.getElementById('input-email-current-password').value = 'secret123'
+
+    await submitEmailEdit()
+
+    expect(reauthenticateWithCredential).toHaveBeenCalledWith(mockAuth.currentUser, { email: 'old@example.com', password: 'secret123' })
+    expect(verifyBeforeUpdateEmail).toHaveBeenCalledWith(mockAuth.currentUser, 'new@example.com')
+    const successEl = document.getElementById('edit-email-success')
+    expect(successEl.classList.contains('hidden')).toBe(false)
+    expect(successEl.textContent).toMatch(/revisa tu correo/i)
+  })
+
+  it('submitEmailEdit muestra error de contraseña incorrecta sin llamar verifyBeforeUpdateEmail', async () => {
+    getCachedProfile.mockReturnValue({ email: 'old@example.com', membershipStatus: 'active' })
+    renderAccountHub()
+    mockAuth.currentUser = { email: 'old@example.com' }
+    reauthenticateWithCredential.mockRejectedValue({ code: 'auth/wrong-password' })
+    document.getElementById('input-edit-email').value = 'new@example.com'
+    document.getElementById('input-email-current-password').value = 'wrong'
+
+    await expect(submitEmailEdit()).rejects.toBeTruthy()
+
+    expect(verifyBeforeUpdateEmail).not.toHaveBeenCalled()
+    const errorEl = document.getElementById('edit-email-error')
+    expect(errorEl.classList.contains('hidden')).toBe(false)
   })
 })

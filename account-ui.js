@@ -1,5 +1,6 @@
-import { firebaseAuth, signOut } from './firebase-init.js';
+import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, EmailAuthProvider } from './firebase-init.js';
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
+import { mapAuthError } from './authErrors.js';
 
 // Suma de ítems declarados por el usuario — sin backend nuevo, se deriva
 // del perfil ya cacheado. Para free (sin preferences) siempre 0.
@@ -98,6 +99,19 @@ export function renderAccountHub() {
           `}
           <p id="edit-phone-error" class="hidden" role="alert"></p>
         </form>
+        <form id="form-edit-email">
+          <div class="form-field">
+            <label for="input-edit-email">Correo nuevo</label>
+            <input id="input-edit-email" class="form-input" type="email" placeholder="${profile.email || ''}">
+          </div>
+          <div class="form-field">
+            <label for="input-email-current-password">Confirma tu contraseña actual</label>
+            <input id="input-email-current-password" class="form-input" type="password">
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar correo</button>
+          <p id="edit-email-error" class="hidden" role="alert"></p>
+          <p id="edit-email-success" class="hidden" role="status"></p>
+        </form>
       </div>
       <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
     </div>
@@ -123,6 +137,10 @@ export function renderAccountHub() {
   });
   document.getElementById('btn-phone-confirm-change')?.addEventListener('click', () => {
     submitPhoneChangeConfirm().catch(() => {});
+  });
+  document.getElementById('form-edit-email')?.addEventListener('submit', e => {
+    e.preventDefault();
+    submitEmailEdit().catch(() => {});
   });
 }
 
@@ -249,6 +267,45 @@ export async function submitPhoneChangeConfirm() {
   }
   await syncUserProfile();
   renderAccountHub();
+}
+
+function showEmailError(message) {
+  const el = document.getElementById('edit-email-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+function showEmailSuccess(message) {
+  const el = document.getElementById('edit-email-success');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+export async function submitEmailEdit() {
+  const emailInput = document.getElementById('input-edit-email');
+  const passwordInput = document.getElementById('input-email-current-password');
+  const newEmail = emailInput ? emailInput.value.trim() : '';
+  const currentPassword = passwordInput ? passwordInput.value : '';
+  const errorEl = document.getElementById('edit-email-error');
+  if (errorEl) { errorEl.textContent = ''; errorEl.classList.add('hidden'); }
+
+  const user = firebaseAuth.currentUser;
+  try {
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+  } catch (err) {
+    showEmailError(mapAuthError(err.code));
+    throw err;
+  }
+
+  try {
+    await verifyBeforeUpdateEmail(user, newEmail);
+    showEmailSuccess('Revisa tu correo nuevo y confirma el cambio desde ahí.');
+  } catch (err) {
+    showEmailError(mapAuthError(err.code));
+    throw err;
+  }
 }
 
 export async function handleLogout() {
