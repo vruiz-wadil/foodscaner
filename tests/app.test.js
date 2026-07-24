@@ -642,19 +642,21 @@ describe('getUserPreferencesForVerdict', () => {
 
 describe('renderPersonalizedDisclaimer', () => {
   beforeEach(() => {
-    document.body.innerHTML = '<div id="verdict-banner"></div><p id="personalized-disclaimer" class="hidden"></p>'
+    document.body.innerHTML = '<div id="verdict-banner"></div><p id="verdict-disclaimer" class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>'
   })
 
-  it('muestra el disclaimer cuando el veredicto SÍ fue personalizado (userPreferences no nulo)', () => {
+  it('agrega la advertencia de preferencias AL FINAL del mismo disclaimer cuando el veredicto SÍ fue personalizado (userPreferences no nulo) — ya no es un párrafo aparte', () => {
     renderPersonalizedDisclaimer({ dietary: ['vegan'], allergens: [], healthConditions: [] })
-    const el = document.getElementById('personalized-disclaimer')
-    expect(el.classList.contains('hidden')).toBe(false)
-    expect(el.textContent).toMatch(/no sustituye el consejo/i)
+    const el = document.getElementById('verdict-disclaimer')
+    expect(el.textContent).toMatch(/no es un diagnóstico/i)
+    expect(el.textContent).toMatch(/Este resultado considera tus preferencias guardadas/i)
   })
 
-  it('no muestra nada cuando no hubo personalización (usuario free o sin preferences)', () => {
+  it('deja solo el disclaimer base, sin la advertencia de preferencias, cuando no hubo personalización', () => {
     renderPersonalizedDisclaimer(null)
-    expect(document.getElementById('personalized-disclaimer').classList.contains('hidden')).toBe(true)
+    const el = document.getElementById('verdict-disclaimer')
+    expect(el.textContent).toBe('Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.')
+    expect(el.textContent).not.toMatch(/preferencias guardadas/i)
   })
 })
 

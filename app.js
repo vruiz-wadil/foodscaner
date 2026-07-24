@@ -1728,17 +1728,18 @@ function getUserPreferencesForVerdict() {
 
 // Disclaimer médico (hallazgo de revisión legal): un veredicto personalizado
 // por condiciones de salud (diabetes/celiaquía/etc.) puede leerse como consejo
-// médico automatizado. Se muestra SOLO cuando la personalización se aplicó de
-// verdad (userPreferences no nulo) — no le agrega ruido a la experiencia free.
+// médico automatizado. Antes vivía en un <p> aparte junto al disclaimer base
+// (hallazgo UX: los 2 textos eran redundantes, ambos decían "no sustituye el
+// consejo de un profesional") — ahora se agrega como una frase más al MISMO
+// disclaimer, solo cuando la personalización se aplicó de verdad.
+const BASE_VERDICT_DISCLAIMER = 'Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.';
+
 function renderPersonalizedDisclaimer(userPreferences) {
-  const el = document.getElementById('personalized-disclaimer');
+  const el = document.getElementById('verdict-disclaimer');
   if (!el) return;
-  if (!userPreferences) {
-    el.classList.add('hidden');
-    return;
-  }
-  el.textContent = 'Este resultado considera tus preferencias guardadas y no sustituye el consejo de un profesional de la salud.';
-  el.classList.remove('hidden');
+  el.textContent = userPreferences
+    ? `${BASE_VERDICT_DISCLAIMER} Este resultado considera tus preferencias guardadas.`
+    : BASE_VERDICT_DISCLAIMER;
 }
 
 // Registra el escaneo en el historial en la nube — solo usuarios premium
