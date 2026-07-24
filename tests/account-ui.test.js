@@ -11,14 +11,15 @@ const getIdToken = vi.fn()
 
 const reauthenticateWithCredential = vi.fn()
 const verifyBeforeUpdateEmail = vi.fn()
+const updatePassword = vi.fn()
 class EmailAuthProvider {
   static credential(email, password) { return { email, password } }
 }
-vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, EmailAuthProvider }))
+vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdToken }))
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
-let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit
+let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit, submitPasswordEdit
 let originalLocation
 
 beforeEach(async () => {
@@ -38,6 +39,7 @@ beforeEach(async () => {
   submitPhoneSendCode = mod.submitPhoneSendCode
   submitPhoneChangeConfirm = mod.submitPhoneChangeConfirm
   submitEmailEdit = mod.submitEmailEdit
+  submitPasswordEdit = mod.submitPasswordEdit
 })
 
 afterEach(() => {
@@ -352,5 +354,66 @@ describe('sub-form Correo', () => {
     expect(verifyBeforeUpdateEmail).not.toHaveBeenCalled()
     const errorEl = document.getElementById('edit-email-error')
     expect(errorEl.classList.contains('hidden')).toBe(false)
+  })
+})
+
+describe('sub-form Contraseña', () => {
+  it('se renderiza cuando el provider incluye password', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    expect(document.getElementById('form-edit-password')).toBeTruthy()
+  })
+
+  it('NO se renderiza para una cuenta Google (sin provider password)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'google.com' }] }
+    renderAccountHub()
+    expect(document.getElementById('form-edit-password')).toBeNull()
+  })
+
+  it('submitPasswordEdit rechaza si nueva y confirmar no coinciden, sin llamar a Firebase', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    document.getElementById('input-current-password').value = 'old123'
+    document.getElementById('input-new-password').value = 'new123'
+    document.getElementById('input-confirm-password').value = 'different'
+
+    await expect(submitPasswordEdit()).rejects.toThrow()
+
+    expect(reauthenticateWithCredential).not.toHaveBeenCalled()
+  })
+
+  it('submitPasswordEdit reautentica y llama updatePassword cuando coinciden', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    reauthenticateWithCredential.mockResolvedValue({})
+    updatePassword.mockResolvedValue(undefined)
+    document.getElementById('input-current-password').value = 'old123'
+    document.getElementById('input-new-password').value = 'new12345'
+    document.getElementById('input-confirm-password').value = 'new12345'
+
+    await submitPasswordEdit()
+
+    expect(reauthenticateWithCredential).toHaveBeenCalledWith(mockAuth.currentUser, { email: 'a@b.com', password: 'old123' })
+    expect(updatePassword).toHaveBeenCalledWith(mockAuth.currentUser, 'new12345')
+    const successEl = document.getElementById('edit-password-success')
+    expect(successEl.classList.contains('hidden')).toBe(false)
+  })
+
+  it('submitPasswordEdit muestra error si la contraseña actual es incorrecta, sin llamar updatePassword', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    reauthenticateWithCredential.mockRejectedValue({ code: 'auth/wrong-password' })
+    document.getElementById('input-current-password').value = 'wrong'
+    document.getElementById('input-new-password').value = 'new12345'
+    document.getElementById('input-confirm-password').value = 'new12345'
+
+    await expect(submitPasswordEdit()).rejects.toBeTruthy()
+
+    expect(updatePassword).not.toHaveBeenCalled()
   })
 })
