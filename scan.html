@@ -210,10 +210,21 @@
         <div id="result-success" class="result-state">
 
           <!-- 0. VEREDICTO -->
-          <div id="verdict-banner" class="verdict-banner" role="status"></div>
+          <div id="verdict-banner" class="verdict-banner" role="status">
+            <span id="verdict-text"></span>
+            <button type="button" id="btn-share-result" class="verdict-share-btn" aria-label="Compartir resultado">
+              <svg class="share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Compartir
+            </button>
+          </div>
           <p id="verdict-disclaimer" class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>
           <p id="report-ack" class="report-ack hidden" role="status">Reportaste un problema con este producto anteriormente — gracias por ayudarnos a mejorarlo.</p>
-          <button type="button" id="btn-share-result" class="btn btn-secondary">Compartir</button>
 
           <!-- 1. IDENTIDAD DEL PRODUCTO -->
           <div class="product-header">

@@ -1828,7 +1828,8 @@ function renderProductData(product, barcode) {
       ? '⚠ Sin datos suficientes para evaluar'
       : { sano: '✓ Puedes comerlo', regular: '⚠ Con moderación', evitar: '✗ Mejor evítalo' }[verdict];
     verdictBanner.className = 'verdict-banner verdict-' + verdict;
-    verdictBanner.textContent = verdictText;
+    const verdictTextEl = document.getElementById('verdict-text');
+    if (verdictTextEl) verdictTextEl.textContent = verdictText;
     // Celebratory entrance only for the "you can eat this" verdict — REGULAR/EVITAR
     // stay static so a warning never reads as an animated/gamified moment.
     if (verdict === 'sano' && !hasNoRealData(product)) {

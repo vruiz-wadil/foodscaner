@@ -828,8 +828,29 @@ body {
   font-weight: 700;
   font-size: 0.95rem;
   margin-bottom: 12px;
+  justify-content: space-between;
 }
 .verdict-banner.hidden { display: none; }
+.verdict-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid currentColor;
+  color: inherit;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.verdict-share-btn .share-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
 /* Badge chico (historial/cuenta) — reusa los mismos colores por veredicto que
    .verdict-banner, pero como pill inline en vez de banner de ancho completo. */
 .verdict-badge {
