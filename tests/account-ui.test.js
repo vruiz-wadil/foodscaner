@@ -555,4 +555,18 @@ describe('bloque Suscripción (membresía activa)', () => {
     expect(options.method).toBe('POST')
     expect(syncUserProfile).toHaveBeenCalled()
   })
+
+  it('submitReactivateSubscription muestra error, no re-sincroniza, si el API responde no-ok', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z', autoRenew: false })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
+
+    await expect(submitReactivateSubscription()).rejects.toThrow()
+
+    expect(syncUserProfile).not.toHaveBeenCalled()
+    const errorEl = document.getElementById('reactivate-subscription-error')
+    expect(errorEl.classList.contains('hidden')).toBe(false)
+    expect(errorEl.textContent).toMatch(/No se pudo reactivar/)
+  })
 })

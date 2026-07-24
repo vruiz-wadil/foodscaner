@@ -112,7 +112,8 @@ function renderSubscriptionBlock(profile) {
     : `Vence el ${expiresLabel} — no se renovará.`;
   const actionBtn = autoRenew
     ? `<button type="button" id="btn-open-cancel-subscription-modal" class="account-link-btn">Cancelar suscripción</button>`
-    : `<button type="button" id="btn-reactivate-subscription" class="account-link-btn">Reactivar suscripción</button>`;
+    : `<button type="button" id="btn-reactivate-subscription" class="account-link-btn">Reactivar suscripción</button>
+      <p id="reactivate-subscription-error" class="hidden modal-inline-error" role="alert"></p>`;
 
   const history = profile.paymentHistory || [];
   const historyHtml = history.length ? `
@@ -610,6 +611,13 @@ function showCancelSubscriptionError(message) {
   el.classList.remove('hidden');
 }
 
+function showReactivateSubscriptionError(message) {
+  const el = document.getElementById('reactivate-subscription-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
 export async function submitCancelSubscription() {
   const token = await getIdToken();
   const res = await fetch('/api/me/membership/cancel', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
@@ -624,7 +632,10 @@ export async function submitCancelSubscription() {
 export async function submitReactivateSubscription() {
   const token = await getIdToken();
   const res = await fetch('/api/me/membership/reactivate', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error('reactivate_failed');
+  if (!res.ok) {
+    showReactivateSubscriptionError('No se pudo reactivar tu suscripción. Intenta de nuevo.');
+    throw new Error('reactivate_failed');
+  }
   await syncUserProfile();
   renderAccountHub();
 }
