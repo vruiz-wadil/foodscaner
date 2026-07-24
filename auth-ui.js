@@ -8,6 +8,13 @@ import {
 } from './firebase-init.js';
 import { setAutoSyncSuppressed } from './authClient.js';
 import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
+import { mapAuthError } from './authErrors.js';
+
+// Re-exportado para no romper a quien ya hacía
+// `import { mapAuthError } from './auth-ui.js'` (ej. tests/auth-ui.test.js) —
+// el mapeo real ahora vive en authErrors.js, un módulo sin efectos
+// secundarios (ver comentario junto a setAutoSyncSuppressed más abajo).
+export { mapAuthError };
 
 // hallazgo de revisión del plan: auth-ui.js NUNCA había importado
 // authClient.js antes de este cambio — el simple hecho de importarlo activa
@@ -25,33 +32,6 @@ setAutoSyncSuppressed(true);
 
 const googleProvider = new GoogleAuthProvider();
 const TERMS_VERSION = 'v1';
-
-// wrong-password/user-not-found/invalid-credential mapean al MISMO mensaje
-// genérico (hallazgo de seguridad: mensajes distintos permiten enumerar si un
-// correo está registrado). Se agregan los códigos que un usuario real en
-// México dispara seguido (hallazgo UX): too-many-requests, network failures,
-// popup bloqueado, y el caso de mezclar Google/password en la misma cuenta.
-const AUTH_ERROR_MESSAGES = {
-  'auth/invalid-email': 'Correo inválido.',
-  'auth/user-not-found': 'Correo o contraseña incorrectos.',
-  'auth/wrong-password': 'Correo o contraseña incorrectos.',
-  'auth/invalid-credential': 'Correo o contraseña incorrectos.',
-  'auth/email-already-in-use': 'Ya existe una cuenta con ese correo.',
-  'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
-  'auth/popup-closed-by-user': 'Se cerró la ventana de Google antes de terminar.',
-  'auth/popup-blocked': 'Tu navegador bloqueó la ventana de Google. Habilítala e inténtalo de nuevo.',
-  'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.',
-  'auth/network-request-failed': 'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.',
-  'auth/account-exists-with-different-credential': 'Ya tienes una cuenta con ese correo usando otro método de acceso (ej. Google). Usa ese método para entrar.',
-  'invalid_phone': 'Número de teléfono inválido.',
-  'send_failed': 'No se pudo enviar el código. Intenta más tarde.',
-  'invalid_code': 'Código incorrecto o expirado.',
-  'verify_failed': 'Ocurrió un error al verificar tu código. Intenta de nuevo.'
-};
-
-export function mapAuthError(code) {
-  return AUTH_ERROR_MESSAGES[code] || 'Ocurrió un error. Intenta de nuevo.';
-}
 
 function showError(message) {
   const el = document.getElementById('auth-error');
