@@ -104,19 +104,21 @@ export function renderAccountHub() {
           `}
           <p id="edit-phone-error" class="hidden" role="alert"></p>
         </form>
-        <form id="form-edit-email">
-          <div class="form-field">
-            <label for="input-edit-email">Correo nuevo</label>
-            <input id="input-edit-email" class="form-input" type="email" placeholder="${profile.email || ''}">
-          </div>
-          <div class="form-field">
-            <label for="input-email-current-password">Confirma tu contraseña actual</label>
-            <input id="input-email-current-password" class="form-input" type="password">
-          </div>
-          <button type="submit" class="btn btn-primary">Guardar correo</button>
-          <p id="edit-email-error" class="hidden" role="alert"></p>
-          <p id="edit-email-success" class="hidden" role="status"></p>
-        </form>
+        ${hasPasswordProvider() ? `
+          <form id="form-edit-email">
+            <div class="form-field">
+              <label for="input-edit-email">Correo nuevo</label>
+              <input id="input-edit-email" class="form-input" type="email" placeholder="${profile.email || ''}">
+            </div>
+            <div class="form-field">
+              <label for="input-email-current-password">Confirma tu contraseña actual</label>
+              <input id="input-email-current-password" class="form-input" type="password">
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar correo</button>
+            <p id="edit-email-error" class="hidden" role="alert"></p>
+            <p id="edit-email-success" class="hidden" role="status"></p>
+          </form>
+        ` : ''}
         ${hasPasswordProvider() ? `
           <form id="form-edit-password">
             <div class="form-field">

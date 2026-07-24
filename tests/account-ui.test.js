@@ -318,6 +318,7 @@ describe('sub-form Teléfono — cuenta SIN email (phone-login, requiere SMS)', 
 describe('sub-form Correo', () => {
   it('renderiza el input de correo nuevo + input de contraseña actual para reautenticar', () => {
     getCachedProfile.mockReturnValue({ email: 'old@example.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'old@example.com', providerData: [{ providerId: 'password' }] }
     renderAccountHub()
     expect(document.getElementById('input-edit-email')).toBeTruthy()
     expect(document.getElementById('input-email-current-password')).toBeTruthy()
@@ -325,8 +326,8 @@ describe('sub-form Correo', () => {
 
   it('submitEmailEdit reautentica y llama verifyBeforeUpdateEmail, muestra el mensaje de "revisa tu correo"', async () => {
     getCachedProfile.mockReturnValue({ email: 'old@example.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'old@example.com', providerData: [{ providerId: 'password' }] }
     renderAccountHub()
-    mockAuth.currentUser = { email: 'old@example.com' }
     reauthenticateWithCredential.mockResolvedValue({})
     verifyBeforeUpdateEmail.mockResolvedValue(undefined)
     document.getElementById('input-edit-email').value = 'new@example.com'
@@ -343,8 +344,8 @@ describe('sub-form Correo', () => {
 
   it('submitEmailEdit muestra error de contraseña incorrecta sin llamar verifyBeforeUpdateEmail', async () => {
     getCachedProfile.mockReturnValue({ email: 'old@example.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'old@example.com', providerData: [{ providerId: 'password' }] }
     renderAccountHub()
-    mockAuth.currentUser = { email: 'old@example.com' }
     reauthenticateWithCredential.mockRejectedValue({ code: 'auth/wrong-password' })
     document.getElementById('input-edit-email').value = 'new@example.com'
     document.getElementById('input-email-current-password').value = 'wrong'
@@ -354,6 +355,13 @@ describe('sub-form Correo', () => {
     expect(verifyBeforeUpdateEmail).not.toHaveBeenCalled()
     const errorEl = document.getElementById('edit-email-error')
     expect(errorEl.classList.contains('hidden')).toBe(false)
+  })
+
+  it('NO se renderiza para una cuenta sin provider password (Google o phone-login)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'google.com' }] }
+    renderAccountHub()
+    expect(document.getElementById('form-edit-email')).toBeNull()
   })
 })
 
