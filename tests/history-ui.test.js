@@ -74,7 +74,7 @@ describe('renderHistoryScreen — botón de compartir (usuario free, historial l
     const shareBtn = root.querySelector('.row-card .share-btn')
     expect(shareBtn).toBeTruthy()
     shareBtn.click()
-    expect(window.shareResult).toHaveBeenCalledWith({ name: 'Producto A', verdict: 'sano' }, shareBtn)
+    expect(window.shareResult).toHaveBeenCalledWith({ name: 'Producto A', verdict: 'sano', barcode: '111' }, shareBtn)
   })
 })
 
@@ -95,6 +95,6 @@ describe('renderHistoryScreen — botón de compartir (usuario premium, historia
     const shareBtn = root.querySelector('.row-card .share-btn')
     expect(shareBtn).toBeTruthy()
     shareBtn.click()
-    expect(window.shareResult).toHaveBeenCalledWith({ name: 'Producto A', verdict: 'sano' }, shareBtn)
+    expect(window.shareResult).toHaveBeenCalledWith({ name: 'Producto A', verdict: 'sano', barcode: '111' }, shareBtn)
   })
 })

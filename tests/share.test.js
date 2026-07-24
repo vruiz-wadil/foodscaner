@@ -32,19 +32,30 @@ describe('buildShareText', () => {
 })
 
 describe('shareResult — navigator.share available', () => {
-  it('calls navigator.share with title/text/url and never touches the clipboard', async () => {
+  it('calls navigator.share with title/text/url apuntando al producto (barcode), nunca al home', async () => {
     const share = vi.fn().mockResolvedValue(undefined)
     const writeText = vi.fn()
     vi.stubGlobal('navigator', { share, clipboard: { writeText } })
 
-    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar' })
+    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })
 
     expect(share).toHaveBeenCalledWith({
       title: 'Yomi',
       text: 'Gamesa Emperador: EVITAR — descúbrelo tú con Yomi',
-      url: 'https://yomi.mx/?utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result'
+      url: 'https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result'
     })
     expect(writeText).not.toHaveBeenCalled()
+  })
+
+  it('cae al home (sin barcode) solo si algún caller futuro no lo manda — caso defensivo, no debería pasar en producción', async () => {
+    const share = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { share, clipboard: { writeText: vi.fn() } })
+
+    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar' })
+
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'https://yomi.mx/?utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result'
+    }))
   })
 
   it('does nothing (no clipboard fallback, no error) when the user cancels the native share sheet', async () => {
@@ -54,7 +65,7 @@ describe('shareResult — navigator.share available', () => {
     const writeText = vi.fn()
     vi.stubGlobal('navigator', { share, clipboard: { writeText } })
 
-    await expect(shareResult({ name: 'Gamesa Emperador', verdict: 'evitar' })).resolves.toBeUndefined()
+    await expect(shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })).resolves.toBeUndefined()
     expect(writeText).not.toHaveBeenCalled()
   })
 
@@ -63,20 +74,29 @@ describe('shareResult — navigator.share available', () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { share, clipboard: { writeText } })
 
-    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar' })
+    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })
 
-    expect(writeText).toHaveBeenCalledWith('Gamesa Emperador: EVITAR — descúbrelo tú con Yomi https://yomi.mx/?utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
+    expect(writeText).toHaveBeenCalledWith('Gamesa Emperador: EVITAR — descúbrelo tú con Yomi https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
   })
 })
 
 describe('shareResult — no navigator.share (Firefox desktop, old Chrome desktop)', () => {
-  it('goes straight to clipboard', async () => {
+  it('goes straight to clipboard con el link del producto', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { clipboard: { writeText } })
 
-    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar' })
+    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })
 
-    expect(writeText).toHaveBeenCalledWith('Gamesa Emperador: EVITAR — descúbrelo tú con Yomi https://yomi.mx/?utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
+    expect(writeText).toHaveBeenCalledWith('Gamesa Emperador: EVITAR — descúbrelo tú con Yomi https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
+  })
+
+  it('escapa el barcode al construir la URL (caracteres especiales no rompen el query string)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    await shareResult({ name: 'Producto', verdict: 'sano', barcode: '750 100&067' })
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('barcode=750%20100%26067'))
   })
 
   it('updates the trigger button text to "Copiado" and reverts it after 2s', async () => {
@@ -86,7 +106,7 @@ describe('shareResult — no navigator.share (Firefox desktop, old Chrome deskto
     const button = document.createElement('button')
     button.textContent = 'Compartir'
 
-    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar' }, button)
+    await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' }, button)
 
     expect(button.textContent).toBe('Copiado')
     vi.advanceTimersByTime(2000)
@@ -98,7 +118,7 @@ describe('shareResult — no navigator.share (Firefox desktop, old Chrome deskto
     vi.stubGlobal('navigator', {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    await expect(shareResult({ name: 'Gamesa Emperador', verdict: 'evitar' })).resolves.toBeUndefined()
+    await expect(shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })).resolves.toBeUndefined()
     expect(warnSpy).toHaveBeenCalled()
     warnSpy.mockRestore()
   })

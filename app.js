@@ -1840,7 +1840,7 @@ function renderProductData(product, barcode) {
   }
   const btnShareResult = document.getElementById('btn-share-result');
   if (btnShareResult) {
-    btnShareResult.onclick = () => window.shareResult({ name: product.name, verdict }, btnShareResult);
+    btnShareResult.onclick = () => window.shareResult({ name: product.name, verdict, barcode }, btnShareResult);
   }
   cardAllergens.classList.add("hidden");
   analysisGrid.classList.add("hidden");
