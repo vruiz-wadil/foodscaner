@@ -99,6 +99,61 @@ function renderEmailRow(profile) {
   `;
 }
 
+function formatMembershipDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function renderSubscriptionBlock(profile) {
+  const autoRenew = profile.autoRenew !== false;
+  const expiresLabel = formatMembershipDate(profile.membershipExpiresAt);
+  const statusLine = autoRenew
+    ? `Se renovará automáticamente el ${expiresLabel}.`
+    : `Vence el ${expiresLabel} — no se renovará.`;
+  const actionBtn = autoRenew
+    ? `<button type="button" id="btn-open-cancel-subscription-modal" class="account-link-btn">Cancelar suscripción</button>`
+    : `<button type="button" id="btn-reactivate-subscription" class="account-link-btn">Reactivar suscripción</button>`;
+
+  const history = profile.paymentHistory || [];
+  const historyHtml = history.length ? `
+    <div class="account-payment-history">
+      <div class="account-data-label">Historial de pagos</div>
+      ${history.slice().reverse().map(p => `
+        <div class="account-payment-row">
+          <span>${formatMembershipDate(p.date)}</span>
+          <span>$${Number(p.amount).toFixed(2)} (${escapeHtml(p.method)})</span>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="account-subscription-block" data-row="subscription">
+      <div class="account-data-label">Suscripción</div>
+      <div class="account-subscription-status">${statusLine}</div>
+      ${actionBtn}
+    </div>
+    ${historyHtml}
+  `;
+}
+
+function openCancelSubscriptionModal(profile) {
+  const expiresLabel = formatMembershipDate(profile.membershipExpiresAt);
+  openModal(`
+    <div class="modal-header"><h2>¿Cancelar tu suscripción?</h2><button type="button" class="modal-close" aria-label="Cerrar">×</button></div>
+    <p class="about-text">Conservas acceso completo hasta el ${expiresLabel}. Después de esa fecha no se te volverá a cobrar y tu cuenta pasará a inactiva.</p>
+    <div class="modal-actions">
+      <button type="button" id="btn-cancel-subscription-back" class="btn btn-secondary">Volver</button>
+      <button type="button" id="btn-cancel-subscription-confirm" class="btn btn-primary">Sí, cancelar</button>
+    </div>
+    <p id="cancel-subscription-error" class="hidden modal-inline-error" role="alert"></p>
+  `);
+  document.getElementById('btn-cancel-subscription-back')?.addEventListener('click', closeModal);
+  document.getElementById('btn-cancel-subscription-confirm')?.addEventListener('click', () => {
+    submitCancelSubscription().then(() => closeModal()).catch(() => {});
+  });
+}
+
 export function renderAccountHub() {
   const profile = getCachedProfile();
   const root = document.getElementById('account-root');
@@ -144,6 +199,7 @@ export function renderAccountHub() {
         ${summaryHtml}
         <a href="preferences.html" class="btn btn-secondary">Editar preferencias</a>
       </div>
+      ${isActive ? renderSubscriptionBlock(profile) : ''}
       ${!isActive ? `
         <div class="row-card account-renew">
           <div class="icon-wrap" style="background:rgba(245,166,35,0.15);">🔔</div>
@@ -207,6 +263,12 @@ function wireAccountHubEvents(profile) {
   });
   document.getElementById('btn-open-password-modal')?.addEventListener('click', () => {
     openPasswordModal();
+  });
+  document.getElementById('btn-open-cancel-subscription-modal')?.addEventListener('click', () => {
+    openCancelSubscriptionModal(profile);
+  });
+  document.getElementById('btn-reactivate-subscription')?.addEventListener('click', () => {
+    submitReactivateSubscription().catch(() => {});
   });
 }
 
@@ -539,6 +601,32 @@ export async function submitPasswordEdit() {
     showPasswordError(mapAuthError(err.code));
     throw err;
   }
+}
+
+function showCancelSubscriptionError(message) {
+  const el = document.getElementById('cancel-subscription-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+export async function submitCancelSubscription() {
+  const token = await getIdToken();
+  const res = await fetch('/api/me/membership/cancel', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    showCancelSubscriptionError('No se pudo cancelar tu suscripción. Intenta de nuevo.');
+    throw new Error('cancel_failed');
+  }
+  await syncUserProfile();
+  renderAccountHub();
+}
+
+export async function submitReactivateSubscription() {
+  const token = await getIdToken();
+  const res = await fetch('/api/me/membership/reactivate', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('reactivate_failed');
+  await syncUserProfile();
+  renderAccountHub();
 }
 
 export async function handleLogout() {

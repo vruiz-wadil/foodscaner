@@ -828,3 +828,23 @@ body:has(.app-main.content-page) {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* Bloque "Suscripción" en Mi cuenta (solo membershipStatus:'active') —
+   estilo Netflix: ver si se renovará/cuándo vence, cancelar (conserva
+   acceso hasta el vencimiento) o reactivar, e historial de pagos. */
+.account-subscription-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.account-subscription-status { font-size: 0.88rem; color: var(--ink-2); margin: 4px 0 8px; }
+
+.account-payment-history { padding: 10px 0 4px; }
+.account-payment-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.account-payment-row:first-child { border-top: none; }

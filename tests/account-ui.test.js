@@ -20,6 +20,7 @@ vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdTok
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
 let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit, submitPasswordEdit
+let submitCancelSubscription, submitReactivateSubscription
 let originalLocation
 
 beforeEach(async () => {
@@ -40,6 +41,8 @@ beforeEach(async () => {
   submitPhoneChangeConfirm = mod.submitPhoneChangeConfirm
   submitEmailEdit = mod.submitEmailEdit
   submitPasswordEdit = mod.submitPasswordEdit
+  submitCancelSubscription = mod.submitCancelSubscription
+  submitReactivateSubscription = mod.submitReactivateSubscription
 })
 
 afterEach(() => {
@@ -470,5 +473,86 @@ describe('Contraseña — modal', () => {
     await expect(submitPasswordEdit()).rejects.toBeTruthy()
 
     expect(updatePassword).not.toHaveBeenCalled()
+  })
+})
+
+describe('bloque Suscripción (membresía activa)', () => {
+  it('muestra "se renovará" y botón Cancelar cuando autoRenew !== false', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z', autoRenew: true })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.textContent).toMatch(/Se renovará automáticamente/)
+    expect(document.getElementById('btn-open-cancel-subscription-modal')).toBeTruthy()
+    expect(document.getElementById('btn-reactivate-subscription')).toBeNull()
+  })
+
+  it('trata autoRenew ausente como true (cuentas activas de antes de este cambio)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z' })
+    renderAccountHub()
+    expect(document.getElementById('btn-open-cancel-subscription-modal')).toBeTruthy()
+  })
+
+  it('muestra "vence" y botón Reactivar cuando autoRenew === false', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z', autoRenew: false })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.textContent).toMatch(/no se renovará/)
+    expect(document.getElementById('btn-reactivate-subscription')).toBeTruthy()
+    expect(document.getElementById('btn-open-cancel-subscription-modal')).toBeNull()
+  })
+
+  it('no se muestra para membresías pending/expired', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    renderAccountHub()
+    expect(document.querySelector('[data-row="subscription"]')).toBeNull()
+  })
+
+  it('muestra el historial de pagos, más reciente primero', () => {
+    getCachedProfile.mockReturnValue({
+      email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z', autoRenew: true,
+      paymentHistory: [
+        { date: '2026-06-22T12:00:00.000Z', amount: 0, method: 'simulado' },
+        { date: '2026-07-22T12:00:00.000Z', amount: 0, method: 'simulado' }
+      ]
+    })
+    renderAccountHub()
+    const rows = Array.from(document.querySelectorAll('.account-payment-row')).map(r => r.textContent)
+    expect(rows[0]).toMatch(/22 jul 2026/)
+    expect(rows[1]).toMatch(/22 jun 2026/)
+  })
+
+  it('click en "Cancelar suscripción" abre el modal de confirmación', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z', autoRenew: true })
+    renderAccountHub()
+    document.getElementById('btn-open-cancel-subscription-modal').click()
+    expect(document.getElementById('btn-cancel-subscription-confirm')).toBeTruthy()
+  })
+
+  it('submitCancelSubscription llama POST /api/me/membership/cancel y re-sincroniza', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z', autoRenew: true })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+
+    await submitCancelSubscription()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/me/membership/cancel')
+    expect(options.method).toBe('POST')
+    expect(syncUserProfile).toHaveBeenCalled()
+  })
+
+  it('submitReactivateSubscription llama POST /api/me/membership/reactivate y re-sincroniza', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', membershipExpiresAt: '2026-08-21T12:00:00.000Z', autoRenew: false })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+
+    await submitReactivateSubscription()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/me/membership/reactivate')
+    expect(options.method).toBe('POST')
+    expect(syncUserProfile).toHaveBeenCalled()
   })
 })

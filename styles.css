@@ -1923,6 +1923,7 @@ body {
 .reg-fields input:focus { border-color: var(--ink); }
 
 .ocr-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 /* OCR modal primary/secondary buttons (different context from .btn) */
 .ocr-actions .btn-primary,
