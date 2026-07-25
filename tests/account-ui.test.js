@@ -12,15 +12,16 @@ const getIdToken = vi.fn()
 const reauthenticateWithCredential = vi.fn()
 const verifyBeforeUpdateEmail = vi.fn()
 const updatePassword = vi.fn()
+const sendEmailVerification = vi.fn()
 class EmailAuthProvider {
   static credential(email, password) { return { email, password } }
 }
-vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider }))
+vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider, sendEmailVerification }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdToken }))
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
 let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit, submitPasswordEdit
-let submitCancelSubscription, submitReactivateSubscription
+let submitCancelSubscription, submitReactivateSubscription, submitResendVerification
 let originalLocation
 
 beforeEach(async () => {
@@ -43,6 +44,7 @@ beforeEach(async () => {
   submitPasswordEdit = mod.submitPasswordEdit
   submitCancelSubscription = mod.submitCancelSubscription
   submitReactivateSubscription = mod.submitReactivateSubscription
+  submitResendVerification = mod.submitResendVerification
 })
 
 afterEach(() => {
@@ -568,5 +570,41 @@ describe('bloque Suscripción (membresía activa)', () => {
     const errorEl = document.getElementById('reactivate-subscription-error')
     expect(errorEl.classList.contains('hidden')).toBe(false)
     expect(errorEl.textContent).toMatch(/No se pudo reactivar/)
+  })
+})
+
+describe('aviso de correo no verificado', () => {
+  it('se muestra cuando el provider es password y emailVerified es false', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', emailVerified: false, providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    expect(document.getElementById('btn-resend-verification')).toBeTruthy()
+  })
+
+  it('NO se muestra si el correo ya está verificado', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', emailVerified: true, providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    expect(document.getElementById('btn-resend-verification')).toBeNull()
+  })
+
+  it('NO se muestra para cuentas sin provider password (Google/teléfono)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', emailVerified: false, providerData: [{ providerId: 'google.com' }] }
+    renderAccountHub()
+    expect(document.getElementById('btn-resend-verification')).toBeNull()
+  })
+
+  it('submitResendVerification llama sendEmailVerification y muestra confirmación', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', emailVerified: false, providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    sendEmailVerification.mockResolvedValueOnce(undefined)
+
+    await submitResendVerification()
+
+    expect(sendEmailVerification).toHaveBeenCalledWith(mockAuth.currentUser)
+    const successEl = document.getElementById('resend-verification-success')
+    expect(successEl.classList.contains('hidden')).toBe(false)
   })
 })

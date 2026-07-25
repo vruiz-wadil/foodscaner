@@ -1,4 +1,4 @@
-import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider } from './firebase-init.js';
+import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider, sendEmailVerification } from './firebase-init.js';
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 import { mapAuthError } from './authErrors.js';
 
@@ -20,6 +20,21 @@ function escapeHtml(str) {
 function hasPasswordProvider() {
   const user = firebaseAuth.currentUser;
   return !!(user && Array.isArray(user.providerData) && user.providerData.some(p => p.providerId === 'password'));
+}
+
+function renderEmailVerificationBanner() {
+  const user = firebaseAuth.currentUser;
+  if (!user || user.emailVerified || !hasPasswordProvider()) return '';
+  return `
+    <div class="row-card account-renew">
+      <div class="icon-wrap" style="background:rgba(245,166,35,0.15);">✉️</div>
+      <div>
+        <p class="about-text">Tu correo no está verificado.</p>
+        <button type="button" id="btn-resend-verification" class="btn btn-secondary">Reenviar correo de verificación</button>
+        <p id="resend-verification-success" class="hidden" role="status"></p>
+      </div>
+    </div>
+  `;
 }
 
 // Solo una fila (nombre o teléfono-con-email) puede estar en edición inline
@@ -192,6 +207,7 @@ export function renderAccountHub() {
           <span class="account-plan-badge account-plan-${status}">${BADGE_LABEL[status] || 'Pendiente'}</span>
         </div>
       </div>
+      ${renderEmailVerificationBanner()}
       <div class="stat-row">
         <div class="stat-tile"><div class="stat-num">${totalScans}</div><div class="stat-label">Escaneos</div></div>
         <div class="stat-tile"><div class="stat-num">${alertsActive}</div><div class="stat-label">Alertas activas</div></div>
@@ -228,6 +244,9 @@ export function renderAccountHub() {
 
 function wireAccountHubEvents(profile) {
   document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
+  document.getElementById('btn-resend-verification')?.addEventListener('click', () => {
+    submitResendVerification().catch(() => {});
+  });
   document.getElementById('btn-renew-membership')?.addEventListener('click', () => {
     handleRenewMembership().catch(() => {});
   });
@@ -638,6 +657,19 @@ export async function submitReactivateSubscription() {
   }
   await syncUserProfile();
   renderAccountHub();
+}
+
+export async function submitResendVerification() {
+  const btn = document.getElementById('btn-resend-verification');
+  const originalText = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  try {
+    await sendEmailVerification(firebaseAuth.currentUser);
+    const successEl = document.getElementById('resend-verification-success');
+    if (successEl) { successEl.textContent = 'Correo de verificación enviado.'; successEl.classList.remove('hidden'); }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+  }
 }
 
 export async function handleLogout() {
