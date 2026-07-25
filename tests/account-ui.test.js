@@ -607,4 +607,19 @@ describe('aviso de correo no verificado', () => {
     const successEl = document.getElementById('resend-verification-success')
     expect(successEl.classList.contains('hidden')).toBe(false)
   })
+
+  it('submitResendVerification muestra error, mantiene el botón visible para reintentar', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', emailVerified: false, providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    sendEmailVerification.mockRejectedValueOnce(new Error('send_failed'))
+
+    await expect(submitResendVerification()).rejects.toThrow()
+
+    const errorEl = document.getElementById('resend-verification-error')
+    expect(errorEl.classList.contains('hidden')).toBe(false)
+    expect(errorEl.textContent).toMatch(/No se pudo reenviar/)
+    const successEl = document.getElementById('resend-verification-success')
+    expect(successEl.classList.contains('hidden')).toBe(true)
+  })
 })

@@ -32,6 +32,7 @@ function renderEmailVerificationBanner() {
         <p class="about-text">Tu correo no está verificado.</p>
         <button type="button" id="btn-resend-verification" class="btn btn-secondary">Reenviar correo de verificación</button>
         <p id="resend-verification-success" class="hidden" role="status"></p>
+        <p id="resend-verification-error" class="hidden modal-inline-error" role="alert"></p>
       </div>
     </div>
   `;
@@ -637,6 +638,13 @@ function showReactivateSubscriptionError(message) {
   el.classList.remove('hidden');
 }
 
+function showResendVerificationError(message) {
+  const el = document.getElementById('resend-verification-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
 export async function submitCancelSubscription() {
   const token = await getIdToken();
   const res = await fetch('/api/me/membership/cancel', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
@@ -667,6 +675,9 @@ export async function submitResendVerification() {
     await sendEmailVerification(firebaseAuth.currentUser);
     const successEl = document.getElementById('resend-verification-success');
     if (successEl) { successEl.textContent = 'Correo de verificación enviado.'; successEl.classList.remove('hidden'); }
+  } catch (err) {
+    showResendVerificationError('No se pudo reenviar el correo de verificación. Intenta de nuevo.');
+    throw err;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = originalText; }
   }
