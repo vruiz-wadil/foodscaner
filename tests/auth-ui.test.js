@@ -8,6 +8,8 @@ const signInWithEmailAndPassword = vi.fn()
 const createUserWithEmailAndPassword = vi.fn()
 const signInWithPopup = vi.fn()
 const signInWithCustomToken = vi.fn()
+const sendEmailVerification = vi.fn()
+const sendPasswordResetEmail = vi.fn()
 class GoogleAuthProvider {}
 
 vi.mock('../firebase-init.js', () => ({
@@ -16,7 +18,9 @@ vi.mock('../firebase-init.js', () => ({
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  signInWithCustomToken
+  signInWithCustomToken,
+  sendEmailVerification,
+  sendPasswordResetEmail
 }))
 
 const setAutoSyncSuppressed = vi.fn()
@@ -27,7 +31,7 @@ vi.mock('../country-codes.js', () => ({
   flagEmoji: () => '🏳️'
 }))
 
-let mapAuthError, handleLogin, handleSignup, handleGoogleSignIn, handleSendCode, handleVerifyCode, handlePhoneSignupConsent, setView
+let mapAuthError, handleLogin, handleSignup, handleGoogleSignIn, handleSendCode, handleVerifyCode, handlePhoneSignupConsent, setView, handleForgotPassword
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -43,9 +47,10 @@ beforeEach(async () => {
         <input id="login-email" type="email" required>
         <input id="login-password" type="password" required minlength="6">
         <button type="button" id="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
-        <button type="submit" id="btn-login">Iniciar sesión</button>
-        <button type="button" id="btn-back-to-login" class="hidden">¿Ya tienes cuenta? Inicia sesión</button>
-        <button type="button" id="btn-signup">Crear cuenta</button>
+        <button type="button" id="btn-forgot-password">¿Olvidaste tu contraseña?</button>
+        <div class="hidden" id="signup-password-confirm-field">
+          <input id="signup-password-confirm" type="password">
+        </div>
       </form>
     </div>
     <div id="phone-step" class="hidden">
@@ -60,10 +65,21 @@ beforeEach(async () => {
       <button type="button" id="btn-resend-code">Reenviar código</button>
       <button type="button" id="btn-phone-code-back">Cambiar número</button>
     </div>
+    <div id="forgot-password-view" class="hidden">
+      <input id="forgot-password-email" type="email">
+      <button type="button" id="btn-send-reset">Enviar enlace</button>
+      <button type="button" id="btn-forgot-password-back">Volver a iniciar sesión</button>
+      <p id="forgot-password-success" class="hidden" role="status"></p>
+    </div>
     <div id="signup-only" class="hidden">
       <input type="checkbox" id="terms-checkbox">
       <input type="checkbox" id="age-checkbox">
       <button type="button" id="btn-phone-consent-confirm" class="hidden">Confirmar y continuar</button>
+    </div>
+    <div id="login-actions">
+      <button type="submit" form="login-form" id="btn-login">Iniciar sesión</button>
+      <button type="button" id="btn-back-to-login" class="hidden">¿Ya tienes cuenta? Inicia sesión</button>
+      <button type="button" id="btn-signup">Crear cuenta</button>
     </div>
     <p id="auth-error" class="hidden" role="alert"></p>
   `
@@ -76,6 +92,7 @@ beforeEach(async () => {
   handleVerifyCode = mod.handleVerifyCode
   handlePhoneSignupConsent = mod.handlePhoneSignupConsent
   setView = mod.setView
+  handleForgotPassword = mod.handleForgotPassword
 })
 
 describe('mapAuthError', () => {
@@ -149,8 +166,9 @@ describe('handleSignup', () => {
     document.getElementById('age-checkbox').checked = true
     const getIdToken = vi.fn().mockResolvedValue('tok-new')
     createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'abc', getIdToken } })
+    sendEmailVerification.mockResolvedValueOnce(undefined)
 
-    await handleSignup('new@example.com', 'secret123')
+    await handleSignup('new@example.com', 'secret123', 'secret123')
 
     expect(createUserWithEmailAndPassword).toHaveBeenCalledWith(mockAuth, 'new@example.com', 'secret123')
     expect(global.fetch).toHaveBeenCalledWith('/api/auth/sync', {
@@ -497,5 +515,100 @@ describe('handlePhoneSignupConsent — manejo de errores (hallazgo de revisión:
     await expect(handlePhoneSignupConsent()).resolves.toBeUndefined()
 
     expect(document.getElementById('auth-error').textContent).toBe('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.')
+  })
+})
+
+describe('handleSignup — confirmar contraseña y verificación de correo', () => {
+  it('rechaza si las contraseñas no coinciden, sin llamar a Firebase', async () => {
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+
+    await expect(handleSignup('new@example.com', 'secret123', 'different')).rejects.toThrow(/no coinciden/i)
+
+    expect(createUserWithEmailAndPassword).not.toHaveBeenCalled()
+  })
+
+  it('llama sendEmailVerification con el usuario recién creado', async () => {
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    const getIdToken = vi.fn().mockResolvedValue('tok-new')
+    const newUser = { uid: 'abc', getIdToken }
+    createUserWithEmailAndPassword.mockResolvedValueOnce({ user: newUser })
+    sendEmailVerification.mockResolvedValueOnce(undefined)
+
+    await handleSignup('new@example.com', 'secret123', 'secret123')
+
+    expect(sendEmailVerification).toHaveBeenCalledWith(newUser)
+  })
+
+  it('no bloquea el registro si sendEmailVerification falla (best-effort)', async () => {
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    const getIdToken = vi.fn().mockResolvedValue('tok-new')
+    createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'abc', getIdToken } })
+    sendEmailVerification.mockRejectedValueOnce(new Error('quota exceeded'))
+
+    await expect(handleSignup('new@example.com', 'secret123', 'secret123')).resolves.toBeTruthy()
+  })
+})
+
+describe('setView — forgot-password', () => {
+  it('shows only #forgot-password-view for "forgot-password"', () => {
+    setView('forgot-password')
+    expect(document.getElementById('login-view').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('login-actions').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('forgot-password-view').classList.contains('hidden')).toBe(false)
+  })
+
+  it('hides #login-actions alongside #login-view for "phone-number"', () => {
+    setView('phone-number')
+    expect(document.getElementById('login-actions').classList.contains('hidden')).toBe(true)
+  })
+})
+
+describe('handleForgotPassword', () => {
+  it('llama sendPasswordResetEmail y muestra el mensaje de éxito', async () => {
+    sendPasswordResetEmail.mockResolvedValueOnce(undefined)
+
+    await handleForgotPassword('user@example.com')
+
+    expect(sendPasswordResetEmail).toHaveBeenCalledWith(mockAuth, 'user@example.com')
+    const successEl = document.getElementById('forgot-password-success')
+    expect(successEl.classList.contains('hidden')).toBe(false)
+    expect(successEl.textContent).toMatch(/enlace para restablecer/)
+  })
+
+  it('muestra el MISMO mensaje de éxito incluso si sendPasswordResetEmail falla (no revela si el correo existe)', async () => {
+    sendPasswordResetEmail.mockRejectedValueOnce({ code: 'auth/user-not-found' })
+
+    await handleForgotPassword('noexiste@example.com')
+
+    const successEl = document.getElementById('forgot-password-success')
+    expect(successEl.classList.contains('hidden')).toBe(false)
+    expect(successEl.textContent).toMatch(/enlace para restablecer/)
+  })
+})
+
+describe('wiring — forgot-password link y signup-mode (DOMContentLoaded)', () => {
+  beforeEach(() => {
+    document.dispatchEvent(new Event('DOMContentLoaded'))
+  })
+
+  it('#btn-forgot-password cambia a la vista forgot-password', () => {
+    document.getElementById('btn-forgot-password').click()
+    expect(document.getElementById('forgot-password-view').classList.contains('hidden')).toBe(false)
+  })
+
+  it('entrar en modo signup revela el campo de confirmar contraseña y oculta el link de recuperar', () => {
+    document.getElementById('btn-signup').click()
+    expect(document.getElementById('signup-password-confirm-field').classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('btn-forgot-password').classList.contains('hidden')).toBe(true)
+  })
+
+  it('volver a modo login oculta de nuevo el campo de confirmar contraseña y muestra el link de recuperar', () => {
+    document.getElementById('btn-signup').click()
+    document.getElementById('btn-back-to-login').click()
+    expect(document.getElementById('signup-password-confirm-field').classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('btn-forgot-password').classList.contains('hidden')).toBe(false)
   })
 })

@@ -23,7 +23,6 @@
     .password-field-wrap { position: relative; }
     .btn-toggle-password { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 13px; }
     .consent-block { display: block; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; background: #fafafa; }
-    .link-button { background: none; border: none; color: var(--ink, #0d3d35); text-decoration: underline; font-size: 0.85rem; padding: 8px 0; cursor: pointer; }
     #login-form .btn { margin-top: 10px; }
     .btn-icon { width: 18px; height: 18px; flex-shrink: 0; }
   </style>
@@ -59,9 +58,12 @@
               </div>
             </div>
 
-            <button type="submit" id="btn-login" class="btn btn-primary">Iniciar sesión</button>
-            <button type="button" id="btn-back-to-login" class="link-button hidden">¿Ya tienes cuenta? Inicia sesión</button>
-            <button type="button" id="btn-signup" class="btn btn-secondary">Crear cuenta nueva</button>
+            <button type="button" id="btn-forgot-password" class="link-button">¿Olvidaste tu contraseña?</button>
+
+            <div class="form-field hidden" id="signup-password-confirm-field">
+              <label for="signup-password-confirm">Confirmar contraseña</label>
+              <input id="signup-password-confirm" class="form-input" type="password" minlength="6" autocomplete="new-password" placeholder="Repite tu contraseña">
+            </div>
           </form>
         </div>
 
@@ -88,6 +90,16 @@
           <button type="button" id="btn-phone-code-back" class="link-button">Cambiar número</button>
         </div>
 
+        <div id="forgot-password-view" class="hidden">
+          <div class="form-field">
+            <label for="forgot-password-email">Correo electrónico</label>
+            <input id="forgot-password-email" class="form-input" type="email" placeholder="tucorreo@ejemplo.com">
+          </div>
+          <button type="button" id="btn-send-reset" class="btn btn-primary">Enviar enlace</button>
+          <button type="button" id="btn-forgot-password-back" class="link-button">Volver a iniciar sesión</button>
+          <p id="forgot-password-success" class="hidden" role="status"></p>
+        </div>
+
         <!-- Compartido entre signup por correo (2do clic de #btn-signup) y
              signup por teléfono (#btn-phone-consent-confirm) — mismo gate legal,
              sin duplicar markup. Ver setView() en auth-ui.js. -->
@@ -102,6 +114,19 @@
             Confirmo que soy mayor de 18 años.
           </label>
           <button type="button" id="btn-phone-consent-confirm" class="btn btn-primary hidden">Confirmar y continuar</button>
+        </div>
+
+        <!-- Hermano de #login-view (no anidado en <form>) a propósito: durante
+             el consentimiento de teléfono, #login-view completo está oculto,
+             y estos botones no aplican a esa pantalla. btn-login usa form=
+             para seguir enviando #login-form nativamente pese a vivir fuera
+             de la etiqueta <form> (hallazgo UX: antes #signup-only aparecía
+             DESPUÉS de este bloque de botones — el botón de confirmar se veía
+             antes que los checkboxes de Términos). -->
+        <div id="login-actions">
+          <button type="submit" form="login-form" id="btn-login" class="btn btn-primary">Iniciar sesión</button>
+          <button type="button" id="btn-back-to-login" class="link-button hidden">¿Ya tienes cuenta? Inicia sesión</button>
+          <button type="button" id="btn-signup" class="btn btn-secondary">Crear cuenta nueva</button>
         </div>
 
         <p id="auth-error" class="hidden" role="alert"></p>

@@ -4,7 +4,9 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  signInWithCustomToken
+  signInWithCustomToken,
+  sendEmailVerification,
+  sendPasswordResetEmail
 } from './firebase-init.js';
 import { setAutoSyncSuppressed } from './authClient.js';
 import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
@@ -63,14 +65,16 @@ async function withLoadingState(button, loadingText, fn) {
 let pendingPhone = null;
 let isSignupMode = false; // movido aquí desde dentro de DOMContentLoaded — ver nota arriba
 
-const VIEWS = ['login', 'phone-number', 'phone-code', 'phone-consent'];
+const VIEWS = ['login', 'phone-number', 'phone-code', 'phone-consent', 'forgot-password'];
 let currentView = 'login';
 
 export function setView(view) {
   currentView = view;
   document.getElementById('login-view')?.classList.toggle('hidden', view !== 'login');
+  document.getElementById('login-actions')?.classList.toggle('hidden', view !== 'login');
   document.getElementById('phone-step')?.classList.toggle('hidden', view !== 'phone-number');
   document.getElementById('phone-code-step')?.classList.toggle('hidden', view !== 'phone-code');
+  document.getElementById('forgot-password-view')?.classList.toggle('hidden', view !== 'forgot-password');
   // signup-only es compartido: visible si estamos en consentimiento de teléfono
   // O si el signup por correo (isSignupMode, controlado por enterSignupMode/
   // exitSignupMode más abajo) ya lo mostró — ninguno de los dos caminos debe
@@ -101,7 +105,7 @@ export async function handleLogin(email, password) {
   });
 }
 
-export async function handleSignup(email, password) {
+export async function handleSignup(email, password, passwordConfirm) {
   clearError();
   // Gate de Términos/edad (hallazgo legal): no se puede crear la cuenta sin
   // esto — Yomi va a facturar suscripciones y necesita evidencia de aceptación.
@@ -117,6 +121,11 @@ export async function handleSignup(email, password) {
     showError(err.message);
     throw err;
   }
+  if (password !== passwordConfirm) {
+    const err = new Error('Las contraseñas no coinciden.');
+    showError(err.message);
+    throw err;
+  }
 
   const btn = document.getElementById('btn-signup');
   return withLoadingState(btn, 'Creando cuenta…', async () => {
@@ -128,6 +137,10 @@ export async function handleSignup(email, password) {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ termsAccepted: true, ageConfirmed: true, termsVersion: TERMS_VERSION })
       });
+      // Best-effort: un fallo al enviar el correo de verificación no debe
+      // impedir que el usuario continúe su registro — la verificación es
+      // informativa, nunca bloqueante (ver spec).
+      sendEmailVerification(result.user).catch(() => {});
       window.location.href = 'onboarding-profile.html';
       return result;
     } catch (err) {
@@ -236,6 +249,27 @@ export async function handlePhoneSignupConsent() {
   });
 }
 
+export async function handleForgotPassword(email) {
+  clearError();
+  const btn = document.getElementById('btn-send-reset');
+  return withLoadingState(btn, 'Enviando…', async () => {
+    // sendPasswordResetEmail puede fallar con auth/user-not-found — nunca se
+    // distingue ese caso del éxito real (hallazgo de seguridad: evita
+    // enumeración de cuentas, mismo principio ya aplicado en mapAuthError
+    // para wrong-password/user-not-found/invalid-credential).
+    try {
+      await sendPasswordResetEmail(firebaseAuth, email);
+    } catch {
+      // intencional: mismo mensaje de éxito sin importar el resultado real
+    }
+    const successEl = document.getElementById('forgot-password-success');
+    if (successEl) {
+      successEl.textContent = 'Si ese correo tiene una cuenta, te enviamos un enlace para restablecer tu contraseña.';
+      successEl.classList.remove('hidden');
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('login-form');
   const btnLogin = document.getElementById('btn-login');
@@ -260,6 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
     btnBackToLogin?.classList.remove('hidden');
     if (headingTitle) headingTitle.textContent = 'Crea tu cuenta';
     if (btnSignup) btnSignup.textContent = 'Confirmar creación de cuenta';
+    document.getElementById('signup-password-confirm-field')?.classList.remove('hidden');
+    document.getElementById('btn-forgot-password')?.classList.add('hidden');
   }
 
   function exitSignupMode() {
@@ -269,6 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
     btnBackToLogin?.classList.add('hidden');
     if (headingTitle && LOGIN_HEADING_TEXT !== null) headingTitle.textContent = LOGIN_HEADING_TEXT;
     if (btnSignup && SIGNUP_BTN_TEXT !== null) btnSignup.textContent = SIGNUP_BTN_TEXT;
+    document.getElementById('signup-password-confirm-field')?.classList.add('hidden');
+    document.getElementById('btn-forgot-password')?.classList.remove('hidden');
   }
 
   if (btnTogglePassword && passwordInput) {
@@ -307,7 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!form.reportValidity()) return;
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
-      handleSignup(email, password);
+      const passwordConfirm = document.getElementById('signup-password-confirm')?.value;
+      handleSignup(email, password, passwordConfirm);
     });
   }
   if (btnBackToLogin) {
@@ -383,5 +422,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnPhoneConsentConfirm) {
     btnPhoneConsentConfirm.addEventListener('click', () => handlePhoneSignupConsent());
+  }
+
+  const btnForgotPassword = document.getElementById('btn-forgot-password');
+  const btnSendReset = document.getElementById('btn-send-reset');
+  const btnForgotPasswordBack = document.getElementById('btn-forgot-password-back');
+
+  if (btnForgotPassword) {
+    btnForgotPassword.addEventListener('click', () => {
+      clearError();
+      setView('forgot-password');
+    });
+  }
+  if (btnSendReset) {
+    btnSendReset.addEventListener('click', () => {
+      const email = document.getElementById('forgot-password-email').value.trim();
+      handleForgotPassword(email);
+    });
+  }
+  if (btnForgotPasswordBack) {
+    btnForgotPasswordBack.addEventListener('click', () => {
+      document.getElementById('forgot-password-success')?.classList.add('hidden');
+      clearError();
+      setView('login');
+    });
   }
 });

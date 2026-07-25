@@ -848,3 +848,8 @@ body:has(.app-main.content-page) {
   border-top: 1px solid var(--border);
 }
 .account-payment-row:first-child { border-top: none; }
+
+/* .link-button vivía solo en el <style> inline de auth.html — cualquier otro
+   botón con esta clase (ej. #btn-skip-preferences en preferences.html) se
+   renderizaba sin ningún estilo, botón de navegador puro (hallazgo UX). */
+.link-button { background: none; border: none; color: var(--ink); text-decoration: underline; font-size: 0.85rem; padding: 8px 0; cursor: pointer; }
