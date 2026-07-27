@@ -18,7 +18,9 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   sendEmailVerification,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 
 // Placeholders — los valores reales se inyectan como variables de entorno en
@@ -60,5 +62,7 @@ export {
   reauthenticateWithCredential,
   EmailAuthProvider,
   sendEmailVerification,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset
 };
