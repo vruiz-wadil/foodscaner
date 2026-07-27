@@ -7,6 +7,8 @@ const rateLimit = require('express-rate-limit');
 const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireRecordMembershipPayment, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim } = require('./phoneAuth');
+const { generateActionLink } = require('./emailActions');
+const { sendMail } = require('./mailer');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
 
@@ -1516,6 +1518,49 @@ async function putProfileHandler(req, res) {
 
 app.put('/api/me/profile', requireUser, putProfileHandler);
 
+async function passwordResetHandler(req, res) {
+  const email = req.body?.email;
+  if (typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'invalid_email' });
+  }
+  try {
+    const oobLink = await generateActionLink(email, 'PASSWORD_RESET', 'https://yomi.mx/reset-password.html');
+    await sendMail({
+      to: email,
+      subject: 'Restablece tu contraseña de Yomi',
+      html: `<p>Para restablecer tu contraseña, haz click en el siguiente enlace:</p><p><a href="${oobLink}">${oobLink}</a></p><p>Si no solicitaste esto, ignora este correo.</p>`
+    });
+  } catch (e) {
+    if (e.code === 'EMAIL_NOT_FOUND') {
+      // Intencional: mismo éxito genérico sin importar si la cuenta existe
+      // (protección contra enumeración de cuentas).
+      return res.json({ ok: true });
+    }
+    console.warn('[auth/password-reset] error:', e.message);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+  res.json({ ok: true });
+}
+
+app.post('/api/auth/password-reset', passwordResetHandler);
+
+async function verificationEmailHandler(req, res) {
+  try {
+    const oobLink = await generateActionLink(req.user.email, 'VERIFY_EMAIL');
+    await sendMail({
+      to: req.user.email,
+      subject: 'Verifica tu correo para Yomi',
+      html: `<p>Verifica tu correo haciendo click en el siguiente enlace:</p><p><a href="${oobLink}">${oobLink}</a></p>`
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[me/verification-email] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/verification-email', requireUser, verificationEmailHandler);
+
 async function payMembershipHandler(req, res) {
   try {
     const result = await fireRecordMembershipPayment(req.user.uid);
@@ -1986,6 +2031,8 @@ module.exports.postScanHandler = postScanHandler;
 module.exports.phoneSendHandler = phoneSendHandler;
 module.exports.phoneVerifyHandler = phoneVerifyHandler;
 module.exports.changePhoneHandler = changePhoneHandler;
+module.exports.passwordResetHandler = passwordResetHandler;
+module.exports.verificationEmailHandler = verificationEmailHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
