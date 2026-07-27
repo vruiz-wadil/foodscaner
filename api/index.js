@@ -1183,7 +1183,8 @@ async function ocrProcessHandler(req, res) {
     const prompt = `Extrae el texto de ingredientes de esta imagen de etiqueta alimentaria.
 Devuelve el texto tal como aparece, incluyendo ingredientes y cualquier declaración de alérgenos como "Contiene:", "Puede contener:", "Trazas de:" u otras advertencias similares.
 Corrige errores obvios de lectura pero no inventes texto ni omitas secciones.
-Si no puedes leer los ingredientes, responde con texto vacío.`;
+Si no puedes leer los ingredientes, responde con texto vacío.
+Responde con UNA SOLA transcripción — no repitas ni vuelvas a transcribir el mismo texto dos veces.`;
 
     const result = await callVisionLLM(imageData, prompt);
     if (!result?.content) throw new Error("No response from vision LLM");
