@@ -1528,6 +1528,7 @@ async function passwordResetHandler(req, res) {
     // (ej. foodscaner-git-develop-...vercel.app) en vez de producción,
     // sin tocar código — cae a yomi.mx si no está configurado.
     const baseUrl = process.env.APP_BASE_URL || 'https://yomi.mx';
+    console.log('[DEBUG-TEMP] APP_BASE_URL raw:', JSON.stringify(process.env.APP_BASE_URL), 'resolved baseUrl:', baseUrl);
     const oobLink = await generateActionLink(email, 'PASSWORD_RESET', `${baseUrl}/reset-password.html`);
     await sendMail({
       to: email,
