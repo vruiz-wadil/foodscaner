@@ -38,10 +38,11 @@ function renderEmailVerificationBanner() {
   `;
 }
 
-// Solo una fila (nombre o teléfono-con-email) puede estar en edición inline
-// a la vez — correo/teléfono-SMS/contraseña son multi-paso y usan el modal
-// en su lugar, así que no compiten por este estado.
-let editingRow = null; // 'name' | 'phone' | null
+// Solo una fila (nombre, teléfono-con-email, o correo-de-contacto) puede
+// estar en edición inline a la vez — correo-de-identidad/teléfono-SMS/
+// contraseña son multi-paso y usan el modal en su lugar, así que no
+// compiten por este estado.
+let editingRow = null; // 'name' | 'phone' | 'email' | null
 
 function renderNameRow(displayName) {
   if (editingRow === 'name') {
@@ -111,6 +112,34 @@ function renderEmailRow(profile) {
         <div class="account-data-value">${escapeHtml(profile.email)}</div>
       </div>
       <button type="button" id="btn-edit-email" class="row-icon-btn" aria-label="Editar correo">✏️</button>
+    </div>
+  `;
+}
+
+// Solo para cuentas SIN identidad de correo real (login por teléfono, sin
+// password provider) — onboarding ya pide un correo de contacto para estas
+// cuentas, pero no había forma de editarlo después (hallazgo). Edición
+// inline simple, sin reautenticar ni verificar — es un dato de contacto,
+// no cambia el login, igual que el teléfono-de-contacto en las cuentas que
+// sí tienen correo de identidad.
+function renderEmailContactRow(emailContact) {
+  if (editingRow === 'email') {
+    return `
+      <div class="account-data-row account-data-row-editing" data-row="email">
+        <input id="input-edit-email-contact" class="form-input" type="email" value="${escapeHtml(emailContact)}">
+        <button type="button" id="btn-save-email-contact" class="row-icon-btn" aria-label="Guardar correo">✔️</button>
+        <button type="button" id="btn-cancel-email-contact" class="row-icon-btn" aria-label="Cancelar edición de correo">✖️</button>
+      </div>
+      <p id="edit-email-contact-error" class="hidden modal-inline-error" role="alert"></p>
+    `;
+  }
+  return `
+    <div class="account-data-row" data-row="email">
+      <div class="account-data-info">
+        <div class="account-data-label">Correo</div>
+        <div class="account-data-value">${escapeHtml(emailContact) || 'Sin correo'}</div>
+      </div>
+      <button type="button" id="btn-edit-email-contact" class="row-icon-btn" aria-label="Editar correo">✏️</button>
     </div>
   `;
 }
@@ -189,6 +218,7 @@ export function renderAccountHub() {
   const alertsActive = computeAlertsActive(prefs);
   const displayName = (profile.profile && profile.profile.displayName) || profile.displayName || '';
   const phoneContact = profile.phoneNumber || (profile.profile && profile.profile.phone) || '';
+  const emailContact = profile.email || (profile.profile && profile.profile.email) || '';
 
   const summaryHtml = hasPrefs
     ? `<p class="account-summary">Tu perfil: ${[...(prefs.dietary || []), ...(prefs.allergens || []).map(a => a.code), ...(prefs.healthConditions || [])].join(', ')}</p>`
@@ -230,7 +260,7 @@ export function renderAccountHub() {
       <div class="account-data-section">
         ${renderNameRow(displayName)}
         ${renderPhoneRow(profile, phoneContact)}
-        ${hasPasswordProvider() ? renderEmailRow(profile) : ''}
+        ${hasPasswordProvider() ? renderEmailRow(profile) : (!profile.email ? renderEmailContactRow(emailContact) : '')}
         ${hasPasswordProvider() ? `
           <div class="account-data-row account-password-row">
             <button type="button" id="btn-open-password-modal" class="account-link-btn">Cambiar contraseña</button>
@@ -281,6 +311,17 @@ function wireAccountHubEvents(profile) {
 
   document.getElementById('btn-edit-email')?.addEventListener('click', () => {
     openEmailModal(profile);
+  });
+  document.getElementById('btn-edit-email-contact')?.addEventListener('click', () => {
+    editingRow = 'email';
+    renderAccountHub();
+  });
+  document.getElementById('btn-cancel-email-contact')?.addEventListener('click', () => {
+    editingRow = null;
+    renderAccountHub();
+  });
+  document.getElementById('btn-save-email-contact')?.addEventListener('click', () => {
+    submitEmailContactEdit().catch(() => {});
   });
   document.getElementById('btn-open-password-modal')?.addEventListener('click', () => {
     openPasswordModal();
@@ -498,6 +539,31 @@ export async function submitPhoneContactEdit() {
   });
   if (!res.ok) {
     showPhoneError('No se pudo guardar tu teléfono. Intenta de nuevo.');
+    throw new Error('save_failed');
+  }
+  editingRow = null;
+  await syncUserProfile();
+  renderAccountHub();
+}
+
+function showEmailContactError(message) {
+  const el = document.getElementById('edit-email-contact-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+export async function submitEmailContactEdit() {
+  const input = document.getElementById('input-edit-email-contact');
+  const email = input ? input.value.trim() : '';
+  const token = await getIdToken();
+  const res = await fetch('/api/me/profile', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  if (!res.ok) {
+    showEmailContactError('No se pudo guardar tu correo. Intenta de nuevo.');
     throw new Error('save_failed');
   }
   editingRow = null;

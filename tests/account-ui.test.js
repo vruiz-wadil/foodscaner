@@ -20,7 +20,7 @@ vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdTok
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
 let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit, submitPasswordEdit
-let submitCancelSubscription, submitReactivateSubscription, submitResendVerification
+let submitCancelSubscription, submitReactivateSubscription, submitResendVerification, submitEmailContactEdit
 let originalLocation
 
 beforeEach(async () => {
@@ -44,6 +44,7 @@ beforeEach(async () => {
   submitCancelSubscription = mod.submitCancelSubscription
   submitReactivateSubscription = mod.submitReactivateSubscription
   submitResendVerification = mod.submitResendVerification
+  submitEmailContactEdit = mod.submitEmailContactEdit
 })
 
 afterEach(() => {
@@ -354,6 +355,72 @@ describe('fila Teléfono — cuenta SIN email (phone-login, modal con flujo SMS)
     const errorEl = document.getElementById('edit-phone-error')
     expect(errorEl.textContent).toMatch(/ya está en uso/)
     expect(document.getElementById('phone-login-flow')).toBeTruthy()
+  })
+})
+
+describe('fila Correo (contacto) — cuenta sin login por password ni email de identidad', () => {
+  it('se muestra editable inline para una cuenta de teléfono sin correo (hallazgo: onboarding sí lo pide, pero no había forma de editarlo)', () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active', profile: { email: 'contacto@example.com' } })
+    mockAuth.currentUser = { phoneNumber: '+525500000000', providerData: [{ providerId: 'phone' }] }
+    renderAccountHub()
+    expect(document.querySelector('[data-row="email"] .account-data-value').textContent).toBe('contacto@example.com')
+    expect(document.getElementById('btn-edit-email-contact')).toBeTruthy()
+  })
+
+  it('NO se muestra para una cuenta de Google (ya tiene profile.email real, mostrado arriba en el hero, no es "sin correo")', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@gmail.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@gmail.com', providerData: [{ providerId: 'google.com' }] }
+    renderAccountHub()
+    expect(document.getElementById('btn-edit-email-contact')).toBeNull()
+  })
+
+  it('NO se muestra para una cuenta de correo/contraseña (usa la fila de modal existente en su lugar)', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    mockAuth.currentUser = { email: 'a@b.com', providerData: [{ providerId: 'password' }] }
+    renderAccountHub()
+    expect(document.getElementById('btn-edit-email-contact')).toBeNull()
+    expect(document.getElementById('btn-edit-email')).toBeTruthy()
+  })
+
+  it('click en el lápiz abre el input inline', () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
+    mockAuth.currentUser = { phoneNumber: '+525500000000', providerData: [{ providerId: 'phone' }] }
+    renderAccountHub()
+    document.getElementById('btn-edit-email-contact').click()
+    expect(document.getElementById('input-edit-email-contact')).toBeTruthy()
+  })
+
+  it('submitEmailContactEdit llama PUT /api/me/profile con { email } y re-sincroniza', async () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
+    mockAuth.currentUser = { phoneNumber: '+525500000000', providerData: [{ providerId: 'phone' }] }
+    renderAccountHub()
+    document.getElementById('btn-edit-email-contact').click()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    document.getElementById('input-edit-email-contact').value = 'nuevo@example.com'
+
+    await submitEmailContactEdit()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/me/profile')
+    expect(JSON.parse(options.body)).toEqual({ email: 'nuevo@example.com' })
+    expect(syncUserProfile).toHaveBeenCalled()
+  })
+
+  it('submitEmailContactEdit muestra error y no re-sincroniza si el PUT falla', async () => {
+    getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
+    mockAuth.currentUser = { phoneNumber: '+525500000000', providerData: [{ providerId: 'phone' }] }
+    renderAccountHub()
+    document.getElementById('btn-edit-email-contact').click()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
+    document.getElementById('input-edit-email-contact').value = 'nuevo@example.com'
+
+    await expect(submitEmailContactEdit()).rejects.toThrow()
+
+    expect(syncUserProfile).not.toHaveBeenCalled()
+    const errorEl = document.getElementById('edit-email-contact-error')
+    expect(errorEl.classList.contains('hidden')).toBe(false)
   })
 })
 
