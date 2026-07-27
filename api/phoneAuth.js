@@ -128,4 +128,4 @@ async function setPhoneNumberClaim(uid, phone) {
   if (!resp.ok) throw new Error(`Identity Toolkit accounts:update failed: ${resp.status}`);
 }
 
-module.exports = { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim };
+module.exports = { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, getAuthAccessToken, getAuthServiceAccount };
