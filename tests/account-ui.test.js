@@ -12,11 +12,10 @@ const getIdToken = vi.fn()
 const reauthenticateWithCredential = vi.fn()
 const verifyBeforeUpdateEmail = vi.fn()
 const updatePassword = vi.fn()
-const sendEmailVerification = vi.fn()
 class EmailAuthProvider {
   static credential(email, password) { return { email, password } }
 }
-vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider, sendEmailVerification }))
+vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdToken }))
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
@@ -595,15 +594,19 @@ describe('aviso de correo no verificado', () => {
     expect(document.getElementById('btn-resend-verification')).toBeNull()
   })
 
-  it('submitResendVerification llama sendEmailVerification y muestra confirmación', async () => {
+  it('submitResendVerification llama POST /api/me/verification-email y muestra confirmación', async () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
     mockAuth.currentUser = { email: 'a@b.com', emailVerified: false, providerData: [{ providerId: 'password' }] }
     renderAccountHub()
-    sendEmailVerification.mockResolvedValueOnce(undefined)
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true })
 
     await submitResendVerification()
 
-    expect(sendEmailVerification).toHaveBeenCalledWith(mockAuth.currentUser)
+    expect(global.fetch).toHaveBeenCalledWith('/api/me/verification-email', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok' }
+    })
     const successEl = document.getElementById('resend-verification-success')
     expect(successEl.classList.contains('hidden')).toBe(false)
   })
@@ -612,7 +615,8 @@ describe('aviso de correo no verificado', () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
     mockAuth.currentUser = { email: 'a@b.com', emailVerified: false, providerData: [{ providerId: 'password' }] }
     renderAccountHub()
-    sendEmailVerification.mockRejectedValueOnce(new Error('send_failed'))
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
 
     await expect(submitResendVerification()).rejects.toThrow()
 

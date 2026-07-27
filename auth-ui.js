@@ -4,9 +4,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  signInWithCustomToken,
-  sendEmailVerification,
-  sendPasswordResetEmail
+  signInWithCustomToken
 } from './firebase-init.js';
 import { setAutoSyncSuppressed } from './authClient.js';
 import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
@@ -139,8 +137,10 @@ export async function handleSignup(email, password, passwordConfirm) {
       });
       // Best-effort: un fallo al enviar el correo de verificación no debe
       // impedir que el usuario continúe su registro — la verificación es
-      // informativa, nunca bloqueante (ver spec).
-      sendEmailVerification(result.user).catch(() => {});
+      // informativa, nunca bloqueante. Antes llamaba sendEmailVerification
+      // (SDK cliente) directo, pero ese envío nunca llega — ver
+      // docs/superpowers/specs/2026-07-27-custom-auth-emails-design.md.
+      fetch('/api/me/verification-email', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
       window.location.href = 'onboarding-profile.html';
       return result;
     } catch (err) {
@@ -253,14 +253,19 @@ export async function handleForgotPassword(email) {
   clearError();
   const btn = document.getElementById('btn-send-reset');
   return withLoadingState(btn, 'Enviando…', async () => {
-    // sendPasswordResetEmail puede fallar con auth/user-not-found — nunca se
-    // distingue ese caso del éxito real (hallazgo de seguridad: evita
-    // enumeración de cuentas, mismo principio ya aplicado en mapAuthError
-    // para wrong-password/user-not-found/invalid-credential).
-    try {
-      await sendPasswordResetEmail(firebaseAuth, email);
-    } catch {
-      // intencional: mismo mensaje de éxito sin importar el resultado real
+    // El backend (/api/auth/password-reset) ya aplica la protección contra
+    // enumeración de cuentas (nunca revela si el correo existe) — un !res.ok
+    // aquí es un fallo real de servidor, no una señal de "no existe", así que
+    // SÍ se muestra como error real (a diferencia de antes, cuando cualquier
+    // fallo de sendPasswordResetEmail se disfrazaba de éxito).
+    const res = await fetch('/api/auth/password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    if (!res.ok) {
+      showError('No se pudo procesar tu solicitud. Intenta de nuevo.');
+      return;
     }
     const successEl = document.getElementById('forgot-password-success');
     if (successEl) {

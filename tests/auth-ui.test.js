@@ -8,8 +8,6 @@ const signInWithEmailAndPassword = vi.fn()
 const createUserWithEmailAndPassword = vi.fn()
 const signInWithPopup = vi.fn()
 const signInWithCustomToken = vi.fn()
-const sendEmailVerification = vi.fn()
-const sendPasswordResetEmail = vi.fn()
 class GoogleAuthProvider {}
 
 vi.mock('../firebase-init.js', () => ({
@@ -18,9 +16,7 @@ vi.mock('../firebase-init.js', () => ({
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  signInWithCustomToken,
-  sendEmailVerification,
-  sendPasswordResetEmail
+  signInWithCustomToken
 }))
 
 const setAutoSyncSuppressed = vi.fn()
@@ -166,7 +162,7 @@ describe('handleSignup', () => {
     document.getElementById('age-checkbox').checked = true
     const getIdToken = vi.fn().mockResolvedValue('tok-new')
     createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'abc', getIdToken } })
-    sendEmailVerification.mockResolvedValueOnce(undefined)
+    global.fetch = vi.fn().mockResolvedValue({ ok: true })
 
     await handleSignup('new@example.com', 'secret123', 'secret123')
 
@@ -528,25 +524,29 @@ describe('handleSignup — confirmar contraseña y verificación de correo', () 
     expect(createUserWithEmailAndPassword).not.toHaveBeenCalled()
   })
 
-  it('llama sendEmailVerification con el usuario recién creado', async () => {
-    document.getElementById('terms-checkbox').checked = true
-    document.getElementById('age-checkbox').checked = true
-    const getIdToken = vi.fn().mockResolvedValue('tok-new')
-    const newUser = { uid: 'abc', getIdToken }
-    createUserWithEmailAndPassword.mockResolvedValueOnce({ user: newUser })
-    sendEmailVerification.mockResolvedValueOnce(undefined)
-
-    await handleSignup('new@example.com', 'secret123', 'secret123')
-
-    expect(sendEmailVerification).toHaveBeenCalledWith(newUser)
-  })
-
-  it('no bloquea el registro si sendEmailVerification falla (best-effort)', async () => {
+  it('llama POST /api/me/verification-email con el idToken recién obtenido tras crear la cuenta', async () => {
     document.getElementById('terms-checkbox').checked = true
     document.getElementById('age-checkbox').checked = true
     const getIdToken = vi.fn().mockResolvedValue('tok-new')
     createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'abc', getIdToken } })
-    sendEmailVerification.mockRejectedValueOnce(new Error('quota exceeded'))
+    global.fetch = vi.fn().mockResolvedValue({ ok: true })
+
+    await handleSignup('new@example.com', 'secret123', 'secret123')
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/me/verification-email', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-new' }
+    })
+  })
+
+  it('no bloquea el registro si la llamada a /api/me/verification-email falla (best-effort)', async () => {
+    document.getElementById('terms-checkbox').checked = true
+    document.getElementById('age-checkbox').checked = true
+    const getIdToken = vi.fn().mockResolvedValue('tok-new')
+    createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'abc', getIdToken } })
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockRejectedValueOnce(new Error('network down'))
 
     await expect(handleSignup('new@example.com', 'secret123', 'secret123')).resolves.toBeTruthy()
   })
@@ -567,25 +567,30 @@ describe('setView — forgot-password', () => {
 })
 
 describe('handleForgotPassword', () => {
-  it('llama sendPasswordResetEmail y muestra el mensaje de éxito', async () => {
-    sendPasswordResetEmail.mockResolvedValueOnce(undefined)
+  it('llama POST /api/auth/password-reset y muestra el mensaje de éxito', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: true })
 
     await handleForgotPassword('user@example.com')
 
-    expect(sendPasswordResetEmail).toHaveBeenCalledWith(mockAuth, 'user@example.com')
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com' })
+    })
     const successEl = document.getElementById('forgot-password-success')
     expect(successEl.classList.contains('hidden')).toBe(false)
     expect(successEl.textContent).toMatch(/enlace para restablecer/)
   })
 
-  it('muestra el MISMO mensaje de éxito incluso si sendPasswordResetEmail falla (no revela si el correo existe)', async () => {
-    sendPasswordResetEmail.mockRejectedValueOnce({ code: 'auth/user-not-found' })
+  it('muestra un error real (no el mensaje de éxito) si el backend responde no-ok — ya no es una señal de enumeración, es un fallo real', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, status: 500 })
 
-    await handleForgotPassword('noexiste@example.com')
+    await handleForgotPassword('user@example.com')
 
+    const errEl = document.getElementById('auth-error')
+    expect(errEl.classList.contains('hidden')).toBe(false)
     const successEl = document.getElementById('forgot-password-success')
-    expect(successEl.classList.contains('hidden')).toBe(false)
-    expect(successEl.textContent).toMatch(/enlace para restablecer/)
+    expect(successEl.classList.contains('hidden')).toBe(true)
   })
 })
 

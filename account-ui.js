@@ -1,4 +1,4 @@
-import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider, sendEmailVerification } from './firebase-init.js';
+import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider } from './firebase-init.js';
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 import { mapAuthError } from './authErrors.js';
 
@@ -672,7 +672,9 @@ export async function submitResendVerification() {
   const originalText = btn ? btn.textContent : null;
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
-    await sendEmailVerification(firebaseAuth.currentUser);
+    const token = await getIdToken();
+    const res = await fetch('/api/me/verification-email', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error('resend_failed');
     const successEl = document.getElementById('resend-verification-success');
     if (successEl) { successEl.textContent = 'Correo de verificación enviado.'; successEl.classList.remove('hidden'); }
   } catch (err) {
