@@ -2,7 +2,7 @@
 // de correo) vía SMTP.com — Firebase Auth no despacha realmente estos
 // correos para este proyecto (tier básico, sin SMTP custom real pese a la
 // config). Ver docs/superpowers/specs/2026-07-27-custom-auth-emails-design.md.
-import nodemailer from 'nodemailer';
+const nodemailer = require('nodemailer');
 
 let _transporter = null;
 function getTransporter() {
@@ -24,4 +24,4 @@ async function sendMail({ to, subject, html }) {
   });
 }
 
-export { sendMail };
+module.exports = { sendMail };

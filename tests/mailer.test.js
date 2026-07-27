@@ -1,8 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { createRequire } from 'module'
 
-const sendMailMock = vi.fn()
-const createTransportMock = vi.fn(() => ({ sendMail: sendMailMock }))
-vi.mock('nodemailer', () => ({ default: { createTransport: createTransportMock } }))
+const { sendMailMock, createTransportMock } = vi.hoisted(() => {
+  const sendMailMock = vi.fn()
+  const createTransportMock = vi.fn(() => ({ sendMail: sendMailMock }))
+  return { sendMailMock, createTransportMock }
+})
+
+const requireFn = createRequire(import.meta.url)
+
+// Inject mock nodemailer into require cache before importing mailer
+requireFn.cache[requireFn.resolve('nodemailer')] = {
+  exports: { createTransport: createTransportMock },
+  loaded: true
+}
 
 const { sendMail } = await import('../api/mailer.js')
 
