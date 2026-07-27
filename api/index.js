@@ -265,6 +265,45 @@ async function callGroq(prompt, model = 'openai/gpt-oss-120b', max_tokens = 3000
   return { content: data.choices?.[0]?.message?.content || "", model: "Groq: " + model };
 }
 
+async function callGroqVision(imageBase64, prompt, model = 'qwen/qwen3.6-27b', max_tokens = 2000) {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model, max_tokens, temperature: 0.1,
+      messages: [{ role: 'user', content: [
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+        { type: 'text', text: prompt }
+      ]}]
+    }),
+    signal: AbortSignal.timeout(10000)
+  });
+  if (response.status === 429) throw new Error("Límite de velocidad excedido en Groq.");
+  if (!response.ok) {
+    const errBody = await response.text();
+    console.error('[Groq Vision] Error body:', errBody.substring(0, 500));
+    throw new Error(`Groq vision error: ${response.status}`);
+  }
+  const data = await response.json();
+  const raw = data.choices?.[0]?.message?.content || "";
+  // qwen3.6-27b es un modelo de razonamiento — envuelve la respuesta real en
+  // <think>...</think>; se descarta ese bloque antes de usar el contenido.
+  const content = raw.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+  return { content };
+}
+
+// Groq primero (más rápido); si falla (rate limit, modelo caído, etc.) cae a
+// Gemini — ver docs/superpowers/specs para el historial de por qué Groq
+// vision estuvo fuera de servicio y luego volvió con otro modelo.
+async function callVisionLLM(imageBase64, prompt) {
+  try {
+    return await callGroqVision(imageBase64, prompt);
+  } catch (e) {
+    console.warn('[Vision LLM] Groq falló, cae a Gemini:', e.message);
+    return await callGeminiVision(imageBase64, prompt);
+  }
+}
+
 async function callGeminiVision(imageBase64, prompt, mimeType = 'image/jpeg') {
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY, {
     method: 'POST',
@@ -1146,7 +1185,7 @@ Devuelve el texto tal como aparece, incluyendo ingredientes y cualquier declarac
 Corrige errores obvios de lectura pero no inventes texto ni omitas secciones.
 Si no puedes leer los ingredientes, responde con texto vacío.`;
 
-    const result = await callGeminiVision(imageData, prompt);
+    const result = await callVisionLLM(imageData, prompt);
     if (!result?.content) throw new Error("No response from vision LLM");
 
     const cleanedText = result.content.trim();
@@ -1182,8 +1221,7 @@ Ejemplo: {"calorias": "150 kcal", "grasas": "2 g", "proteinas": "5 g", "sodio": 
 
 RESPUESTA (SOLO JSON):`;
 
-    console.log('[Nutrition Vision] Calling Gemini vision...');
-    const result = await callGeminiVision(imageData, prompt);
+    const result = await callVisionLLM(imageData, prompt);
 
     if (!result?.content) throw new Error("No response from vision LLM");
 

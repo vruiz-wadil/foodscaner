@@ -69,8 +69,8 @@ describe('ocrProcessHandler — gate de membresía', () => {
 
   it('usuario no logueado pasa sin restricción (comportamiento actual sin cambios, fuera de alcance)', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url) => {
-      if (url.includes('generativelanguage.googleapis.com')) {
-        return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ingredientes: harina' } ] } }] }) }
+      if (url.includes('api.groq.com')) {
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'ingredientes: harina' } }] }) }
       }
       return { ok: true, status: 200 }
     }))
@@ -89,7 +89,7 @@ describe('ocrProcessHandler — gate de membresía', () => {
       if (url.includes('firestore.googleapis.com')) {
         return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'pending' }), updateTime: 't' }) }
       }
-      if (url.includes('generativelanguage.googleapis.com')) { geminiCalled = true; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'x' }] } }] }) } }
+      if (url.includes('api.groq.com')) { geminiCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'x' } }] }) } }
       return { ok: true, status: 200 }
     }))
     const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
@@ -109,7 +109,7 @@ describe('ocrProcessHandler — gate de membresía', () => {
       if (url.includes('firestore.googleapis.com')) {
         return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'expired' }), updateTime: 't' }) }
       }
-      if (url.includes('generativelanguage.googleapis.com')) { geminiCalled = true; return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'x' }] } }] }) } }
+      if (url.includes('api.groq.com')) { geminiCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'x' } }] }) } }
       return { ok: true, status: 200 }
     }))
     const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
@@ -128,12 +128,50 @@ describe('ocrProcessHandler — gate de membresía', () => {
       if (url.includes('firestore.googleapis.com')) {
         return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'active' }), updateTime: 't' }) }
       }
-      if (url.includes('generativelanguage.googleapis.com')) return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ingredientes: harina' }] } }] }) }
+      if (url.includes('api.groq.com')) return { ok: true, json: async () => ({ choices: [{ message: { content: 'ingredientes: harina' } }] }) }
       return { ok: true, status: 200 }
     }))
     const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
     const res = makeRes()
     await runOcrRoute(req, res)
     expect(res.body.status).toBe('ok')
+  })
+
+  it('descarta el bloque <think>...</think> de qwen3.6-27b (modelo de razonamiento) antes de usar el contenido', async () => {
+    const token = signRS256({}, privateKey)
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
+      if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
+      if (url.includes('firestore.googleapis.com')) {
+        return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'active' }), updateTime: 't' }) }
+      }
+      if (url.includes('api.groq.com')) {
+        return { ok: true, json: async () => ({ choices: [{ message: { content: '<think>razonando sobre la imagen...</think>ingredientes: harina, azúcar' } }] }) }
+      }
+      return { ok: true, status: 200 }
+    }))
+    const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
+    const res = makeRes()
+    await runOcrRoute(req, res)
+    expect(res.body.cleanedText).toBe('ingredientes: harina, azúcar')
+  })
+
+  it('si Groq falla, cae a Gemini y procesa igual (fallback de resiliencia)', async () => {
+    const token = signRS256({}, privateKey)
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
+      if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
+      if (url.includes('firestore.googleapis.com')) {
+        return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'active' }), updateTime: 't' }) }
+      }
+      if (url.includes('api.groq.com')) return { ok: false, status: 503 }
+      if (url.includes('generativelanguage.googleapis.com')) return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ingredientes: harina (via gemini)' }] } }] }) }
+      return { ok: true, status: 200 }
+    }))
+    const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
+    const res = makeRes()
+    await runOcrRoute(req, res)
+    expect(res.body.status).toBe('ok')
+    expect(res.body.cleanedText).toBe('ingredientes: harina (via gemini)')
   })
 })
