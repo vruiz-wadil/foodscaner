@@ -45,7 +45,7 @@ describe('fireIncrementUsageCounter', () => {
   })
 
   it('resets cacheRefreshCount to 0 before incrementing when usage.date is not today (UTC)', async () => {
-    let patchBody
+    let patchBody, patchUrl
     vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
       if (!options.method) {
         return {
@@ -58,6 +58,7 @@ describe('fireIncrementUsageCounter', () => {
           })
         }
       }
+      patchUrl = url
       patchBody = JSON.parse(options.body)
       return { ok: true, status: 200 }
     }))
@@ -65,7 +66,11 @@ describe('fireIncrementUsageCounter', () => {
     const result = await fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')
 
     expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 1, totalScans: 20 })
-    expect(patchBody.currentDocument.updateTime).toBe('2026-07-14T23:00:00.000000Z')
+    // hallazgo: currentDocument.updateTime va como QUERY PARAM en la API REST
+    // de Firestore, no dentro del body — Firestore rechazaba con 400
+    // "Unknown name currentDocument at 'document'" cuando iba en el body.
+    expect(patchBody.currentDocument).toBeUndefined()
+    expect(patchUrl).toContain(`currentDocument.updateTime=${encodeURIComponent('2026-07-14T23:00:00.000000Z')}`)
   })
 
   it('increments the existing counter when usage.date is already today', async () => {

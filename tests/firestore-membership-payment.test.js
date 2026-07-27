@@ -41,7 +41,7 @@ describe('fireRecordMembershipPayment', () => {
   })
 
   it('sets membershipStatus active, expiresAt 30 days ahead, autoRenew true, and appends to an empty paymentHistory', async () => {
-    let patchBody
+    let patchBody, patchUrl
     vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
       if (!options.method) {
         return {
@@ -52,6 +52,7 @@ describe('fireRecordMembershipPayment', () => {
           })
         }
       }
+      patchUrl = url
       patchBody = JSON.parse(options.body)
       return { ok: true, status: 200 }
     }))
@@ -65,7 +66,13 @@ describe('fireRecordMembershipPayment', () => {
       autoRenew: true,
       paymentHistory: [{ date: '2026-07-22T12:00:00.000Z', amount: 0, method: 'simulado' }]
     })
-    expect(patchBody.currentDocument.updateTime).toBe('2026-07-22T10:00:00.000000Z')
+    // hallazgo real (reproducido en vivo contra Firestore): currentDocument.updateTime
+    // va como QUERY PARAM en la API REST, no en el body — Firestore rechazaba con 400
+    // "Unknown name currentDocument at 'document'" cuando iba en el body, rompiendo
+    // TODO pago de membresía en producción/preview pese a que los tests (con fetch
+    // mockeado) siempre pasaban.
+    expect(patchBody.currentDocument).toBeUndefined()
+    expect(patchUrl).toContain(`currentDocument.updateTime=${encodeURIComponent('2026-07-22T10:00:00.000000Z')}`)
   })
 
   it('appends to an existing paymentHistory instead of overwriting it', async () => {

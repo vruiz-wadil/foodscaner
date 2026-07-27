@@ -565,12 +565,18 @@ async function fireGetUserRaw(uid) {
 async function firePatchUserFieldsWithPrecondition(uid, fieldPaths, data, updateTime) {
   const token = await getAccessToken();
   if (!token) throw new Error('No Firestore access token');
+  // hallazgo (reproducido en vivo contra Firestore real): currentDocument.updateTime
+  // es un QUERY PARAM de la API REST, no un campo del body — mandarlo en el body
+  // causaba 400 "Unknown name currentDocument at 'document': Cannot find field",
+  // rompiendo todo caller de esta función (fireIncrementUsageCounter,
+  // fireRecordMembershipPayment) sin que los tests (fetch mockeado) lo detectaran.
   const mask = fieldPaths.map(fp => `updateMask.fieldPaths=${encodeURIComponent(fp)}`).join('&');
+  const precondition = `currentDocument.updateTime=${encodeURIComponent(updateTime)}`;
   const fields = toFirestoreFields(data);
-  return fetch(docPath('users', uid) + '?' + mask, {
+  return fetch(docPath('users', uid) + '?' + mask + '&' + precondition, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields, currentDocument: { updateTime } }),
+    body: JSON.stringify({ fields }),
     signal: AbortSignal.timeout(5000)
   });
 }
