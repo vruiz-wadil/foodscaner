@@ -20,16 +20,22 @@ describe('generateActionLink', () => {
 
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('llama accounts:sendOobCode con returnOobLink y regresa el oobLink (con continueUrl para PASSWORD_RESET)', async () => {
+  it('con continueUrl, construye el link con NUESTRO dominio usando el oobCode — Identity Toolkit (vía OAuth) siempre regresa oobLink apuntando a su propia página hosteada, continueUrl ahí es solo un query param de "continuar después", nunca reemplaza el dominio del link (confirmado en vivo)', async () => {
     let capturedBody
     vi.stubGlobal('fetch', vi.fn(async (url, options) => {
       capturedBody = JSON.parse(options.body)
-      return { ok: true, json: async () => ({ oobLink: 'https://yomi.mx/reset?oobCode=abc' }) }
+      return {
+        ok: true,
+        json: async () => ({
+          oobCode: 'abc123',
+          oobLink: 'https://foodscaner-dev.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=abc123&continueUrl=https://yomi.mx/reset-password.html'
+        })
+      }
     }))
 
     const link = await generateActionLink('user@example.com', 'PASSWORD_RESET', 'https://yomi.mx/reset-password.html')
 
-    expect(link).toBe('https://yomi.mx/reset?oobCode=abc')
+    expect(link).toBe('https://yomi.mx/reset-password.html?oobCode=abc123')
     expect(capturedBody).toEqual({
       requestType: 'PASSWORD_RESET', email: 'user@example.com', returnOobLink: true,
       continueUrl: 'https://yomi.mx/reset-password.html', canHandleCodeInApp: true
