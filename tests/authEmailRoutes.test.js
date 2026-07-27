@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRequire } from 'module'
 
 const requireFn = createRequire(import.meta.url)
@@ -20,7 +20,37 @@ function makeRes() {
 }
 
 describe('passwordResetHandler', () => {
+  const ORIGINAL_APP_BASE_URL = process.env.APP_BASE_URL
+
   beforeEach(() => { generateActionLink.mockReset(); sendMail.mockReset() })
+  afterEach(() => {
+    if (ORIGINAL_APP_BASE_URL === undefined) delete process.env.APP_BASE_URL
+    else process.env.APP_BASE_URL = ORIGINAL_APP_BASE_URL
+  })
+
+  it('usa APP_BASE_URL para el continueUrl cuando está configurado (ej. el alias estable de preview)', async () => {
+    process.env.APP_BASE_URL = 'https://foodscaner-git-develop-wadil-ai-studio-s-projects.vercel.app'
+    generateActionLink.mockResolvedValue('https://foodscaner-git-develop-wadil-ai-studio-s-projects.vercel.app/reset-password.html?oobCode=abc')
+    sendMail.mockResolvedValue(undefined)
+    const req = { body: { email: 'user@example.com' } }
+    const res = makeRes()
+
+    await passwordResetHandler(req, res)
+
+    expect(generateActionLink).toHaveBeenCalledWith('user@example.com', 'PASSWORD_RESET', 'https://foodscaner-git-develop-wadil-ai-studio-s-projects.vercel.app/reset-password.html')
+  })
+
+  it('cae a https://yomi.mx cuando APP_BASE_URL no está configurado', async () => {
+    delete process.env.APP_BASE_URL
+    generateActionLink.mockResolvedValue('https://yomi.mx/reset-password.html?oobCode=abc')
+    sendMail.mockResolvedValue(undefined)
+    const req = { body: { email: 'user@example.com' } }
+    const res = makeRes()
+
+    await passwordResetHandler(req, res)
+
+    expect(generateActionLink).toHaveBeenCalledWith('user@example.com', 'PASSWORD_RESET', 'https://yomi.mx/reset-password.html')
+  })
 
   it('400s en un correo inválido, sin llamar a nada', async () => {
     const req = { body: { email: 'not-an-email' } }
