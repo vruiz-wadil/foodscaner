@@ -9,17 +9,19 @@ const findUserByEmail = vi.fn()
 const fireGetPhoneIndex = vi.fn()
 const fireGetUserRaw = vi.fn()
 const firePatchUserFields = vi.fn()
+const fireListUsers = vi.fn()
 firestoreModule.findUserByEmail = findUserByEmail
 firestoreModule.fireGetPhoneIndex = fireGetPhoneIndex
 firestoreModule.fireGetUserRaw = fireGetUserRaw
 firestoreModule.firePatchUserFields = firePatchUserFields
+firestoreModule.fireListUsers = fireListUsers
 
 const lookupAuthAccount = vi.fn()
 const setUserDisabled = vi.fn()
 phoneAuthModule.lookupAuthAccount = lookupAuthAccount
 phoneAuthModule.setUserDisabled = setUserDisabled
 
-const { searchUserHandler, patchUserMembershipHandler, setUserDisabledHandler } = await import('../api/index.js')
+const { searchUserHandler, patchUserMembershipHandler, setUserDisabledHandler, getUserByUidHandler, listUsersHandler } = await import('../api/index.js')
 
 function makeRes() {
   return {
@@ -194,6 +196,78 @@ describe('setUserDisabledHandler', () => {
     const req = { params: { uid: 'uid-1' }, body: { disabled: true } }
     const res = makeRes()
     await setUserDisabledHandler(req, res)
+    expect(res.statusCode).toBe(500)
+  })
+})
+
+describe('getUserByUidHandler', () => {
+  beforeEach(() => {
+    fireGetUserRaw.mockReset()
+    lookupAuthAccount.mockReset()
+  })
+
+  it('returns {uid, profile, auth} when the user doc exists', async () => {
+    fireGetUserRaw.mockResolvedValue({ fields: { email: 'a@b.com', membershipStatus: 'active' }, updateTime: 't' })
+    lookupAuthAccount.mockResolvedValue({ disabled: false, emailVerified: true })
+    const req = { params: { uid: 'uid-1' } }
+    const res = makeRes()
+
+    await getUserByUidHandler(req, res)
+
+    expect(fireGetUserRaw).toHaveBeenCalledWith('uid-1')
+    expect(res.body).toEqual({
+      uid: 'uid-1',
+      profile: { email: 'a@b.com', membershipStatus: 'active' },
+      auth: { disabled: false, emailVerified: true }
+    })
+  })
+
+  it('responds 404 when the user doc does not exist', async () => {
+    fireGetUserRaw.mockResolvedValue(null)
+    const req = { params: { uid: 'uid-missing' } }
+    const res = makeRes()
+    await getUserByUidHandler(req, res)
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('responds 500 when a dependency throws', async () => {
+    fireGetUserRaw.mockRejectedValue(new Error('boom'))
+    const req = { params: { uid: 'uid-1' } }
+    const res = makeRes()
+    await getUserByUidHandler(req, res)
+    expect(res.statusCode).toBe(500)
+  })
+})
+
+describe('listUsersHandler', () => {
+  beforeEach(() => { fireListUsers.mockReset() })
+
+  it('returns items and nextPageToken from fireListUsers', async () => {
+    fireListUsers.mockResolvedValue({ items: [{ uid: 'uid-1', email: 'a@b.com' }], nextPageToken: '2026-07-20T00:00:00.000Z' })
+    const req = { query: {} }
+    const res = makeRes()
+
+    await listUsersHandler(req, res)
+
+    expect(fireListUsers).toHaveBeenCalledWith(null)
+    expect(res.body).toEqual({ items: [{ uid: 'uid-1', email: 'a@b.com' }], nextPageToken: '2026-07-20T00:00:00.000Z' })
+  })
+
+  it('passes req.query.pageToken through to fireListUsers', async () => {
+    fireListUsers.mockResolvedValue({ items: [], nextPageToken: null })
+    const req = { query: { pageToken: '2026-07-15T00:00:00.000Z' } }
+    const res = makeRes()
+
+    await listUsersHandler(req, res)
+
+    expect(fireListUsers).toHaveBeenCalledWith('2026-07-15T00:00:00.000Z')
+  })
+
+  it('responds 500 when fireListUsers throws', async () => {
+    fireListUsers.mockRejectedValue(new Error('boom'))
+    const req = { query: {} }
+    const res = makeRes()
+    await listUsersHandler(req, res)
     expect(res.statusCode).toBe(500)
   })
 })

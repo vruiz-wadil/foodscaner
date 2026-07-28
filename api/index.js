@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireRecordMembershipPayment, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireRecordMembershipPayment, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail, fireListUsers } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, lookupAuthAccount, setUserDisabled } = require('./phoneAuth');
 const { generateActionLink } = require('./emailActions');
@@ -2027,6 +2027,13 @@ app.delete('/api/admin/cache-all/:type/:key', requireAdmin, async (req, res) => 
   res.json({ status: 'deleted', type, key, layer });
 });
 
+async function buildUserDetail(uid) {
+  const userDoc = await fireGetUserRaw(uid);
+  if (!userDoc) return null;
+  const authAccount = await lookupAuthAccount(uid);
+  return { uid, profile: userDoc.fields, auth: authAccount };
+}
+
 async function searchUserHandler(req, res) {
   const q = String(req.query.q || '').trim();
   if (!q) return res.status(400).json({ error: 'missing_query' });
@@ -2040,13 +2047,33 @@ async function searchUserHandler(req, res) {
     }
     if (!uid) return res.status(404).json({ error: 'not_found' });
 
-    const userDoc = await fireGetUserRaw(uid);
-    if (!userDoc) return res.status(404).json({ error: 'not_found' });
-
-    const authAccount = await lookupAuthAccount(uid);
-    res.json({ uid, profile: userDoc.fields, auth: authAccount });
+    const detail = await buildUserDetail(uid);
+    if (!detail) return res.status(404).json({ error: 'not_found' });
+    res.json(detail);
   } catch (e) {
     console.warn('[GET /api/admin/users/search] error, q:', req.query.q, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function getUserByUidHandler(req, res) {
+  const { uid } = req.params;
+  try {
+    const detail = await buildUserDetail(uid);
+    if (!detail) return res.status(404).json({ error: 'not_found' });
+    res.json(detail);
+  } catch (e) {
+    console.warn('[GET /api/admin/users/:uid] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function listUsersHandler(req, res) {
+  try {
+    const result = await fireListUsers(req.query.pageToken || null);
+    res.json(result);
+  } catch (e) {
+    console.warn('[GET /api/admin/users/list] error:', e.message);
     res.status(500).json({ error: 'internal_error' });
   }
 }
@@ -2082,8 +2109,10 @@ async function setUserDisabledHandler(req, res) {
 }
 
 app.get('/api/admin/users/search', requireAdmin, searchUserHandler);
+app.get('/api/admin/users/list', requireAdmin, listUsersHandler);
 app.patch('/api/admin/users/:uid/membership', requireAdmin, patchUserMembershipHandler);
 app.post('/api/admin/users/:uid/disabled', requireAdmin, setUserDisabledHandler);
+app.get('/api/admin/users/:uid', requireAdmin, getUserByUidHandler);
 
 app.get('/api/admin/:collection', requireAdmin, validCol, async (req, res) => {
   const result = await fireListDocs(req.params.collection, req.query.pageToken || null);
@@ -2128,6 +2157,8 @@ module.exports.optionalUser = optionalUser;
 module.exports.searchUserHandler = searchUserHandler;
 module.exports.patchUserMembershipHandler = patchUserMembershipHandler;
 module.exports.setUserDisabledHandler = setUserDisabledHandler;
+module.exports.getUserByUidHandler = getUserByUidHandler;
+module.exports.listUsersHandler = listUsersHandler;
 module.exports.ocrProcessHandler = ocrProcessHandler;
 module.exports.postHistoryHandler = postHistoryHandler;
 module.exports.getHistoryHandler = getHistoryHandler;
