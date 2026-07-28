@@ -14,6 +14,7 @@
 - Selects poblados desde `COUNTRY_CODES` con el mismo template ya usado en `auth-ui.js`: `` `${c.name} (${c.dial}) ${flagEmoji(c.iso2)}` `` por opción, `value="${c.dial}"`.
 - Solo el input de teléfono-contacto de `account-ui.js` pre-llena un valor existente (vía `splitE164`) — los otros 2 (onboarding, "nuevo número" del modal SMS) siempre arrancan vacíos, sin necesidad de pre-llenado.
 - Ningún endpoint de backend cambia.
+- **`COUNTRY_CODES` se reduce a solo México + Estados Unidos por ahora** (decisión explícita del usuario, no es un olvido) — afecta a los 4 selects de teléfono de la app por igual (login existente en `auth.html` + los 3 de este plan), ya que todos comparten el mismo módulo `country-codes.js`. Ampliar la lista más adelante es un cambio de una sola línea en ese archivo, no de arquitectura.
 
 ---
 
@@ -21,6 +22,7 @@
 
 **Files:**
 - Modify: `country-codes.js`
+- Modify: `tests/country-codes.test.js` (ya existe — se reescribe, no se crea)
 - Modify: `onboarding-profile.html`
 - Modify: `onboarding-profile-ui.js`
 - Modify: `tests/onboarding-profile-ui.test.js`
@@ -28,21 +30,37 @@
 **Interfaces:**
 - Produces: `splitE164(phone)` (nuevo export de `country-codes.js`) — regresa `{ dial: string, local: string }`.
 
-- [ ] **Step 1: Escribir el test de `splitE164` y actualizar el de `submitProfile` (RED)**
+- [ ] **Step 1: Reducir `COUNTRY_CODES` a México+USA, actualizar sus tests existentes, y agregar los de `splitE164` (RED)**
 
-Crear `tests/country-codes.test.js`:
+Ya existe `tests/country-codes.test.js` (no crear uno nuevo). Reemplazar el archivo completo por:
 
 ```js
 import { describe, it, expect } from 'vitest'
-import { splitE164 } from '../country-codes.js'
+import { COUNTRY_CODES, flagEmoji, splitE164 } from '../country-codes.js'
+
+describe('COUNTRY_CODES', () => {
+  it('tiene exactamente México y Estados Unidos, por ahora (alcance reducido a propósito)', () => {
+    expect(COUNTRY_CODES).toEqual([
+      { name: 'México', iso2: 'MX', dial: '+52' },
+      { name: 'Estados Unidos', iso2: 'US', dial: '+1' }
+    ])
+  })
+})
+
+describe('flagEmoji', () => {
+  it('converts an ISO2 code into its regional-indicator flag emoji', () => {
+    expect(flagEmoji('MX')).toBe('🇲🇽')
+    expect(flagEmoji('US')).toBe('🇺🇸')
+  })
+})
 
 describe('splitE164', () => {
   it('separa un E.164 de México en { dial, local }', () => {
     expect(splitE164('+525512345678')).toEqual({ dial: '+52', local: '5512345678' })
   })
 
-  it('usa el match más largo posible (Barbados +1246, no EE.UU. +1)', () => {
-    expect(splitE164('+12463334444')).toEqual({ dial: '+1246', local: '3334444' })
+  it('separa un E.164 de Estados Unidos en { dial, local }', () => {
+    expect(splitE164('+13334445555')).toEqual({ dial: '+1', local: '3334445555' })
   })
 
   it('cae a México (+52) con el número tal cual si no hay match', () => {
@@ -103,7 +121,16 @@ Y reemplazar el test `'sends only the visible fields and redirects to preference
 Run: `npx vitest run tests/country-codes.test.js tests/onboarding-profile-ui.test.js`
 Expected: FAIL — `splitE164` no existe aún; el test de `submitProfile` falla porque el código sigue leyendo un solo input.
 
-- [ ] **Step 3: Implementar `splitE164` en `country-codes.js`**
+- [ ] **Step 3: Reducir el arreglo `COUNTRY_CODES` e implementar `splitE164` en `country-codes.js`**
+
+Reemplazar TODO el arreglo `export const COUNTRY_CODES = [...]` (desde `México` hasta `Zimbabue`, las ~190 entradas) por:
+
+```js
+export const COUNTRY_CODES = [
+  { name: 'México', iso2: 'MX', dial: '+52' },
+  { name: 'Estados Unidos', iso2: 'US', dial: '+1' }
+];
+```
 
 Al final del archivo, después de `flagEmoji`, agregar:
 
