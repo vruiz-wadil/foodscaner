@@ -2,6 +2,7 @@ import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdate
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 import { mapAuthError } from './authErrors.js';
 import { COUNTRY_CODES, flagEmoji, splitE164 } from './country-codes.js';
+import { showPendingToast } from './toast.js';
 
 // Suma de ítems declarados por el usuario — sin backend nuevo, se deriva
 // del perfil ya cacheado. Para free (sin preferences) siempre 0.
@@ -767,7 +768,12 @@ export async function handleLogout() {
   window.location.href = 'index.html';
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+export async function initAccountPage() {
   await syncUserProfile();
   renderAccountHub();
+  showPendingToast();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initAccountPage();
 });

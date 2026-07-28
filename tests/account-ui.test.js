@@ -30,6 +30,7 @@ vi.mock('../country-codes.js', () => ({
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
 let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit, submitPasswordEdit
 let submitCancelSubscription, submitReactivateSubscription, submitResendVerification, submitEmailContactEdit
+let initAccountPage
 let originalLocation
 
 beforeEach(async () => {
@@ -54,6 +55,7 @@ beforeEach(async () => {
   submitReactivateSubscription = mod.submitReactivateSubscription
   submitResendVerification = mod.submitResendVerification
   submitEmailContactEdit = mod.submitEmailContactEdit
+  initAccountPage = mod.initAccountPage
 })
 
 afterEach(() => {
@@ -156,6 +158,34 @@ describe('renderAccountHub', () => {
     const root = document.getElementById('account-root')
     expect(root.querySelector('img')).toBeNull()
     expect(root.innerHTML).toMatch(/&lt;img/)
+  })
+})
+
+describe('initAccountPage', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+  })
+
+  it('muestra el toast pendiente si preferences-ui.js dejó uno guardado', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    sessionStorage.setItem('yomi_pending_toast', 'Preferencias guardadas.')
+    const mod = await import('../account-ui.js')
+
+    await mod.initAccountPage()
+
+    const toast = document.getElementById('app-toast')
+    expect(toast).toBeTruthy()
+    expect(toast.textContent).toBe('Preferencias guardadas.')
+    expect(sessionStorage.getItem('yomi_pending_toast')).toBeNull()
+  })
+
+  it('no muestra ningún toast si no hay mensaje pendiente', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
+    const mod = await import('../account-ui.js')
+
+    await mod.initAccountPage()
+
+    expect(document.getElementById('app-toast')).toBeNull()
   })
 })
 
