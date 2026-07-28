@@ -2028,7 +2028,7 @@ app.delete('/api/admin/cache-all/:type/:key', requireAdmin, async (req, res) => 
 });
 
 async function searchUserHandler(req, res) {
-  const q = (req.query.q || '').trim();
+  const q = String(req.query.q || '').trim();
   if (!q) return res.status(400).json({ error: 'missing_query' });
   try {
     let uid;
@@ -2046,6 +2046,7 @@ async function searchUserHandler(req, res) {
     const authAccount = await lookupAuthAccount(uid);
     res.json({ uid, profile: userDoc.fields, auth: authAccount });
   } catch (e) {
+    console.warn('[GET /api/admin/users/search] error, q:', req.query.q, e.message);
     res.status(500).json({ error: 'internal_error' });
   }
 }
@@ -2062,6 +2063,7 @@ async function patchUserMembershipHandler(req, res) {
     });
     res.json({ ok: true });
   } catch (e) {
+    console.warn('[PATCH /api/admin/users/:uid/membership] error, uid:', req.params.uid, e.message);
     res.status(500).json({ error: 'internal_error' });
   }
 }
@@ -2074,6 +2076,7 @@ async function setUserDisabledHandler(req, res) {
     await setUserDisabled(uid, disabled);
     res.json({ ok: true, disabled });
   } catch (e) {
+    console.warn('[POST /api/admin/users/:uid/disabled] error, uid:', req.params.uid, e.message);
     res.status(500).json({ error: 'internal_error' });
   }
 }
