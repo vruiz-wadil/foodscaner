@@ -165,7 +165,7 @@
   });
 
   async function loadCollection(append = false) {
-    if (currentCol === 'users') { await loadUserList(); return; }
+    if (currentCol === 'users') { await loadUserList(append); return; }
     if (currentCol === 'resumen') { await loadStats(); return; }
     if (!append) { allItems = []; nextPageToken = null; docList.innerHTML = '<div class="empty-msg">Cargando…</div>'; loadMoreEl.innerHTML = ''; }
     const _cfg = TAB_CONFIG[currentCol];
@@ -337,6 +337,7 @@
   async function loadUserDetail(uid) {
     docList.innerHTML = '<div class="empty-msg">Cargando…</div>';
     statsBar.textContent = '';
+    loadMoreEl.innerHTML = '';
     const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid));
     if (r.status === 404) { docList.innerHTML = '<div class="empty-msg">Usuario no encontrado.</div>'; return; }
     if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al cargar.</div>'; return; }
@@ -350,6 +351,7 @@
   async function searchUser(q) {
     docList.innerHTML = '<div class="empty-msg">Buscando…</div>';
     statsBar.textContent = '';
+    loadMoreEl.innerHTML = '';
     const r = await apiFetch('/api/admin/users/search?q=' + encodeURIComponent(q));
     if (r.status === 404) { docList.innerHTML = '<div class="empty-msg">No se encontró ningún usuario con ese correo/teléfono.</div>'; return; }
     if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al buscar.</div>'; return; }
