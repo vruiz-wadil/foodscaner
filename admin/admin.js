@@ -22,7 +22,7 @@
   let allItems = [];
   let reportBarcodes = null;
   let lastCacheData = null;
-  let lastUserSearch = null;
+  let currentDetailUid = null;
 
   const SECTION_TITLES = { resumen: 'Resumen', scan_logs: 'Logs de escaneo', reports: 'Reportes', products_ocr: 'OCR ingredientes', products_nutrition: 'OCR nutrición', cache: 'Cache', users: 'Usuarios' };
 
@@ -165,12 +165,7 @@
   });
 
   async function loadCollection(append = false) {
-    if (currentCol === 'users') {
-      docList.innerHTML = '<div class="empty-msg">Busca un usuario por correo o teléfono.</div>';
-      statsBar.textContent = '';
-      loadMoreEl.innerHTML = '';
-      return;
-    }
+    if (currentCol === 'users') { await loadUserList(); return; }
     if (currentCol === 'resumen') { await loadStats(); return; }
     if (!append) { allItems = []; nextPageToken = null; docList.innerHTML = '<div class="empty-msg">Cargando…</div>'; loadMoreEl.innerHTML = ''; }
     const _cfg = TAB_CONFIG[currentCol];
@@ -305,13 +300,53 @@
     docList.innerHTML = html;
   }
 
+  const MEMBERSHIP_LABELS = { pending: 'Pendiente', active: 'Activa', expired: 'Expirada' };
+
+  async function loadUserList(append = false) {
+    if (!append) { allItems = []; nextPageToken = null; docList.innerHTML = '<div class="empty-msg">Cargando…</div>'; loadMoreEl.innerHTML = ''; }
+    const url = '/api/admin/users/list' + (nextPageToken ? '?pageToken=' + encodeURIComponent(nextPageToken) : '');
+    const r = await apiFetch(url);
+    if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al cargar.</div>'; return; }
+    const data = await r.json();
+    allItems = allItems.concat(data.items || []);
+    nextPageToken = data.nextPageToken || null;
+    renderUserList(allItems);
+    statsBar.textContent = allItems.length + ' usuario' + (allItems.length !== 1 ? 's' : '');
+    loadMoreEl.innerHTML = nextPageToken
+      ? '<button class="btn" id="btn-load-more" style="font-size:0.85rem;">Cargar más</button>'
+      : '';
+    if (nextPageToken) document.getElementById('btn-load-more').addEventListener('click', () => loadUserList(true));
+  }
+
+  function renderUserList(items) {
+    if (!items.length) { docList.innerHTML = '<div class="empty-msg">Sin usuarios.</div>'; return; }
+    docList.innerHTML = items.map(item => `
+      <div class="list-card doc-item" data-action="view-user" data-uid="${escHtml(item.uid)}" style="cursor:pointer;">
+        <div>
+          <div class="doc-id">${escHtml(item.displayName || item.email || item.phoneNumber || item.uid)}</div>
+          <div class="doc-meta">${escHtml(item.email || item.phoneNumber || '—')} · ${escHtml(MEMBERSHIP_LABELS[item.membershipStatus] || item.membershipStatus || '—')} · ${item.createdAt ? escHtml(new Date(item.createdAt).toLocaleString('es-MX')) : '—'}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  async function loadUserDetail(uid) {
+    docList.innerHTML = '<div class="empty-msg">Cargando…</div>';
+    const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid));
+    if (r.status === 404) { docList.innerHTML = '<div class="empty-msg">Usuario no encontrado.</div>'; return; }
+    if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al cargar.</div>'; return; }
+    try {
+      renderUserDetail(await r.json());
+    } catch (e) {
+      docList.innerHTML = '<div class="empty-msg">Error al mostrar el perfil del usuario.</div>';
+    }
+  }
+
   async function searchUser(q) {
     docList.innerHTML = '<div class="empty-msg">Buscando…</div>';
     statsBar.textContent = '';
     const r = await apiFetch('/api/admin/users/search?q=' + encodeURIComponent(q));
     if (r.status === 404) { docList.innerHTML = '<div class="empty-msg">No se encontró ningún usuario con ese correo/teléfono.</div>'; return; }
     if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al buscar.</div>'; return; }
-    lastUserSearch = q;
     try {
       renderUserDetail(await r.json());
     } catch (e) {
@@ -321,6 +356,7 @@
 
   function renderUserDetail(data) {
     const { uid, profile, auth } = data;
+    currentDetailUid = uid;
     const hasAuth = !!auth;
     const authState = auth || { disabled: false, emailVerified: false };
     const dateInputValue = profile.membershipExpiresAt ? profile.membershipExpiresAt.slice(0, 10) : '';
@@ -331,6 +367,9 @@
         : '<span class="cache-badge cache-badge-both">Activa</span>');
     docList.innerHTML = `
       <div class="list-card doc-item" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <div>
+          <button class="btn" data-action="back-to-user-list" style="font-size:0.85rem;">← Volver a la lista</button>
+        </div>
         <div>
           <div class="doc-id">${escHtml(profile.displayName || profile.email || profile.phoneNumber || uid)}</div>
           <div class="doc-meta">UID: ${escHtml(uid)}</div>
@@ -562,7 +601,7 @@
         body: JSON.stringify({ membershipStatus: status, membershipExpiresAt })
       });
       if (r.ok) {
-        searchUser(lastUserSearch);
+        loadUserDetail(currentDetailUid);
       } else {
         alert('Error al guardar la membresía.');
         btn.disabled = false;
@@ -580,12 +619,16 @@
         body: JSON.stringify({ disabled: next })
       });
       if (r.ok) {
-        searchUser(lastUserSearch);
+        loadUserDetail(currentDetailUid);
       } else {
         alert('Error al cambiar el estado de la cuenta.');
         btn.disabled = false;
         btn.textContent = currentlyDisabled ? 'Reactivar cuenta' : 'Desactivar cuenta';
       }
+    } else if (btn.dataset.action === 'view-user') {
+      loadUserDetail(btn.dataset.uid);
+    } else if (btn.dataset.action === 'back-to-user-list') {
+      loadUserList();
     }
   });
 
