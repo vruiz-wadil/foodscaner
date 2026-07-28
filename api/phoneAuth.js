@@ -128,4 +128,38 @@ async function setPhoneNumberClaim(uid, phone) {
   if (!resp.ok) throw new Error(`Identity Toolkit accounts:update failed: ${resp.status}`);
 }
 
-module.exports = { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, getAuthAccessToken, getAuthServiceAccount };
+// Lee el estado real de la cuenta en Firebase Auth (disabled/emailVerified) —
+// para el panel admin, que necesita la fuente de verdad de Auth, no solo el
+// espejo en Firestore. Ver spec 2026-07-27-admin-user-management-design.md.
+async function lookupAuthAccount(uid) {
+  const token = await getAuthAccessToken();
+  const sa = getAuthServiceAccount();
+  if (!token || !sa) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_DEV no configurada');
+  const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${sa.project_id}/accounts:lookup`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: [uid] })
+  });
+  if (!resp.ok) throw new Error(`Identity Toolkit accounts:lookup failed: ${resp.status}`);
+  const data = await resp.json();
+  const account = (data.users || [])[0];
+  if (!account) return null;
+  return { disabled: !!account.disabled, emailVerified: !!account.emailVerified };
+}
+
+// Bloquea/desbloquea el login por completo vía Identity Toolkit
+// accounts:update (disableUser) — usado por el panel admin para
+// desactivar/reactivar cuentas.
+async function setUserDisabled(uid, disabled) {
+  const token = await getAuthAccessToken();
+  const sa = getAuthServiceAccount();
+  if (!token || !sa) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_DEV no configurada');
+  const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${sa.project_id}/accounts:update`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: uid, disableUser: disabled })
+  });
+  if (!resp.ok) throw new Error(`Identity Toolkit accounts:update failed: ${resp.status}`);
+}
+
+module.exports = { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, getAuthAccessToken, getAuthServiceAccount, lookupAuthAccount, setUserDisabled };

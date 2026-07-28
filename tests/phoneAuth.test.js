@@ -195,3 +195,167 @@ describe('setPhoneNumberClaim', () => {
     await expect(setPhoneNumberClaim('uid', '+525512345678')).rejects.toThrow('accounts:update failed: 400')
   })
 })
+
+describe('lookupAuthAccount', () => {
+  const ORIGINAL_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV
+
+  function fakeAuthServiceAccountKey(privateKey) {
+    return JSON.stringify({
+      project_id: 'foodscaner-dev',
+      client_email: 'firebase-adminsdk@foodscaner-dev.iam.gserviceaccount.com',
+      private_key: privateKey
+    })
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = ORIGINAL_KEY
+  })
+
+  it('calls Identity Toolkit accounts:lookup with localId and returns {disabled, emailVerified}', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+
+    let capturedUrl, capturedBody
+    vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      capturedUrl = url
+      capturedBody = JSON.parse(options.body)
+      return { ok: true, status: 200, json: async () => ({ users: [{ localId: 'uid-1', disabled: true, emailVerified: false }] }) }
+    }))
+
+    const { lookupAuthAccount } = await import('../api/phoneAuth.js')
+    const result = await lookupAuthAccount('uid-1')
+
+    expect(capturedUrl).toBe('https://identitytoolkit.googleapis.com/v1/projects/foodscaner-dev/accounts:lookup')
+    expect(capturedBody.localId).toEqual(['uid-1'])
+    expect(result).toEqual({ disabled: true, emailVerified: false })
+  })
+
+  it('returns null when Identity Toolkit finds no matching account', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      return { ok: true, status: 200, json: async () => ({}) } // sin campo "users"
+    }))
+
+    const { lookupAuthAccount } = await import('../api/phoneAuth.js')
+    const result = await lookupAuthAccount('uid-missing')
+
+    expect(result).toBeNull()
+  })
+
+  it('throws when Identity Toolkit responds non-ok', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      return { ok: false, status: 400 }
+    }))
+
+    const { lookupAuthAccount } = await import('../api/phoneAuth.js')
+    await expect(lookupAuthAccount('uid-1')).rejects.toThrow('accounts:lookup failed: 400')
+  })
+})
+
+describe('setUserDisabled', () => {
+  const ORIGINAL_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV
+
+  function fakeAuthServiceAccountKey(privateKey) {
+    return JSON.stringify({
+      project_id: 'foodscaner-dev',
+      client_email: 'firebase-adminsdk@foodscaner-dev.iam.gserviceaccount.com',
+      private_key: privateKey
+    })
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = ORIGINAL_KEY
+  })
+
+  it('calls Identity Toolkit accounts:update with localId and disableUser:true', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+
+    let capturedUrl, capturedBody
+    vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      capturedUrl = url
+      capturedBody = JSON.parse(options.body)
+      return { ok: true, status: 200 }
+    }))
+
+    const { setUserDisabled } = await import('../api/phoneAuth.js')
+    await setUserDisabled('uid-1', true)
+
+    expect(capturedUrl).toBe('https://identitytoolkit.googleapis.com/v1/projects/foodscaner-dev/accounts:update')
+    expect(capturedBody).toEqual({ localId: 'uid-1', disableUser: true })
+  })
+
+  it('calls accounts:update with disableUser:false to reactivate', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+
+    let capturedBody
+    vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      capturedBody = JSON.parse(options.body)
+      return { ok: true, status: 200 }
+    }))
+
+    const { setUserDisabled } = await import('../api/phoneAuth.js')
+    await setUserDisabled('uid-1', false)
+
+    expect(capturedBody).toEqual({ localId: 'uid-1', disableUser: false })
+  })
+
+  it('throws when Identity Toolkit responds non-ok', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_DEV = fakeAuthServiceAccountKey(privateKey)
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+      }
+      return { ok: false, status: 400 }
+    }))
+
+    const { setUserDisabled } = await import('../api/phoneAuth.js')
+    await expect(setUserDisabled('uid-1', true)).rejects.toThrow('accounts:update failed: 400')
+  })
+})
