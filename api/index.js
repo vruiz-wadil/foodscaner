@@ -4,9 +4,9 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireRecordMembershipPayment, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireRecordMembershipPayment, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
-const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim } = require('./phoneAuth');
+const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, lookupAuthAccount, setUserDisabled } = require('./phoneAuth');
 const { generateActionLink } = require('./emailActions');
 const { sendMail } = require('./mailer');
 const { getGeoData } = require('./geo');
@@ -2027,6 +2027,61 @@ app.delete('/api/admin/cache-all/:type/:key', requireAdmin, async (req, res) => 
   res.json({ status: 'deleted', type, key, layer });
 });
 
+async function searchUserHandler(req, res) {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'missing_query' });
+  try {
+    let uid;
+    if (q.includes('@')) {
+      uid = await findUserByEmail(q);
+    } else {
+      const idx = await fireGetPhoneIndex(q);
+      uid = idx ? idx.uid : null;
+    }
+    if (!uid) return res.status(404).json({ error: 'not_found' });
+
+    const userDoc = await fireGetUserRaw(uid);
+    if (!userDoc) return res.status(404).json({ error: 'not_found' });
+
+    const authAccount = await lookupAuthAccount(uid);
+    res.json({ uid, profile: userDoc.fields, auth: authAccount });
+  } catch (e) {
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function patchUserMembershipHandler(req, res) {
+  const { uid } = req.params;
+  const { membershipStatus, membershipExpiresAt } = req.body || {};
+  if (!['pending', 'active', 'expired'].includes(membershipStatus)) {
+    return res.status(400).json({ error: 'invalid_membership_status' });
+  }
+  try {
+    await firePatchUserFields(uid, ['membershipStatus', 'membershipExpiresAt'], {
+      membershipStatus, membershipExpiresAt: membershipExpiresAt || null
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function setUserDisabledHandler(req, res) {
+  const { uid } = req.params;
+  const { disabled } = req.body || {};
+  if (typeof disabled !== 'boolean') return res.status(400).json({ error: 'invalid_disabled' });
+  try {
+    await setUserDisabled(uid, disabled);
+    res.json({ ok: true, disabled });
+  } catch (e) {
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.get('/api/admin/users/search', requireAdmin, searchUserHandler);
+app.patch('/api/admin/users/:uid/membership', requireAdmin, patchUserMembershipHandler);
+app.post('/api/admin/users/:uid/disabled', requireAdmin, setUserDisabledHandler);
+
 app.get('/api/admin/:collection', requireAdmin, validCol, async (req, res) => {
   const result = await fireListDocs(req.params.collection, req.query.pageToken || null);
   if (!result) return res.status(500).json({ error: 'Error al listar documentos' });
@@ -2067,6 +2122,9 @@ module.exports.reactivateMembershipHandler = reactivateMembershipHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
 module.exports.deletePreferencesHandler = deletePreferencesHandler;
 module.exports.optionalUser = optionalUser;
+module.exports.searchUserHandler = searchUserHandler;
+module.exports.patchUserMembershipHandler = patchUserMembershipHandler;
+module.exports.setUserDisabledHandler = setUserDisabledHandler;
 module.exports.ocrProcessHandler = ocrProcessHandler;
 module.exports.postHistoryHandler = postHistoryHandler;
 module.exports.getHistoryHandler = getHistoryHandler;
