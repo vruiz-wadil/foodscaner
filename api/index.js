@@ -2033,7 +2033,7 @@ async function searchUserHandler(req, res) {
   try {
     let uid;
     if (q.includes('@')) {
-      uid = await findUserByEmail(q);
+      uid = await findUserByEmail(q.toLowerCase());
     } else {
       const idx = await fireGetPhoneIndex(q);
       uid = idx ? idx.uid : null;

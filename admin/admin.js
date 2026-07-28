@@ -312,15 +312,23 @@
     if (r.status === 404) { docList.innerHTML = '<div class="empty-msg">No se encontró ningún usuario con ese correo/teléfono.</div>'; return; }
     if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al buscar.</div>'; return; }
     lastUserSearch = q;
-    renderUserDetail(await r.json());
+    try {
+      renderUserDetail(await r.json());
+    } catch (e) {
+      docList.innerHTML = '<div class="empty-msg">Error al mostrar el perfil del usuario.</div>';
+    }
   }
 
   function renderUserDetail(data) {
     const { uid, profile, auth } = data;
+    const hasAuth = !!auth;
+    const authState = auth || { disabled: false, emailVerified: false };
     const dateInputValue = profile.membershipExpiresAt ? profile.membershipExpiresAt.slice(0, 10) : '';
-    const authBadge = auth.disabled
-      ? '<span class="cache-badge" style="background:#fdecea;color:#b3261e;border-color:#f5c2c0;">Desactivada</span>'
-      : '<span class="cache-badge cache-badge-both">Activa</span>';
+    const authBadge = !hasAuth
+      ? '<span class="cache-badge" style="background:#fff4e5;color:#8a5a00;border-color:#ffe0b2;">Sin cuenta de Auth</span>'
+      : (authState.disabled
+        ? '<span class="cache-badge" style="background:#fdecea;color:#b3261e;border-color:#f5c2c0;">Desactivada</span>'
+        : '<span class="cache-badge cache-badge-both">Activa</span>');
     docList.innerHTML = `
       <div class="list-card doc-item" style="flex-direction:column;align-items:stretch;gap:10px;">
         <div>
@@ -342,7 +350,7 @@
           <button class="btn" data-action="save-membership" data-uid="${escHtml(uid)}">Guardar membresía</button>
         </div>
         <div>
-          <button class="btn-del" data-action="toggle-disabled" data-uid="${escHtml(uid)}" data-disabled="${auth.disabled ? 'true' : 'false'}">${auth.disabled ? 'Reactivar cuenta' : 'Desactivar cuenta'}</button>
+          <button class="btn-del" data-action="toggle-disabled" data-uid="${escHtml(uid)}" data-disabled="${authState.disabled ? 'true' : 'false'}" ${hasAuth ? '' : 'disabled'}>${hasAuth ? (authState.disabled ? 'Reactivar cuenta' : 'Desactivar cuenta') : 'Sin cuenta de Auth'}</button>
         </div>
       </div>`;
   }
