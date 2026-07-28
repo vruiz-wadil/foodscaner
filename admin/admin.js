@@ -310,7 +310,12 @@
     const data = await r.json();
     allItems = allItems.concat(data.items || []);
     nextPageToken = data.nextPageToken || null;
-    renderUserList(allItems);
+    try {
+      renderUserList(allItems);
+    } catch (e) {
+      docList.innerHTML = '<div class="empty-msg">Error al mostrar la lista de usuarios.</div>';
+      return;
+    }
     statsBar.textContent = allItems.length + ' usuario' + (allItems.length !== 1 ? 's' : '');
     loadMoreEl.innerHTML = nextPageToken
       ? '<button class="btn" id="btn-load-more" style="font-size:0.85rem;">Cargar más</button>'
@@ -331,6 +336,7 @@
 
   async function loadUserDetail(uid) {
     docList.innerHTML = '<div class="empty-msg">Cargando…</div>';
+    statsBar.textContent = '';
     const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid));
     if (r.status === 404) { docList.innerHTML = '<div class="empty-msg">Usuario no encontrado.</div>'; return; }
     if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al cargar.</div>'; return; }
