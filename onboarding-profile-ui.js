@@ -1,4 +1,5 @@
 import { getIdToken, syncUserProfile, getCachedProfile } from './authClient.js';
+import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -35,9 +36,10 @@ export async function submitProfile() {
     body.displayName = v;
   }
   if (fieldPhone && !fieldPhone.classList.contains('hidden')) {
-    const v = document.getElementById('input-phone').value.trim();
-    if (!v) { showError('Escribe tu teléfono.'); throw new Error('invalid_phone'); }
-    body.phone = v;
+    const dial = document.getElementById('input-phone-country')?.value || '';
+    const local = document.getElementById('input-phone').value.trim();
+    if (!local) { showError('Escribe tu teléfono.'); throw new Error('invalid_phone'); }
+    body.phone = dial + local.replace(/\D/g, '');
   }
   if (fieldEmail && !fieldEmail.classList.contains('hidden')) {
     const v = document.getElementById('input-email').value.trim();
@@ -74,6 +76,10 @@ export async function initOnboardingProfilePage() {
   if (profile.profile && profile.profile.completedAt) {
     window.location.href = 'index.html';
     return;
+  }
+  const phoneCountrySelect = document.getElementById('input-phone-country');
+  if (phoneCountrySelect) {
+    phoneCountrySelect.innerHTML = COUNTRY_CODES.map(c => `<option value="${c.dial}">${c.name} (${c.dial}) ${flagEmoji(c.iso2)}</option>`).join('');
   }
   renderMissingFields(profile);
   document.getElementById('profile-form')?.addEventListener('submit', e => {

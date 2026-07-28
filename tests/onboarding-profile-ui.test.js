@@ -9,6 +9,11 @@ const getCachedProfile = vi.fn()
 
 vi.mock('../authClient.js', () => ({ getIdToken, syncUserProfile, getCachedProfile }))
 
+vi.mock('../country-codes.js', () => ({
+  COUNTRY_CODES: [{ name: 'México', iso2: 'MX', dial: '+52' }, { name: 'Argentina', iso2: 'AR', dial: '+54' }],
+  flagEmoji: () => '🏳️'
+}))
+
 let renderMissingFields, submitProfile, initOnboardingProfilePage
 
 beforeEach(async () => {
@@ -17,7 +22,7 @@ beforeEach(async () => {
   document.body.innerHTML = `
     <form id="profile-form">
       <div class="form-field" id="field-name"><input id="input-name"></div>
-      <div class="form-field" id="field-phone"><input id="input-phone"></div>
+      <div class="form-field" id="field-phone"><select id="input-phone-country"></select><input id="input-phone"></div>
       <div class="form-field" id="field-email"><input id="input-email"></div>
       <button type="submit" id="btn-continue-profile">Continuar</button>
       <p id="profile-error" class="hidden"></p>
@@ -61,7 +66,9 @@ describe('submitProfile', () => {
     document.getElementById('field-name').classList.add('hidden')
     document.getElementById('field-email').classList.add('hidden')
     document.getElementById('field-phone').classList.remove('hidden')
-    document.getElementById('input-phone').value = '+525512345678'
+    document.getElementById('input-phone-country').innerHTML = '<option value="+52">México</option>'
+    document.getElementById('input-phone-country').value = '+52'
+    document.getElementById('input-phone').value = '5512345678'
     delete window.location
     window.location = { href: '' }
 
