@@ -147,7 +147,7 @@
   filterInput.addEventListener('input', () => {
     if (currentCol === 'cache') {
       if (lastCacheData) renderCacheAll(lastCacheData, filterInput.value.trim().toLowerCase());
-    } else {
+    } else if (currentCol !== 'users') {
       renderList();
     }
   });
@@ -328,7 +328,7 @@
           <div class="doc-meta">UID: ${escHtml(uid)}</div>
           <div class="doc-meta">Correo: ${escHtml(profile.email || '—')} · Teléfono: ${escHtml(profile.phoneNumber || '—')}</div>
           <div class="doc-meta">Proveedores: ${escHtml((profile.providers || []).join(', ') || '—')}</div>
-          <div class="doc-meta">Creada: ${profile.createdAt ? new Date(profile.createdAt).toLocaleString('es-MX') : '—'} · Último login: ${profile.lastLoginAt ? new Date(profile.lastLoginAt).toLocaleString('es-MX') : '—'}</div>
+          <div class="doc-meta">Creada: ${profile.createdAt ? escHtml(new Date(profile.createdAt).toLocaleString('es-MX')) : '—'} · Último login: ${profile.lastLoginAt ? escHtml(new Date(profile.lastLoginAt).toLocaleString('es-MX')) : '—'}</div>
           <div class="doc-meta">Escaneos totales: ${(profile.usage && profile.usage.totalScans) || 0}</div>
           <div class="doc-meta">Estado de cuenta: ${authBadge}</div>
         </div>
@@ -338,7 +338,7 @@
             <option value="active" ${profile.membershipStatus === 'active' ? 'selected' : ''}>Activa</option>
             <option value="expired" ${profile.membershipStatus === 'expired' ? 'selected' : ''}>Expirada</option>
           </select>
-          <input type="date" id="user-membership-expires" value="${dateInputValue}">
+          <input type="date" id="user-membership-expires" value="${escHtml(dateInputValue)}">
           <button class="btn" data-action="save-membership" data-uid="${escHtml(uid)}">Guardar membresía</button>
         </div>
         <div>
