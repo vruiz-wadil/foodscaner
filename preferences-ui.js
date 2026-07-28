@@ -1,5 +1,5 @@
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
-import { showToast } from './toast.js';
+import { setPendingToast } from './toast.js';
 
 const ALLERGEN_CODES = ['cacahuate', 'lacteos', 'nueces', 'trigo', 'huevo', 'pescado', 'mariscos', 'soja'];
 const CONSENT_NOTICE_VERSION = 'v1';
@@ -227,7 +227,8 @@ export async function savePreferences() {
       throw new Error(data.error || 'save_failed');
     }
 
-    showToast('Preferencias guardadas.');
+    setPendingToast('Preferencias guardadas.');
+    window.location.href = 'account.html';
     return res.json();
   });
 }

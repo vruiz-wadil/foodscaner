@@ -130,17 +130,19 @@ describe('savePreferences', () => {
     })
   })
 
-  it('muestra un toast de confirmación tras guardar exitosamente', async () => {
+  it('guarda el toast pendiente y redirige a account.html tras guardar exitosamente (en vez de mostrar el toast en esta pantalla)', async () => {
     document.getElementById('consent-checkbox').checked = true
     getIdToken.mockResolvedValue('tok-123')
     global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    sessionStorage.clear()
+    delete window.location
+    window.location = { href: '' }
 
     await savePreferences()
 
-    const toast = document.getElementById('app-toast')
-    expect(toast).toBeTruthy()
-    expect(toast.classList.contains('visible')).toBe(true)
-    expect(toast.textContent).toMatch(/guardad/i)
+    expect(document.getElementById('app-toast')).toBeNull()
+    expect(sessionStorage.getItem('yomi_pending_toast')).toBe('Preferencias guardadas.')
+    expect(window.location.href).toBe('account.html')
   })
 
   it('muestra el mensaje específico de membresía cuando el backend responde membership_required', async () => {
