@@ -15,14 +15,16 @@
   const modalClose = document.getElementById('modal-close');
   const sectionTitle = document.getElementById('section-title');
   const toolbarEl = document.getElementById('toolbar');
+  const btnUserSearch = document.getElementById('btn-user-search');
 
   let currentCol = 'resumen';
   let nextPageToken = null;
   let allItems = [];
   let reportBarcodes = null;
   let lastCacheData = null;
+  let lastUserSearch = null;
 
-  const SECTION_TITLES = { resumen: 'Resumen', scan_logs: 'Logs de escaneo', reports: 'Reportes', products_ocr: 'OCR ingredientes', products_nutrition: 'OCR nutrición', cache: 'Cache' };
+  const SECTION_TITLES = { resumen: 'Resumen', scan_logs: 'Logs de escaneo', reports: 'Reportes', products_ocr: 'OCR ingredientes', products_nutrition: 'OCR nutrición', cache: 'Cache', users: 'Usuarios' };
 
   async function loadStats() {
     docList.innerHTML = '<div class="empty-msg">Cargando…</div>';
@@ -139,6 +141,7 @@
     lastCacheData = null;
     nextPageToken = null;
     loadCollection();
+    btnUserSearch.style.display = currentCol === 'users' ? 'inline-block' : 'none';
   });
 
   filterInput.addEventListener('input', () => {
@@ -149,7 +152,25 @@
     }
   });
 
+  btnUserSearch.addEventListener('click', () => {
+    const q = filterInput.value.trim();
+    if (q) searchUser(q);
+  });
+
+  filterInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && currentCol === 'users') {
+      const q = filterInput.value.trim();
+      if (q) searchUser(q);
+    }
+  });
+
   async function loadCollection(append = false) {
+    if (currentCol === 'users') {
+      docList.innerHTML = '<div class="empty-msg">Busca un usuario por correo o teléfono.</div>';
+      statsBar.textContent = '';
+      loadMoreEl.innerHTML = '';
+      return;
+    }
     if (currentCol === 'resumen') { await loadStats(); return; }
     if (!append) { allItems = []; nextPageToken = null; docList.innerHTML = '<div class="empty-msg">Cargando…</div>'; loadMoreEl.innerHTML = ''; }
     const _cfg = TAB_CONFIG[currentCol];
@@ -284,6 +305,48 @@
     docList.innerHTML = html;
   }
 
+  async function searchUser(q) {
+    docList.innerHTML = '<div class="empty-msg">Buscando…</div>';
+    statsBar.textContent = '';
+    const r = await apiFetch('/api/admin/users/search?q=' + encodeURIComponent(q));
+    if (r.status === 404) { docList.innerHTML = '<div class="empty-msg">No se encontró ningún usuario con ese correo/teléfono.</div>'; return; }
+    if (!r.ok) { docList.innerHTML = '<div class="empty-msg">Error al buscar.</div>'; return; }
+    lastUserSearch = q;
+    renderUserDetail(await r.json());
+  }
+
+  function renderUserDetail(data) {
+    const { uid, profile, auth } = data;
+    const dateInputValue = profile.membershipExpiresAt ? profile.membershipExpiresAt.slice(0, 10) : '';
+    const authBadge = auth.disabled
+      ? '<span class="cache-badge" style="background:#fdecea;color:#b3261e;border-color:#f5c2c0;">Desactivada</span>'
+      : '<span class="cache-badge cache-badge-both">Activa</span>';
+    docList.innerHTML = `
+      <div class="list-card doc-item" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <div>
+          <div class="doc-id">${escHtml(profile.displayName || profile.email || profile.phoneNumber || uid)}</div>
+          <div class="doc-meta">UID: ${escHtml(uid)}</div>
+          <div class="doc-meta">Correo: ${escHtml(profile.email || '—')} · Teléfono: ${escHtml(profile.phoneNumber || '—')}</div>
+          <div class="doc-meta">Proveedores: ${escHtml((profile.providers || []).join(', ') || '—')}</div>
+          <div class="doc-meta">Creada: ${profile.createdAt ? new Date(profile.createdAt).toLocaleString('es-MX') : '—'} · Último login: ${profile.lastLoginAt ? new Date(profile.lastLoginAt).toLocaleString('es-MX') : '—'}</div>
+          <div class="doc-meta">Escaneos totales: ${(profile.usage && profile.usage.totalScans) || 0}</div>
+          <div class="doc-meta">Estado de cuenta: ${authBadge}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="user-membership-status">
+            <option value="pending" ${profile.membershipStatus === 'pending' ? 'selected' : ''}>Pendiente</option>
+            <option value="active" ${profile.membershipStatus === 'active' ? 'selected' : ''}>Activa</option>
+            <option value="expired" ${profile.membershipStatus === 'expired' ? 'selected' : ''}>Expirada</option>
+          </select>
+          <input type="date" id="user-membership-expires" value="${dateInputValue}">
+          <button class="btn" data-action="save-membership" data-uid="${escHtml(uid)}">Guardar membresía</button>
+        </div>
+        <div>
+          <button class="btn-del" data-action="toggle-disabled" data-uid="${escHtml(uid)}" data-disabled="${auth.disabled ? 'true' : 'false'}">${auth.disabled ? 'Reactivar cuenta' : 'Desactivar cuenta'}</button>
+        </div>
+      </div>`;
+  }
+
   const SOURCE_LABELS = { cache: '💾 Cache', ia: '🤖 IA', db: '🌐 DB' };
   const CACHE_LABELS = { L1: '💾 L1', L2: '💾 L2', none: '—' };
   const ING_LABELS = { ocr: '📷 OCR', db: '🌐 DB', ai: '🤖 IA', none: '—' };
@@ -378,7 +441,8 @@
     reports: 'Filtrar por código, categoría o comentario…',
     products_ocr: 'Filtrar por ID…',
     products_nutrition: 'Filtrar por ID…',
-    cache: 'Filtrar por código, nombre, fuente o modelo…'
+    cache: 'Filtrar por código, nombre, fuente o modelo…',
+    users: 'Correo o teléfono (+52...)'
   };
 
   const TAB_CONFIG = {
@@ -478,6 +542,42 @@
       modalTitle.textContent = key;
       modalContent.textContent = key;
       modalOverlay.classList.add('open');
+    } else if (btn.dataset.action === 'save-membership') {
+      const uid = btn.dataset.uid;
+      const status = document.getElementById('user-membership-status').value;
+      const dateVal = document.getElementById('user-membership-expires').value;
+      const membershipExpiresAt = dateVal ? new Date(dateVal + 'T00:00:00.000Z').toISOString() : null;
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/membership', {
+        method: 'PATCH',
+        body: JSON.stringify({ membershipStatus: status, membershipExpiresAt })
+      });
+      if (r.ok) {
+        searchUser(lastUserSearch);
+      } else {
+        alert('Error al guardar la membresía.');
+        btn.disabled = false;
+        btn.textContent = 'Guardar membresía';
+      }
+    } else if (btn.dataset.action === 'toggle-disabled') {
+      const uid = btn.dataset.uid;
+      const currentlyDisabled = btn.dataset.disabled === 'true';
+      const next = !currentlyDisabled;
+      if (!confirm(next ? '¿Desactivar esta cuenta? El usuario no podrá iniciar sesión.' : '¿Reactivar esta cuenta?')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/disabled', {
+        method: 'POST',
+        body: JSON.stringify({ disabled: next })
+      });
+      if (r.ok) {
+        searchUser(lastUserSearch);
+      } else {
+        alert('Error al cambiar el estado de la cuenta.');
+        btn.disabled = false;
+        btn.textContent = currentlyDisabled ? 'Reactivar cuenta' : 'Desactivar cuenta';
+      }
     }
   });
 
