@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import crypto from 'crypto'
 
-const { fireGetUser, fireUpsertUser, firePatchUserFields, findUserByEmail } = await import('../api/firestore.js')
+const { fireGetUser, fireUpsertUser, firePatchUserFields, findUserByEmail, fireListUsers } = await import('../api/firestore.js')
 
 function buildFetchMock(userDocHandler) {
   return vi.fn(async (url, options = {}) => {
@@ -253,5 +253,99 @@ describe('users/{uid} data layer', () => {
     vi.stubGlobal('fetch', buildFetchMock(async () => ({ ok: false, status: 500 })))
 
     await expect(findUserByEmail('user@example.com')).rejects.toThrow('find user by email failed: 500')
+  })
+
+  it('fireListUsers arma la structuredQuery con orderBy createdAt DESC y limit 50, sin startAt cuando no hay pageToken', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    let capturedBody
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      capturedBody = JSON.parse(options.body)
+      return { ok: true, status: 200, json: async () => ([]) }
+    }))
+
+    await fireListUsers(null)
+
+    expect(capturedBody.structuredQuery.from).toEqual([{ collectionId: 'users' }])
+    expect(capturedBody.structuredQuery.orderBy).toEqual([{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }])
+    expect(capturedBody.structuredQuery.limit).toBe(50)
+    expect(capturedBody.structuredQuery.startAt).toBeUndefined()
+  })
+
+  it('fireListUsers agrega startAt (before:false) cuando se pasa pageToken', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    let capturedBody
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      capturedBody = JSON.parse(options.body)
+      return { ok: true, status: 200, json: async () => ([]) }
+    }))
+
+    await fireListUsers('2026-07-20T10:00:00.000Z')
+
+    expect(capturedBody.structuredQuery.startAt).toEqual({ values: [{ stringValue: '2026-07-20T10:00:00.000Z' }], before: false })
+  })
+
+  it('fireListUsers mapea cada documento a la fila liviana {uid, email, phoneNumber, displayName, membershipStatus, createdAt}', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    vi.stubGlobal('fetch', buildFetchMock(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ([
+        { document: {
+          name: 'projects/foodscaner-test/databases/(default)/documents/users/uid-1',
+          fields: {
+            email: { stringValue: 'a@b.com' },
+            phoneNumber: { stringValue: '+525512345678' },
+            displayName: { stringValue: 'Ana' },
+            membershipStatus: { stringValue: 'active' },
+            createdAt: { stringValue: '2026-07-21T09:00:00.000Z' }
+          }
+        } }
+      ])
+    })))
+
+    const result = await fireListUsers(null)
+
+    expect(result.items).toEqual([{
+      uid: 'uid-1', email: 'a@b.com', phoneNumber: '+525512345678',
+      displayName: 'Ana', membershipStatus: 'active', createdAt: '2026-07-21T09:00:00.000Z'
+    }])
+  })
+
+  it('fireListUsers devuelve nextPageToken:null cuando la página trae menos de 50 items', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    vi.stubGlobal('fetch', buildFetchMock(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ([
+        { document: { name: 'projects/foodscaner-test/databases/(default)/documents/users/uid-1', fields: { createdAt: { stringValue: '2026-07-21T09:00:00.000Z' } } } }
+      ])
+    })))
+
+    const result = await fireListUsers(null)
+
+    expect(result.nextPageToken).toBeNull()
+  })
+
+  it('fireListUsers devuelve nextPageToken = createdAt del último item cuando la página trae exactamente 50', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    const rows = Array.from({ length: 50 }, (_, i) => ({
+      document: {
+        name: `projects/foodscaner-test/databases/(default)/documents/users/uid-${i}`,
+        fields: { createdAt: { stringValue: `2026-07-21T00:${String(i).padStart(2, '0')}:00.000Z` } }
+      }
+    }))
+    vi.stubGlobal('fetch', buildFetchMock(async () => ({ ok: true, status: 200, json: async () => rows })))
+
+    const result = await fireListUsers(null)
+
+    expect(result.items.length).toBe(50)
+    expect(result.nextPageToken).toBe(rows[49].document.fields.createdAt.stringValue)
+  })
+
+  it('fireListUsers lanza cuando Firestore responde error', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    vi.stubGlobal('fetch', buildFetchMock(async () => ({ ok: false, status: 500 })))
+
+    await expect(fireListUsers(null)).rejects.toThrow('list users failed: 500')
   })
 })

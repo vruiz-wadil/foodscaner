@@ -746,6 +746,41 @@ async function findUserByEmail(email) {
   return row.document.name.split('/').pop();
 }
 
+// --- users: listado paginado, más reciente primero (para la tab Usuarios del panel admin) ---
+async function fireListUsers(pageToken) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const PAGE_SIZE = 50;
+  const structuredQuery = {
+    from: [{ collectionId: 'users' }],
+    orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+    limit: PAGE_SIZE
+  };
+  if (pageToken) structuredQuery.startAt = { values: [{ stringValue: pageToken }], before: false };
+  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`list users failed: ${resp.status}`);
+  const rows = await resp.json();
+  const items = rows.filter(r => r.document).map(r => {
+    const uid = r.document.name.split('/').pop();
+    const f = fromFirestoreFields(r.document.fields || {});
+    return {
+      uid,
+      email: f.email || null,
+      phoneNumber: f.phoneNumber || null,
+      displayName: f.displayName || null,
+      membershipStatus: f.membershipStatus || null,
+      createdAt: f.createdAt || null
+    };
+  });
+  const nextPageToken = items.length === PAGE_SIZE ? items[items.length - 1].createdAt : null;
+  return { items, nextPageToken };
+}
+
 module.exports = {
   getAccessToken, getServiceAccount,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
@@ -755,5 +790,5 @@ module.exports = {
   fireGetUser, fireUpsertUser, firePatchUserFields,
   fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter, fireRecordMembershipPayment,
   fireLogUserHistory, fireListUserHistory,
-  fireGetPhoneIndex, fireSetPhoneIndex, findUserByEmail
+  fireGetPhoneIndex, fireSetPhoneIndex, findUserByEmail, fireListUsers
 };
