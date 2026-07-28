@@ -1,6 +1,7 @@
 import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider } from './firebase-init.js';
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 import { mapAuthError } from './authErrors.js';
+import { COUNTRY_CODES, flagEmoji, splitE164 } from './country-codes.js';
 
 // Suma de ítems declarados por el usuario — sin backend nuevo, se deriva
 // del perfil ya cacheado. Para free (sin preferences) siempre 0.
@@ -44,6 +45,10 @@ function renderEmailVerificationBanner() {
 // compiten por este estado.
 let editingRow = null; // 'name' | 'phone' | 'email' | null
 
+function renderCountryOptions(selectedDial) {
+  return COUNTRY_CODES.map(c => `<option value="${c.dial}" ${c.dial === selectedDial ? 'selected' : ''}>${c.name} (${c.dial}) ${flagEmoji(c.iso2)}</option>`).join('');
+}
+
 function renderNameRow(displayName) {
   if (editingRow === 'name') {
     return `
@@ -84,9 +89,11 @@ function renderPhoneRow(profile, phoneContact) {
   }
 
   if (editingRow === 'phone') {
+    const { dial, local } = splitE164(phoneContact);
     return `
       <div class="account-data-row account-data-row-editing" data-row="phone">
-        <input id="input-edit-phone-contact" class="form-input" type="tel" value="${escapeHtml(phoneContact)}">
+        <select id="input-edit-phone-country" class="form-input">${renderCountryOptions(dial)}</select>
+        <input id="input-edit-phone-contact" class="form-input" type="tel" value="${escapeHtml(local)}">
         <button type="button" id="btn-save-phone" class="row-icon-btn" aria-label="Guardar teléfono">✔️</button>
         <button type="button" id="btn-cancel-phone" class="row-icon-btn" aria-label="Cancelar edición de teléfono">✖️</button>
       </div>
@@ -394,7 +401,8 @@ function openPhoneChangeModal() {
     <div id="phone-login-flow">
       <div class="form-field">
         <label for="input-new-phone">Nuevo número</label>
-        <input id="input-new-phone" class="form-input" type="tel" placeholder="+525512345678">
+        <select id="input-new-phone-country" class="form-input">${renderCountryOptions('+52')}</select>
+        <input id="input-new-phone" class="form-input" type="tel" placeholder="5512345678">
       </div>
       <button type="button" id="btn-phone-send-code" class="btn btn-secondary">Enviar código</button>
       <div class="form-field">
@@ -529,8 +537,9 @@ function showPhoneError(message) {
 }
 
 export async function submitPhoneContactEdit() {
-  const input = document.getElementById('input-edit-phone-contact');
-  const phone = input ? input.value.trim() : '';
+  const dial = document.getElementById('input-edit-phone-country')?.value || '';
+  const local = document.getElementById('input-edit-phone-contact')?.value.trim() || '';
+  const phone = dial + local.replace(/\D/g, '');
   const token = await getIdToken();
   const res = await fetch('/api/me/profile', {
     method: 'PUT',
@@ -572,8 +581,9 @@ export async function submitEmailContactEdit() {
 }
 
 export async function submitPhoneSendCode() {
-  const input = document.getElementById('input-new-phone');
-  const phone = input ? input.value.trim() : '';
+  const dial = document.getElementById('input-new-phone-country')?.value || '';
+  const local = document.getElementById('input-new-phone')?.value.trim() || '';
+  const phone = dial + local.replace(/\D/g, '');
   const res = await fetch('/api/auth/phone/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -592,9 +602,10 @@ const PHONE_CHANGE_ERROR_MESSAGES = {
 };
 
 export async function submitPhoneChangeConfirm() {
-  const phoneInput = document.getElementById('input-new-phone');
+  const dial = document.getElementById('input-new-phone-country')?.value || '';
+  const localInput = document.getElementById('input-new-phone');
   const codeInput = document.getElementById('input-phone-code');
-  const phone = phoneInput ? phoneInput.value.trim() : '';
+  const phone = dial + (localInput ? localInput.value.trim().replace(/\D/g, '') : '');
   const code = codeInput ? codeInput.value.trim() : '';
   const token = await getIdToken();
   const res = await fetch('/api/me/phone/change', {

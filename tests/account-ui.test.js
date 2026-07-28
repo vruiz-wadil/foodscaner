@@ -17,6 +17,15 @@ class EmailAuthProvider {
 }
 vi.mock('../firebase-init.js', () => ({ firebaseAuth: mockAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider }))
 vi.mock('../authClient.js', () => ({ getCachedProfile, syncUserProfile, getIdToken }))
+vi.mock('../country-codes.js', () => ({
+  COUNTRY_CODES: [{ name: 'México', iso2: 'MX', dial: '+52' }, { name: 'Argentina', iso2: 'AR', dial: '+54' }],
+  flagEmoji: () => '🏳️',
+  splitE164: (phone) => {
+    if (!phone) return { dial: '+52', local: '' }
+    if (phone.startsWith('+54')) return { dial: '+54', local: phone.slice(3) }
+    return { dial: '+52', local: phone.replace(/^\+52/, '') }
+  }
+}))
 
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
 let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit, submitPasswordEdit
@@ -281,13 +290,14 @@ describe('fila Teléfono — cuenta CON email (edición inline, sin SMS)', () =>
     expect(document.getElementById('phone-login-flow')).toBeNull()
   })
 
-  it('submitPhoneContactEdit llama PUT /api/me/profile con { phone } y re-sincroniza', async () => {
+  it('submitPhoneContactEdit llama PUT /api/me/profile con { phone } reconstruido de país+local, y re-sincroniza', async () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
     renderAccountHub()
     document.getElementById('btn-edit-phone').click()
     getIdToken.mockResolvedValue('tok')
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
-    document.getElementById('input-edit-phone-contact').value = '+525512345678'
+    document.getElementById('input-edit-phone-country').value = '+52'
+    document.getElementById('input-edit-phone-contact').value = '5512345678'
 
     await submitPhoneContactEdit()
 
@@ -295,6 +305,14 @@ describe('fila Teléfono — cuenta CON email (edición inline, sin SMS)', () =>
     expect(url).toBe('/api/me/profile')
     expect(JSON.parse(options.body)).toEqual({ phone: '+525512345678' })
     expect(syncUserProfile).toHaveBeenCalled()
+  })
+
+  it('pre-llena el select de país y el número local a partir del teléfono existente', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active', phoneNumber: '+525512345678' })
+    renderAccountHub()
+    document.getElementById('btn-edit-phone').click()
+    expect(document.getElementById('input-edit-phone-country').value).toBe('+52')
+    expect(document.getElementById('input-edit-phone-contact').value).toBe('5512345678')
   })
 })
 
@@ -308,12 +326,13 @@ describe('fila Teléfono — cuenta SIN email (phone-login, modal con flujo SMS)
     expect(document.getElementById('input-edit-phone-contact')).toBeNull()
   })
 
-  it('submitPhoneSendCode llama /api/auth/phone/send con el número nuevo', async () => {
+  it('submitPhoneSendCode llama /api/auth/phone/send con el número reconstruido de país+local', async () => {
     getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
     renderAccountHub()
     document.getElementById('btn-open-phone-modal').click()
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'pending' }) })
-    document.getElementById('input-new-phone').value = '+525512345678'
+    document.getElementById('input-new-phone-country').value = '+52'
+    document.getElementById('input-new-phone').value = '5512345678'
 
     await submitPhoneSendCode()
 
@@ -322,13 +341,14 @@ describe('fila Teléfono — cuenta SIN email (phone-login, modal con flujo SMS)
     expect(JSON.parse(options.body)).toEqual({ phone: '+525512345678' })
   })
 
-  it('submitPhoneChangeConfirm llama POST /api/me/phone/change con phone+code y re-sincroniza', async () => {
+  it('submitPhoneChangeConfirm llama POST /api/me/phone/change con phone (país+local) y code, y re-sincroniza', async () => {
     getCachedProfile.mockReturnValue({ phoneNumber: '+525500000000', membershipStatus: 'active' })
     renderAccountHub()
     document.getElementById('btn-open-phone-modal').click()
     getIdToken.mockResolvedValue('tok')
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
-    document.getElementById('input-new-phone').value = '+525512345678'
+    document.getElementById('input-new-phone-country').value = '+52'
+    document.getElementById('input-new-phone').value = '5512345678'
     document.getElementById('input-phone-code').value = '123456'
 
     await submitPhoneChangeConfirm()
@@ -346,7 +366,8 @@ describe('fila Teléfono — cuenta SIN email (phone-login, modal con flujo SMS)
     document.getElementById('btn-open-phone-modal').click()
     getIdToken.mockResolvedValue('tok')
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: 'phone_in_use' }) })
-    document.getElementById('input-new-phone').value = '+525512345678'
+    document.getElementById('input-new-phone-country').value = '+52'
+    document.getElementById('input-new-phone').value = '5512345678'
     document.getElementById('input-phone-code').value = '123456'
 
     await expect(submitPhoneChangeConfirm()).rejects.toThrow()
