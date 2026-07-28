@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import crypto from 'crypto'
 
-const { fireGetUser, fireUpsertUser, firePatchUserFields } = await import('../api/firestore.js')
+const { fireGetUser, fireUpsertUser, firePatchUserFields, findUserByEmail } = await import('../api/firestore.js')
 
 function buildFetchMock(userDocHandler) {
   return vi.fn(async (url, options = {}) => {
@@ -209,5 +209,49 @@ describe('users/{uid} data layer', () => {
     }))
     await firePatchUserFields('uid-1', ['allergens'], { allergens: [] })
     expect(capturedBody.fields.allergens).toEqual({ arrayValue: { values: [] } })
+  })
+
+  it('findUserByEmail devuelve el uid del primer documento cuando hay match exacto por email', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    let capturedBody
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      capturedBody = JSON.parse(options.body)
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ([
+          { document: { name: 'projects/foodscaner-test/databases/(default)/documents/users/uid-abc123', fields: {} } }
+        ])
+      }
+    }))
+
+    const uid = await findUserByEmail('user@example.com')
+
+    expect(uid).toBe('uid-abc123')
+    expect(capturedBody.structuredQuery.from).toEqual([{ collectionId: 'users' }])
+    expect(capturedBody.structuredQuery.where).toEqual({
+      fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: 'user@example.com' } }
+    })
+    expect(capturedBody.structuredQuery.limit).toBe(1)
+  })
+
+  it('findUserByEmail devuelve null cuando no hay match', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    vi.stubGlobal('fetch', buildFetchMock(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ([{}]) // runQuery responde [{}] (sin .document) cuando no hay resultados
+    })))
+
+    const uid = await findUserByEmail('nadie@example.com')
+
+    expect(uid).toBeNull()
+  })
+
+  it('findUserByEmail lanza cuando Firestore responde error', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    vi.stubGlobal('fetch', buildFetchMock(async () => ({ ok: false, status: 500 })))
+
+    await expect(findUserByEmail('user@example.com')).rejects.toThrow('find user by email failed: 500')
   })
 })

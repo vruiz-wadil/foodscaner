@@ -723,6 +723,29 @@ async function fireSetPhoneIndex(phone, uid) {
   if (!resp.ok) throw new Error(`Firestore set phone index failed: ${resp.status}`);
 }
 
+// --- users: búsqueda por email (match exacto, para el panel admin) ---
+async function findUserByEmail(email) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'users' }],
+        where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email } } },
+        limit: 1
+      }
+    }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`find user by email failed: ${resp.status}`);
+  const rows = await resp.json();
+  const row = rows.find(r => r.document);
+  if (!row) return null;
+  return row.document.name.split('/').pop();
+}
+
 module.exports = {
   getAccessToken, getServiceAccount,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
@@ -732,5 +755,5 @@ module.exports = {
   fireGetUser, fireUpsertUser, firePatchUserFields,
   fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter, fireRecordMembershipPayment,
   fireLogUserHistory, fireListUserHistory,
-  fireGetPhoneIndex, fireSetPhoneIndex
+  fireGetPhoneIndex, fireSetPhoneIndex, findUserByEmail
 };
