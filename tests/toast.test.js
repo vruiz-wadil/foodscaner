@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { showToast } from '../toast.js'
+import { showToast, setPendingToast, showPendingToast } from '../toast.js'
 
 describe('showToast', () => {
   beforeEach(() => {
@@ -56,5 +56,42 @@ describe('showToast', () => {
     expect(el.classList.contains('visible')).toBe(true)
     vi.advanceTimersByTime(1)
     expect(el.classList.contains('visible')).toBe(false)
+  })
+})
+
+describe('setPendingToast / showPendingToast', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    sessionStorage.clear()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('setPendingToast guarda el mensaje en sessionStorage bajo yomi_pending_toast', async () => {
+    const { setPendingToast } = await import('../toast.js')
+    setPendingToast('Preferencias guardadas.')
+    expect(sessionStorage.getItem('yomi_pending_toast')).toBe('Preferencias guardadas.')
+  })
+
+  it('showPendingToast muestra el toast y limpia la key si hay un mensaje pendiente', async () => {
+    const { setPendingToast, showPendingToast } = await import('../toast.js')
+    setPendingToast('Preferencias guardadas.')
+
+    showPendingToast()
+
+    const el = document.getElementById('app-toast')
+    expect(el).toBeTruthy()
+    expect(el.textContent).toBe('Preferencias guardadas.')
+    expect(el.classList.contains('visible')).toBe(true)
+    expect(sessionStorage.getItem('yomi_pending_toast')).toBeNull()
+  })
+
+  it('showPendingToast no hace nada si no hay mensaje pendiente', async () => {
+    const { showPendingToast } = await import('../toast.js')
+    showPendingToast()
+    expect(document.getElementById('app-toast')).toBeNull()
   })
 })
