@@ -549,7 +549,7 @@ body {
 }
 
 .account-email { font-weight: 600; color: var(--ink); margin: 0; }
-.account-summary, .account-empty { font-size: 0.85rem; color: var(--ink-3); margin: 0; }
+.account-preference-summary-line, .account-empty { font-size: 0.85rem; color: var(--ink-3); margin: 0; }
 
 /* Filas de "Mis datos" en Mi cuenta — reemplaza el bloque de 4 forms
    apilados con 4 botones "Guardar" simultáneos (hallazgo UX). Nombre y
@@ -719,6 +719,7 @@ body:has(.app-main.content-page) {
 .stat-tile .stat-num { font-size: 20px; font-weight: 800; color: var(--ink); }
 .stat-tile .stat-label { font-size: 10px; color: var(--ink-3); }
 
+.account-preference-summary { flex: 1; min-width: 0; }
 .account-preference-summary-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .account-preference-group { margin-top: 8px; }
 .account-preference-group-label { font-size: 0.72rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }

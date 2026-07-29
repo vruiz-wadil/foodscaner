@@ -45,7 +45,7 @@ const CATEGORY_SECTION_LABEL = { dietary: 'Dietético', allergens: 'Alergias', h
 
 function renderPreferenceChips(chips) {
   const byCategory = { dietary: [], allergens: [], health: [] };
-  chips.forEach(chip => byCategory[chip.category].push(chip));
+  chips.forEach(chip => byCategory[chip.category]?.push(chip));
   return ['dietary', 'allergens', 'health']
     .filter(cat => byCategory[cat].length)
     .map(cat => `
@@ -329,6 +329,7 @@ function wireAccountHubEvents(profile) {
   document.getElementById('btn-toggle-preference-summary')?.addEventListener('click', () => {
     preferenceSummaryExpanded = !preferenceSummaryExpanded;
     renderAccountHub();
+    document.getElementById('btn-toggle-preference-summary')?.focus();
   });
 
   document.getElementById('btn-edit-name')?.addEventListener('click', () => {

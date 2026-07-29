@@ -69,8 +69,9 @@ export function buildPreferenceSummary(prefs) {
     counts.push({ emoji: meta.emoji, text: `${allergens.length} ${allergens.length === 1 ? meta.singular : meta.plural}` });
     allergens.forEach(({ code, severity }) => {
       const { emoji, label } = lookupOrFallback(ALLERGEN_LABELS, code);
-      const extra = Object.prototype.hasOwnProperty.call(SEVERITY_LABELS, severity) ? SEVERITY_LABELS[severity] : null;
-      chips.push({ category: 'allergens', emoji, label, extra, severity: severity || null });
+      const knownSeverity = Object.prototype.hasOwnProperty.call(SEVERITY_LABELS, severity);
+      const extra = knownSeverity ? SEVERITY_LABELS[severity] : null;
+      chips.push({ category: 'allergens', emoji, label, extra, severity: knownSeverity ? severity : null });
     });
   }
 
