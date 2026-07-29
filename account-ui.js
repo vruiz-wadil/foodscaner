@@ -287,7 +287,7 @@ export function renderAccountHub() {
         <div class="stat-tile"><div class="stat-num">${totalScans}</div><div class="stat-label">Escaneos</div></div>
         <div class="stat-tile"><div class="stat-num">${alertsActive}</div><div class="stat-label">Alertas activas</div></div>
       </div>
-      <div class="row-card">
+      <div class="row-card account-preference-row">
         ${summaryHtml}
         <a href="preferences.html" class="btn btn-secondary">Editar preferencias</a>
       </div>

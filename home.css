@@ -719,6 +719,8 @@ body:has(.app-main.content-page) {
 .stat-tile .stat-num { font-size: 20px; font-weight: 800; color: var(--ink); }
 .stat-tile .stat-label { font-size: 10px; color: var(--ink-3); }
 
+.account-preference-row { flex-direction: column; align-items: stretch; gap: 8px; }
+.account-preference-row > .btn { align-self: flex-start; }
 .account-preference-summary { flex: 1; min-width: 0; }
 .account-preference-summary-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .account-preference-group { margin-top: 8px; }
