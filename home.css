@@ -719,6 +719,14 @@ body:has(.app-main.content-page) {
 .stat-tile .stat-num { font-size: 20px; font-weight: 800; color: var(--ink); }
 .stat-tile .stat-label { font-size: 10px; color: var(--ink-3); }
 
+.account-preference-summary-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.account-preference-group { margin-top: 8px; }
+.account-preference-group-label { font-size: 0.72rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+.account-preference-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.account-preference-chip { display: inline-flex; align-items: center; gap: 4px; background: #f3f3f3; border-radius: 999px; padding: 4px 10px; font-size: 0.8rem; }
+.account-preference-chip.severity-mild { background: var(--amber-light); color: #8a5a00; border: 1px solid var(--amber-border); }
+.account-preference-chip.severity-severe { background: var(--chile-light); color: var(--chile); border: 1px solid var(--chile-border); }
+
 /* Tiles de dietas/condiciones/alergias en preferences.html — scopeado a
    #preferences-form por dos razones: (1) especificidad, para ganarle a la
    base .dietary-grid-item/.allergen-grid-item de styles.css (misma

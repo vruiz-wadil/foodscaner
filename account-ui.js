@@ -3,6 +3,7 @@ import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 import { mapAuthError } from './authErrors.js';
 import { COUNTRY_CODES, flagEmoji, splitE164 } from './country-codes.js';
 import { showPendingToast } from './toast.js';
+import { buildPreferenceSummary } from './preference-labels.js';
 
 // Suma de ítems declarados por el usuario — sin backend nuevo, se deriva
 // del perfil ya cacheado. Para free (sin preferences) siempre 0.
@@ -40,11 +41,46 @@ function renderEmailVerificationBanner() {
   `;
 }
 
+const CATEGORY_SECTION_LABEL = { dietary: 'Dietético', allergens: 'Alergias', health: 'Condiciones' };
+
+function renderPreferenceChips(chips) {
+  const byCategory = { dietary: [], allergens: [], health: [] };
+  chips.forEach(chip => byCategory[chip.category].push(chip));
+  return ['dietary', 'allergens', 'health']
+    .filter(cat => byCategory[cat].length)
+    .map(cat => `
+      <div class="account-preference-group">
+        <div class="account-preference-group-label">${CATEGORY_SECTION_LABEL[cat]}</div>
+        <div class="account-preference-chips">
+          ${byCategory[cat].map(chip => {
+            const severityClass = chip.severity ? ` severity-${chip.severity}` : '';
+            const text = chip.extra ? `${chip.label} · ${chip.extra}` : chip.label;
+            return `<span class="account-preference-chip${severityClass}">${chip.emoji} ${escapeHtml(text)}</span>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+}
+
+function renderPreferenceSummary({ counts, chips }) {
+  const countsLine = counts.map(c => `${c.emoji} ${escapeHtml(c.text)}`).join(' · ');
+  const toggleLabel = preferenceSummaryExpanded ? 'Ocultar ▲' : 'Ver todo ▾';
+  const expandedHtml = preferenceSummaryExpanded ? renderPreferenceChips(chips) : '';
+  return `
+    <div class="account-preference-summary">
+      <div class="account-preference-summary-line">
+        <span>${countsLine}</span>
+        <button type="button" id="btn-toggle-preference-summary" class="account-link-btn">${toggleLabel}</button>
+      </div>
+      ${expandedHtml}
+    </div>`;
+}
+
 // Solo una fila (nombre, teléfono-con-email, o correo-de-contacto) puede
 // estar en edición inline a la vez — correo-de-identidad/teléfono-SMS/
 // contraseña son multi-paso y usan el modal en su lugar, así que no
 // compiten por este estado.
 let editingRow = null; // 'name' | 'phone' | 'email' | null
+let preferenceSummaryExpanded = false;
 
 function renderCountryOptions(selectedDial) {
   return COUNTRY_CODES.map(c => `<option value="${c.dial}" ${c.dial === selectedDial ? 'selected' : ''}>${c.name} (${c.dial}) ${flagEmoji(c.iso2)}</option>`).join('');
@@ -229,7 +265,7 @@ export function renderAccountHub() {
   const emailContact = profile.email || (profile.profile && profile.profile.email) || '';
 
   const summaryHtml = hasPrefs
-    ? `<p class="account-summary">Tu perfil: ${[...(prefs.dietary || []), ...(prefs.allergens || []).map(a => a.code), ...(prefs.healthConditions || [])].join(', ')}</p>`
+    ? renderPreferenceSummary(buildPreferenceSummary(prefs))
     : '<p class="account-empty">Aún no configuraste tus preferencias.</p>';
 
   const renewCta = status === 'expired'
@@ -288,6 +324,11 @@ function wireAccountHubEvents(profile) {
   });
   document.getElementById('btn-renew-membership')?.addEventListener('click', () => {
     handleRenewMembership().catch(() => {});
+  });
+
+  document.getElementById('btn-toggle-preference-summary')?.addEventListener('click', () => {
+    preferenceSummaryExpanded = !preferenceSummaryExpanded;
+    renderAccountHub();
   });
 
   document.getElementById('btn-edit-name')?.addEventListener('click', () => {

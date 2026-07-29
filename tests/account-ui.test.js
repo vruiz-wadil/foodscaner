@@ -115,8 +115,58 @@ describe('renderAccountHub', () => {
     })
     renderAccountHub()
     const root = document.getElementById('account-root')
-    expect(root.textContent).toMatch(/vegan/)
+    expect(root.textContent).toMatch(/1 dietético/)
+    expect(root.textContent).toMatch(/1 alergia/)
     expect(root.querySelector('a[href="preferences.html"]').textContent).toMatch(/[Ee]ditar preferencias/)
+  })
+
+  it('el resumen de preferencias arranca colapsado, sin chips visibles', () => {
+    getCachedProfile.mockReturnValue({
+      email: 'a@b.com', membershipStatus: 'active',
+      preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] }
+    })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('.account-preference-chip')).toBeNull()
+    expect(document.getElementById('btn-toggle-preference-summary').textContent).toMatch(/Ver todo/)
+  })
+
+  it('click en el toggle expande los chips agrupados por categoría', () => {
+    getCachedProfile.mockReturnValue({
+      email: 'a@b.com', membershipStatus: 'active',
+      preferences: { dietary: ['organic'], allergens: [{ code: 'lacteos', severity: 'severe' }], healthConditions: [] }
+    })
+    renderAccountHub()
+    document.getElementById('btn-toggle-preference-summary').click()
+    const root = document.getElementById('account-root')
+    const chips = Array.from(root.querySelectorAll('.account-preference-chip')).map(el => el.textContent)
+    expect(chips.some(t => t.includes('Orgánico'))).toBe(true)
+    expect(chips.some(t => t.includes('Lácteos') && t.includes('Estricto'))).toBe(true)
+    expect(document.getElementById('btn-toggle-preference-summary').textContent).toMatch(/Ocultar/)
+  })
+
+  it('click en el toggle otra vez vuelve a colapsar', () => {
+    getCachedProfile.mockReturnValue({
+      email: 'a@b.com', membershipStatus: 'active',
+      preferences: { dietary: ['vegan'], allergens: [], healthConditions: [] }
+    })
+    renderAccountHub()
+    document.getElementById('btn-toggle-preference-summary').click()
+    document.getElementById('btn-toggle-preference-summary').click()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('.account-preference-chip')).toBeNull()
+  })
+
+  it('el chip de una alergia con severidad "mild" usa la clase severity-mild, no severity-severe', () => {
+    getCachedProfile.mockReturnValue({
+      email: 'a@b.com', membershipStatus: 'active',
+      preferences: { dietary: [], allergens: [{ code: 'soja', severity: 'mild' }], healthConditions: [] }
+    })
+    renderAccountHub()
+    document.getElementById('btn-toggle-preference-summary').click()
+    const chip = document.querySelector('.account-preference-chip')
+    expect(chip.classList.contains('severity-mild')).toBe(true)
+    expect(chip.classList.contains('severity-severe')).toBe(false)
   })
 
   it('siempre incluye el botón de cerrar sesión, sin importar el estado de membresía', () => {
