@@ -53,7 +53,7 @@ function renderPreferenceChips(chips) {
         <div class="account-preference-group-label">${CATEGORY_SECTION_LABEL[cat]}</div>
         <div class="account-preference-chips">
           ${byCategory[cat].map(chip => {
-            const severityClass = chip.severity ? ` severity-${chip.severity}` : '';
+            const severityClass = ['mild', 'severe'].includes(chip.severity) ? ` severity-${chip.severity}` : '';
             const text = chip.extra ? `${chip.label} · ${chip.extra}` : chip.label;
             return `<span class="account-preference-chip${severityClass}">${chip.emoji} ${escapeHtml(text)}</span>`;
           }).join('')}
