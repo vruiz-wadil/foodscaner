@@ -99,19 +99,38 @@ describe('passwordResetHandler', () => {
 })
 
 describe('verificationEmailHandler', () => {
-  beforeEach(() => { generateActionLink.mockReset(); sendMail.mockReset() })
+  const ORIGINAL_APP_BASE_URL = process.env.APP_BASE_URL
 
-  it('genera el link de VERIFY_EMAIL para el correo del usuario autenticado y lo manda', async () => {
-    generateActionLink.mockResolvedValue('https://foodscaner-dev.firebaseapp.com/__/auth/action?oobCode=xyz')
+  beforeEach(() => { generateActionLink.mockReset(); sendMail.mockReset() })
+  afterEach(() => {
+    if (ORIGINAL_APP_BASE_URL === undefined) delete process.env.APP_BASE_URL
+    else process.env.APP_BASE_URL = ORIGINAL_APP_BASE_URL
+  })
+
+  it('genera el link de VERIFY_EMAIL con continueUrl a verify-email.html (cae a yomi.mx sin APP_BASE_URL) y lo manda', async () => {
+    delete process.env.APP_BASE_URL
+    generateActionLink.mockResolvedValue('https://yomi.mx/verify-email.html?oobCode=xyz')
     sendMail.mockResolvedValue(undefined)
     const req = { user: { uid: 'uid-1', email: 'user@example.com' } }
     const res = makeRes()
 
     await verificationEmailHandler(req, res)
 
-    expect(generateActionLink).toHaveBeenCalledWith('user@example.com', 'VERIFY_EMAIL')
+    expect(generateActionLink).toHaveBeenCalledWith('user@example.com', 'VERIFY_EMAIL', 'https://yomi.mx/verify-email.html')
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'user@example.com' }))
     expect(res.body).toEqual({ ok: true })
+  })
+
+  it('usa APP_BASE_URL para el continueUrl cuando está configurado (ej. el alias estable de preview)', async () => {
+    process.env.APP_BASE_URL = 'https://foodscaner-git-develop-wadil-ai-studio-s-projects.vercel.app'
+    generateActionLink.mockResolvedValue('https://foodscaner-git-develop-wadil-ai-studio-s-projects.vercel.app/verify-email.html?oobCode=xyz')
+    sendMail.mockResolvedValue(undefined)
+    const req = { user: { uid: 'uid-1', email: 'user@example.com' } }
+    const res = makeRes()
+
+    await verificationEmailHandler(req, res)
+
+    expect(generateActionLink).toHaveBeenCalledWith('user@example.com', 'VERIFY_EMAIL', 'https://foodscaner-git-develop-wadil-ai-studio-s-projects.vercel.app/verify-email.html')
   })
 
   it('500s si falla generar o mandar el link', async () => {

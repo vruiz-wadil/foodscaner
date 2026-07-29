@@ -1589,7 +1589,8 @@ app.post('/api/auth/password-reset', passwordResetHandler);
 
 async function verificationEmailHandler(req, res) {
   try {
-    const oobLink = await generateActionLink(req.user.email, 'VERIFY_EMAIL');
+    const baseUrl = process.env.APP_BASE_URL || 'https://yomi.mx';
+    const oobLink = await generateActionLink(req.user.email, 'VERIFY_EMAIL', `${baseUrl}/verify-email.html`);
     await sendMail({
       to: req.user.email,
       subject: 'Verifica tu correo para Yomi',
