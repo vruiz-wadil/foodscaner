@@ -727,6 +727,8 @@ body:has(.app-main.content-page) {
 .account-preference-group-label { font-size: 0.72rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
 .account-preference-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .account-preference-chip { display: inline-flex; align-items: center; gap: 4px; background: #f3f3f3; border-radius: 999px; padding: 4px 10px; font-size: 0.8rem; }
+.account-preference-toggle { flex-shrink: 0; border: none; cursor: pointer; background: #f3f3f3; color: var(--ink); font-weight: 600; font-size: 0.8rem; border-radius: 999px; padding: 4px 12px; }
+.account-preference-toggle:hover { background: #e6e6e6; }
 .account-preference-chip.severity-mild { background: var(--amber-light); color: #8a5a00; border: 1px solid var(--amber-border); }
 .account-preference-chip.severity-severe { background: var(--chile-light); color: var(--chile); border: 1px solid var(--chile-border); }
 

@@ -69,7 +69,7 @@ function renderPreferenceSummary({ counts, chips }) {
     <div class="account-preference-summary">
       <div class="account-preference-summary-line">
         <span>${countsLine}</span>
-        <button type="button" id="btn-toggle-preference-summary" class="account-link-btn">${toggleLabel}</button>
+        <button type="button" id="btn-toggle-preference-summary" class="account-preference-toggle">${toggleLabel}</button>
       </div>
       ${expandedHtml}
     </div>`;
