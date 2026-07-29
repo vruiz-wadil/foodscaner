@@ -61,4 +61,16 @@ describe('buildPreferenceSummary', () => {
     ])
     expect(result.counts).toEqual([{ emoji: '🌱', text: '1 dietético' }])
   })
+
+  it('un alérgeno con severidad "mild" traduce extra a "Aviso" en el chip', () => {
+    const result = buildPreferenceSummary({ dietary: [], allergens: [{ code: 'trigo', severity: 'mild' }], healthConditions: [] })
+    expect(result.chips).toEqual([
+      { category: 'allergens', emoji: '🌾', label: 'Trigo', extra: 'Aviso', severity: 'mild' }
+    ])
+  })
+
+  it('un alérgeno sin severidad reconocida (o ausente) tiene extra:null en el chip', () => {
+    const result = buildPreferenceSummary({ dietary: [], allergens: [{ code: 'trigo' }], healthConditions: [] })
+    expect(result.chips[0].extra).toBeNull()
+  })
 })

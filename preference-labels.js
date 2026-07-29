@@ -44,7 +44,7 @@ const CATEGORY_META = {
 };
 
 function lookupOrFallback(map, code) {
-  return map[code] || { emoji: '', label: code };
+  return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : { emoji: '', label: code };
 }
 
 export function buildPreferenceSummary(prefs) {
@@ -69,7 +69,8 @@ export function buildPreferenceSummary(prefs) {
     counts.push({ emoji: meta.emoji, text: `${allergens.length} ${allergens.length === 1 ? meta.singular : meta.plural}` });
     allergens.forEach(({ code, severity }) => {
       const { emoji, label } = lookupOrFallback(ALLERGEN_LABELS, code);
-      chips.push({ category: 'allergens', emoji, label, extra: SEVERITY_LABELS[severity] || null, severity: severity || null });
+      const extra = Object.prototype.hasOwnProperty.call(SEVERITY_LABELS, severity) ? SEVERITY_LABELS[severity] : null;
+      chips.push({ category: 'allergens', emoji, label, extra, severity: severity || null });
     });
   }
 
