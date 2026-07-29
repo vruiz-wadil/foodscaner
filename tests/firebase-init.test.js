@@ -33,6 +33,7 @@ const signInWithCustomToken = vi.fn()
 const updatePassword = vi.fn()
 const verifyBeforeUpdateEmail = vi.fn()
 const reauthenticateWithCredential = vi.fn()
+const applyActionCode = vi.fn()
 class EmailAuthProvider {
   static credential(email, password) { return { email, password } }
 }
@@ -51,7 +52,8 @@ vi.mock(AUTH_URL, () => ({
   updatePassword,
   verifyBeforeUpdateEmail,
   reauthenticateWithCredential,
-  EmailAuthProvider
+  EmailAuthProvider,
+  applyActionCode
 }))
 
 describe('firebase-init.js', () => {
@@ -91,6 +93,7 @@ describe('firebase-init.js', () => {
     expect(mod.verifyBeforeUpdateEmail).toBe(verifyBeforeUpdateEmail)
     expect(mod.reauthenticateWithCredential).toBe(reauthenticateWithCredential)
     expect(mod.EmailAuthProvider).toBe(EmailAuthProvider)
+    expect(mod.applyActionCode).toBe(applyActionCode)
   })
 
   it('skips App Check init when the site key placeholder was never injected at build time', async () => {

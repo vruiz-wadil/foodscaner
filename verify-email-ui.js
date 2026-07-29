@@ -31,6 +31,7 @@ export async function initVerifyEmailPage() {
 
   try {
     await applyActionCode(firebaseAuth, oobCode);
+    await firebaseAuth.currentUser?.reload();
     if (sub) sub.textContent = 'Tu correo fue verificado.';
     showSuccess('Tu correo fue verificado. Redirigiendo a Mi cuenta…');
     setTimeout(() => { window.location.href = 'account.html'; }, 2000);

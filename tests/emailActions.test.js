@@ -42,7 +42,7 @@ describe('generateActionLink', () => {
     })
   })
 
-  it('no incluye continueUrl/canHandleCodeInApp cuando no se pasa continueUrl (caso VERIFY_EMAIL)', async () => {
+  it('no incluye continueUrl/canHandleCodeInApp cuando no se pasa continueUrl', async () => {
     let capturedBody
     vi.stubGlobal('fetch', vi.fn(async (url, options) => {
       capturedBody = JSON.parse(options.body)

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const mockAuth = {}
+const mockAuth = { currentUser: { reload: vi.fn().mockResolvedValue(undefined) } }
 const applyActionCode = vi.fn()
 
 vi.mock('../firebase-init.js', () => ({
@@ -52,6 +52,7 @@ describe('initVerifyEmailPage', () => {
     await initVerifyEmailPage()
 
     expect(applyActionCode).toHaveBeenCalledWith(mockAuth, 'abc123')
+    expect(mockAuth.currentUser.reload).toHaveBeenCalled()
     const successEl = document.getElementById('verify-email-success')
     expect(successEl.classList.contains('hidden')).toBe(false)
     expect(window.location.href).toBe('')
