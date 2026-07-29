@@ -1033,6 +1033,11 @@ function renderDietaryBadges(product) {
       badge.textContent = "🤖";
       btn.appendChild(badge);
     }
+    const tapBadge = document.createElement("span");
+    tapBadge.className = "tap-badge";
+    tapBadge.textContent = "👆";
+    tapBadge.setAttribute("aria-hidden", "true");
+    btn.appendChild(tapBadge);
     btn.addEventListener("click", () => {
       if (selectedBtn === btn) {
         // toggle off

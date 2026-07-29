@@ -1014,6 +1014,7 @@ body {
   transition: var(--transition);
   cursor: pointer;
   font-family: inherit;
+  position: relative;
 }
 
 .dietary-grid-item:hover { border-color: var(--ink-3); box-shadow: var(--shadow-hover); }
@@ -1023,7 +1024,7 @@ body {
 .dietary-grid-item .label { font-size: 0.65rem; font-weight: 600; text-align: center; line-height: 1.1; border-bottom: 1px dotted currentColor; }
 .dietary-grid-item .state-text { font-size: 0.55rem; font-weight: 500; text-align: center; line-height: 1; opacity: 0.75; letter-spacing: 0.03em; }
 
-.dietary-hint { margin: 0 0 6px; font-size: 0.72rem; color: #6b6b6b; }
+.dietary-hint { margin: 0 0 6px; font-size: 0.85rem; font-weight: 600; color: var(--ink-3); }
 .dietary-hint.hidden { display: none; }
 
 /* unknown — gris neutral (sin información) */
@@ -1319,6 +1320,14 @@ body {
   position: absolute;
   top: -6px;
   right: -6px;
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+.tap-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
   font-size: 0.65rem;
   line-height: 1;
 }
