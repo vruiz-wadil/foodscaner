@@ -248,16 +248,16 @@ describe('handleLogout', () => {
 })
 
 describe('handleRenewMembership', () => {
-  it('calls POST /api/me/membership/pay and re-renders after syncing the profile', async () => {
+  it('calls POST /api/me/membership/pay and redirects to the returned checkoutUrl', async () => {
     getIdToken.mockResolvedValue('tok')
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, checkoutUrl: 'https://checkout.stripe.com/cs_1' }) })
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'active' })
     document.body.innerHTML = '<div id="account-root"></div><button id="btn-renew-membership"></button>'
 
     await handleRenewMembership()
 
     expect(global.fetch).toHaveBeenCalledWith('/api/me/membership/pay', expect.objectContaining({ method: 'POST' }))
-    expect(syncUserProfile).toHaveBeenCalled()
+    expect(window.location.href).toBe('https://checkout.stripe.com/cs_1')
   })
 
   it('deja el botón en su texto original y habilitado si el pago responde no-ok', async () => {

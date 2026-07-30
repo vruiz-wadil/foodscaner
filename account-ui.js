@@ -2,7 +2,7 @@ import { firebaseAuth, signOut, reauthenticateWithCredential, verifyBeforeUpdate
 import { getIdToken, getCachedProfile, syncUserProfile } from './authClient.js';
 import { mapAuthError } from './authErrors.js';
 import { COUNTRY_CODES, flagEmoji, splitE164 } from './country-codes.js';
-import { showPendingToast } from './toast.js';
+import { showPendingToast, showToast } from './toast.js';
 import { buildPreferenceSummary } from './preference-labels.js';
 
 // Suma de ítems declarados por el usuario — sin backend nuevo, se deriva
@@ -531,12 +531,12 @@ export async function handleRenewMembership() {
     if (!res.ok) {
       throw new Error('renew_failed');
     }
-    await syncUserProfile();
-    renderAccountHub();
+    const data = await res.json();
+    window.location.href = data.checkoutUrl;
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = originalText; }
     showRenewError('No se pudo procesar el pago. Intenta de nuevo.');
-    console.warn('[account] no se pudo renovar la membresía:', err.message);
+    console.warn('[account] no se pudo iniciar el pago de membresía:', err.message);
     throw err;
   }
 }
@@ -765,6 +765,57 @@ function showResendVerificationError(message) {
   el.classList.remove('hidden');
 }
 
+const ONBOARDING_PREFS_KEY = 'yomi_pending_preferences';
+
+async function flushPendingPreferences(token) {
+  const pendingPrefs = sessionStorage.getItem(ONBOARDING_PREFS_KEY);
+  if (!pendingPrefs) return;
+  try {
+    await fetch('/api/me/preferences', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: pendingPrefs
+    });
+  } catch (e) {
+    console.warn('[account] no se pudieron guardar preferencias pendientes:', e.message);
+  }
+  sessionStorage.removeItem(ONBOARDING_PREFS_KEY);
+}
+
+export async function handleStripeReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const stripeParam = params.get('stripe');
+  if (!stripeParam) return;
+
+  if (stripeParam === 'success') {
+    const sessionId = params.get('session_id');
+    if (sessionId) {
+      try {
+        const token = await getIdToken();
+        const res = await fetch(`/api/me/membership/checkout-result?session_id=${encodeURIComponent(sessionId)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          await flushPendingPreferences(token);
+          showToast('¡Pago confirmado! Tu membresía está activa.');
+        } else {
+          showToast('Pago recibido, confirmando con Stripe…');
+        }
+      } catch (err) {
+        console.warn('[account] no se pudo confirmar el checkout de Stripe:', err.message);
+      }
+    }
+  } else if (stripeParam === 'cancel') {
+    showToast('Pago cancelado.');
+  }
+
+  params.delete('stripe');
+  params.delete('session_id');
+  const newQuery = params.toString();
+  const newUrl = window.location.pathname + (newQuery ? `?${newQuery}` : '') + window.location.hash;
+  window.history.replaceState({}, '', newUrl);
+}
+
 export async function submitCancelSubscription() {
   const token = await getIdToken();
   const res = await fetch('/api/me/membership/cancel', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
@@ -811,6 +862,7 @@ export async function handleLogout() {
 }
 
 export async function initAccountPage() {
+  await handleStripeReturn();
   await syncUserProfile();
   renderAccountHub();
   showPendingToast();
