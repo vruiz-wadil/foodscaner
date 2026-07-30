@@ -608,6 +608,14 @@ body {
   display: block;
   overflow-y: visible;
   height: auto;
+  /* width:100% es necesario, no decorativo: .app-shell es flex-direction:
+     column y este margin:0 auto pone auto en el eje cruzado (horizontal).
+     Con eje cruzado auto-margin, el spec de flexbox IGNORA align-items:
+     stretch — sin width, la caja se encoge a fit-content (~373px en
+     desktop) en vez de llenar hasta el max-width (hallazgo en vivo: "mi
+     cuenta sale angosto"). Confirmado con Playwright: width:100% arregla
+     exacto a 640px. */
+  width: 100%;
   max-width: 640px;
   margin: 0 auto;
   /* .bottom-nav es position:fixed (styles.css) pinneado al fondo del
