@@ -5,6 +5,13 @@ const crypto = require('crypto');
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 
+// Versión de la API fijada explícitamente. Es la default actual de la cuenta,
+// pero pinnearla evita que un bump del lado de Stripe cambie la forma de las
+// respuestas sin avisar (p. ej. current_period_end movió de Subscription a
+// subscription.items.data[0], e Invoice.subscription a
+// invoice.parent.subscription_details.subscription en "basil").
+const STRIPE_API_VERSION = '2026-06-24.dahlia';
+
 function stripeAuthHeader() {
   const key = process.env.STRIPE_SECRET_KEY;
   return 'Basic ' + Buffer.from(`${key}:`).toString('base64');
@@ -14,7 +21,7 @@ async function stripeRequest(method, path, params) {
   let url = `${STRIPE_API_BASE}${path}`;
   const opts = {
     method,
-    headers: { Authorization: stripeAuthHeader() },
+    headers: { Authorization: stripeAuthHeader(), 'Stripe-Version': STRIPE_API_VERSION },
     signal: AbortSignal.timeout(10000)
   };
   if (params && method === 'GET') {

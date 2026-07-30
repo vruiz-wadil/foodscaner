@@ -68,6 +68,29 @@ it('flushes pending preferences from sessionStorage after a confirmed checkout',
   expect(sessionStorage.getItem('yomi_pending_preferences')).toBeNull()
 })
 
+it('keeps stripe params in the URL when checkout-result responds non-ok, so a reload retries', async () => {
+  window.history.replaceState({}, '', '/account.html?stripe=success&session_id=cs_1')
+  sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({ dietary: ['vegan'] }))
+  global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: 'internal_error' }) })
+
+  await handleStripeReturn()
+
+  // Las preferencias no se alcanzaron a enviar: si además borráramos los
+  // params, no quedaría forma de reintentar.
+  expect(sessionStorage.getItem('yomi_pending_preferences')).not.toBeNull()
+  expect(window.location.search).toContain('session_id=cs_1')
+  expect(window.location.search).toContain('stripe=success')
+})
+
+it('keeps stripe params in the URL when the checkout-result fetch throws', async () => {
+  window.history.replaceState({}, '', '/account.html?stripe=success&session_id=cs_1')
+  global.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+
+  await handleStripeReturn()
+
+  expect(window.location.search).toContain('session_id=cs_1')
+})
+
 it('on stripe=cancel, does not call the API and still cleans the URL', async () => {
   window.history.replaceState({}, '', '/account.html?stripe=cancel')
   global.fetch = vi.fn()

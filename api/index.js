@@ -47,13 +47,19 @@ app.use(express.static(path.join(__dirname, '..')));
 
 async function fulfillSubscription(uid, subscriptionId) {
   const subscription = await stripeRetrieveSubscription(subscriptionId);
-  const price = subscription.items?.data?.[0]?.price;
+  const item = subscription.items?.data?.[0];
+  const price = item?.price;
+  // Desde la versión "basil" de la API, current_period_end ya no vive en el
+  // Subscription sino en cada subscription item. Si falta, fallamos ruidoso:
+  // una fecha de vigencia equivocada es peor que un error visible.
+  const currentPeriodEnd = item?.current_period_end;
+  if (!currentPeriodEnd) throw new Error('Stripe subscription missing current_period_end on item');
   await fireFulfillStripeSubscription({
     uid,
     stripeCustomerId: subscription.customer,
     subscriptionId: subscription.id,
     subscriptionStatus: subscription.status,
-    currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+    currentPeriodEnd: new Date(currentPeriodEnd * 1000).toISOString(),
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
     invoiceId: subscription.latest_invoice,
     amount: price ? price.unit_amount / 100 : 0,
@@ -77,10 +83,13 @@ async function stripeWebhookHandler(req, res) {
         await fulfillSubscription(obj.client_reference_id, obj.subscription);
       }
     } else if (event.type === 'invoice.paid') {
-      if (obj.subscription) {
-        const subscription = await stripeRetrieveSubscription(obj.subscription);
+      // Desde "basil", Invoice.subscription ya no existe al nivel raíz: vive en
+      // invoice.parent.subscription_details.subscription.
+      const invoiceSubscriptionId = obj.parent?.subscription_details?.subscription;
+      if (invoiceSubscriptionId) {
+        const subscription = await stripeRetrieveSubscription(invoiceSubscriptionId);
         const uid = subscription.metadata && subscription.metadata.firebaseUid;
-        if (uid) await fulfillSubscription(uid, obj.subscription);
+        if (uid) await fulfillSubscription(uid, invoiceSubscriptionId);
       }
     } else if (event.type === 'customer.subscription.updated') {
       const uid = obj.metadata && obj.metadata.firebaseUid;
@@ -1671,11 +1680,21 @@ async function payMembershipHandler(req, res) {
   try {
     const user = await fireGetUser(req.user.uid);
     if (!user) return res.status(404).json({ error: 'user_not_found' });
+    // Evita que un usuario con suscripción viva arranque una segunda: Stripe
+    // crearía otra suscripción activa sobre el mismo Customer (doble cobro) y
+    // fireFulfillStripeSubscription sobrescribiría billing.subscriptionId.
+    if (user.membershipStatus === 'active' && user.billing && user.billing.subscriptionId) {
+      return res.status(409).json({ error: 'already_active' });
+    }
 
     let stripeCustomerId = user.billing && user.billing.stripeCustomerId;
     if (!stripeCustomerId) {
       const customer = await stripeCreateCustomer({ email: req.user.email, uid: req.user.uid });
       stripeCustomerId = customer.id;
+      // Se persiste antes de crear la sesión de Checkout: si el usuario
+      // abandona el pago, el siguiente intento reutiliza este Customer en vez
+      // de crear uno duplicado en Stripe.
+      await firePatchUserFields(req.user.uid, ['billing.stripeCustomerId'], { billing: { stripeCustomerId } });
     }
 
     const baseUrl = process.env.APP_BASE_URL || 'https://yomi.mx';

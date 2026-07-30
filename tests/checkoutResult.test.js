@@ -43,10 +43,11 @@ describe('checkoutResultHandler', () => {
     stripeRetrieveCheckoutSession.mockResolvedValue({
       client_reference_id: 'uid-1', payment_status: 'paid', subscription: 'sub_1'
     })
+    // Forma real post-"basil": current_period_end en el subscription item.
     stripeRetrieveSubscription.mockResolvedValue({
-      id: 'sub_1', customer: 'cus_1', status: 'active', current_period_end: 1785400000,
+      id: 'sub_1', customer: 'cus_1', status: 'active',
       cancel_at_period_end: false, latest_invoice: 'in_1',
-      items: { data: [{ price: { unit_amount: 2990, currency: 'mxn' } }] }
+      items: { data: [{ current_period_end: 1785400000, price: { unit_amount: 2990, currency: 'mxn' } }] }
     })
     fireFulfillStripeSubscription.mockResolvedValue({ membershipStatus: 'active' })
     fireGetUser.mockResolvedValue({ membershipStatus: 'active', membershipExpiresAt: '2026-08-29T00:00:00.000Z' })
@@ -57,7 +58,8 @@ describe('checkoutResultHandler', () => {
     await checkoutResultHandler(req, res)
 
     expect(fireFulfillStripeSubscription).toHaveBeenCalledWith(expect.objectContaining({
-      uid: 'uid-1', stripeCustomerId: 'cus_1', subscriptionId: 'sub_1', subscriptionStatus: 'active'
+      uid: 'uid-1', stripeCustomerId: 'cus_1', subscriptionId: 'sub_1', subscriptionStatus: 'active',
+      currentPeriodEnd: new Date(1785400000 * 1000).toISOString()
     }))
     expect(fireGetUser).toHaveBeenCalledWith('uid-1')
     expect(res.body).toEqual({ ok: true, membershipStatus: 'active', membershipExpiresAt: '2026-08-29T00:00:00.000Z' })
@@ -82,6 +84,21 @@ describe('checkoutResultHandler', () => {
     await checkoutResultHandler(req, res)
 
     expect(res.statusCode).toBe(409)
+  })
+
+  it('responds 500 without fulfilling when the subscription item has no current_period_end', async () => {
+    stripeRetrieveCheckoutSession.mockResolvedValue({ client_reference_id: 'uid-1', payment_status: 'paid', subscription: 'sub_1' })
+    stripeRetrieveSubscription.mockResolvedValue({
+      id: 'sub_1', customer: 'cus_1', status: 'active', cancel_at_period_end: false, latest_invoice: 'in_1',
+      items: { data: [{ price: { unit_amount: 2990, currency: 'mxn' } }] }
+    })
+    const req = { user: { uid: 'uid-1' }, query: { session_id: 'cs_1' } }
+    const res = makeRes()
+
+    await checkoutResultHandler(req, res)
+
+    expect(fireFulfillStripeSubscription).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(500)
   })
 
   it('responds 400 when session_id is missing', async () => {

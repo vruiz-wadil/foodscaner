@@ -56,10 +56,12 @@ describe('stripeWebhookHandler', () => {
       type: 'checkout.session.completed',
       data: { object: { mode: 'subscription', client_reference_id: 'uid-1', subscription: 'sub_1' } }
     })
+    // Forma real post-"basil": current_period_end vive en el subscription item,
+    // no en la raíz del Subscription.
     stripeRetrieveSubscription.mockResolvedValue({
-      id: 'sub_1', customer: 'cus_1', status: 'active', current_period_end: 1785400000,
+      id: 'sub_1', customer: 'cus_1', status: 'active',
       cancel_at_period_end: false, latest_invoice: 'in_1',
-      items: { data: [{ price: { unit_amount: 2990, currency: 'mxn' } }] }
+      items: { data: [{ current_period_end: 1785400000, price: { unit_amount: 2990, currency: 'mxn' } }] }
     })
     fireFulfillStripeSubscription.mockResolvedValue({ membershipStatus: 'active' })
     const res = makeRes()
@@ -68,29 +70,63 @@ describe('stripeWebhookHandler', () => {
 
     expect(fireFulfillStripeSubscription).toHaveBeenCalledWith(expect.objectContaining({
       uid: 'uid-1', stripeCustomerId: 'cus_1', subscriptionId: 'sub_1', subscriptionStatus: 'active',
+      currentPeriodEnd: new Date(1785400000 * 1000).toISOString(),
       cancelAtPeriodEnd: false, invoiceId: 'in_1', amount: 29.9, currency: 'mxn'
     }))
     expect(res.body).toEqual({ received: true })
   })
 
-  it('fulfills the subscription on invoice.paid using the subscription metadata for the uid', async () => {
+  it('responds 500 when the subscription item has no current_period_end', async () => {
     constructStripeEvent.mockReturnValue({
-      type: 'invoice.paid',
-      data: { object: { subscription: 'sub_1' } }
+      type: 'checkout.session.completed',
+      data: { object: { mode: 'subscription', client_reference_id: 'uid-1', subscription: 'sub_1' } }
     })
     stripeRetrieveSubscription.mockResolvedValue({
-      id: 'sub_1', customer: 'cus_1', status: 'active', current_period_end: 1785400000,
-      cancel_at_period_end: false, latest_invoice: 'in_2', metadata: { firebaseUid: 'uid-1' },
+      id: 'sub_1', customer: 'cus_1', status: 'active', cancel_at_period_end: false, latest_invoice: 'in_1',
       items: { data: [{ price: { unit_amount: 2990, currency: 'mxn' } }] }
+    })
+    const res = makeRes()
+
+    await stripeWebhookHandler(makeReq(), res)
+
+    expect(fireFulfillStripeSubscription).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(500)
+  })
+
+  it('fulfills the subscription on invoice.paid using the subscription metadata for the uid', async () => {
+    // Post-"basil" la invoice ya no trae `subscription` en la raíz: viene en
+    // parent.subscription_details.subscription.
+    constructStripeEvent.mockReturnValue({
+      type: 'invoice.paid',
+      data: { object: { parent: { subscription_details: { subscription: 'sub_1' } } } }
+    })
+    stripeRetrieveSubscription.mockResolvedValue({
+      id: 'sub_1', customer: 'cus_1', status: 'active',
+      cancel_at_period_end: false, latest_invoice: 'in_2', metadata: { firebaseUid: 'uid-1' },
+      items: { data: [{ current_period_end: 1785400000, price: { unit_amount: 2990, currency: 'mxn' } }] }
     })
     fireFulfillStripeSubscription.mockResolvedValue({ membershipStatus: 'active' })
     const res = makeRes()
 
     await stripeWebhookHandler(makeReq(), res)
 
+    expect(stripeRetrieveSubscription).toHaveBeenCalledWith('sub_1')
     expect(fireFulfillStripeSubscription).toHaveBeenCalledWith(expect.objectContaining({
       uid: 'uid-1', subscriptionId: 'sub_1', invoiceId: 'in_2'
     }))
+  })
+
+  it('ignores an invoice.paid with no subscription in parent.subscription_details', async () => {
+    constructStripeEvent.mockReturnValue({
+      type: 'invoice.paid',
+      data: { object: { parent: { subscription_details: {} } } }
+    })
+    const res = makeRes()
+
+    await stripeWebhookHandler(makeReq(), res)
+
+    expect(stripeRetrieveSubscription).not.toHaveBeenCalled()
+    expect(res.body).toEqual({ received: true })
   })
 
   it('syncs autoRenew on customer.subscription.updated', async () => {

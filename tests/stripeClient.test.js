@@ -26,6 +26,18 @@ describe('stripeClient REST calls', () => {
     expect(opts.body.toString()).toBe('email=a%40b.com&metadata%5BfirebaseUid%5D=uid-1')
   })
 
+  it('pins the Stripe-Version header on every request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'sub_1' }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await stripeRetrieveSubscription('sub_1')
+    await stripeCreateCustomer({ email: 'a@b.com', uid: 'uid-1' })
+
+    for (const [, opts] of fetchMock.mock.calls) {
+      expect(opts.headers['Stripe-Version']).toBe('2026-06-24.dahlia')
+    }
+  })
+
   it('stripeCreateCheckoutSession posts subscription mode with price, customer and client_reference_id', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'cs_1', url: 'https://checkout.stripe.com/cs_1' }) })
     vi.stubGlobal('fetch', fetchMock)

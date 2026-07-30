@@ -787,6 +787,12 @@ export async function handleStripeReturn() {
   const stripeParam = params.get('stripe');
   if (!stripeParam) return;
 
+  // Si checkout-result falla, dejamos ?stripe=success&session_id=… en la URL:
+  // las preferencias pendientes del onboarding sólo se envían cuando la
+  // confirmación sale bien, así que borrar los params ahí mataría la única vía
+  // de reintento (recargar la página vuelve a llamar handleStripeReturn).
+  let keepParamsForRetry = false;
+
   if (stripeParam === 'success') {
     const sessionId = params.get('session_id');
     if (sessionId) {
@@ -799,15 +805,19 @@ export async function handleStripeReturn() {
           await flushPendingPreferences(token);
           showToast('¡Pago confirmado! Tu membresía está activa.');
         } else {
+          keepParamsForRetry = true;
           showToast('Pago recibido, confirmando con Stripe…');
         }
       } catch (err) {
+        keepParamsForRetry = true;
         console.warn('[account] no se pudo confirmar el checkout de Stripe:', err.message);
       }
     }
   } else if (stripeParam === 'cancel') {
     showToast('Pago cancelado.');
   }
+
+  if (keepParamsForRetry) return;
 
   params.delete('stripe');
   params.delete('session_id');
