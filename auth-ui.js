@@ -140,7 +140,10 @@ export async function handleSignup(email, password, passwordConfirm) {
       // informativa, nunca bloqueante. Antes llamaba sendEmailVerification
       // (SDK cliente) directo, pero ese envío nunca llega — ver
       // docs/superpowers/specs/2026-07-27-custom-auth-emails-design.md.
-      fetch('/api/me/verification-email', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+      // keepalive: sin esto, la navegación de la siguiente línea cancela el
+      // fetch a medio vuelo (nunca llega a salir del navegador) — el correo
+      // de verificación nunca se enviaba en signup real (hallazgo en vivo).
+      fetch('/api/me/verification-email', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, keepalive: true }).catch(() => {});
       window.location.href = 'onboarding-profile.html';
       return result;
     } catch (err) {

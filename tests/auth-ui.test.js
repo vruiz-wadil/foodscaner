@@ -535,7 +535,8 @@ describe('handleSignup — confirmar contraseña y verificación de correo', () 
 
     expect(global.fetch).toHaveBeenCalledWith('/api/me/verification-email', {
       method: 'POST',
-      headers: { Authorization: 'Bearer tok-new' }
+      headers: { Authorization: 'Bearer tok-new' },
+      keepalive: true
     })
   })
 
