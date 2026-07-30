@@ -1723,10 +1723,15 @@ async function cancelMembershipHandler(req, res) {
     const user = await fireGetUser(req.user.uid);
     if (!user) return res.status(404).json({ error: 'user_not_found' });
     if (user.membershipStatus !== 'active') return res.status(409).json({ error: 'not_active' });
+
+    const subscriptionId = user.billing && user.billing.subscriptionId;
+    if (subscriptionId) {
+      await stripeUpdateSubscription(subscriptionId, { cancelAtPeriodEnd: true });
+    }
     await firePatchUserFields(req.user.uid, ['autoRenew'], { autoRenew: false });
     res.json({ ok: true, autoRenew: false });
   } catch (e) {
-    console.warn('[POST /api/me/membership/cancel] Firestore error, uid:', req.user?.uid, e.message);
+    console.warn('[POST /api/me/membership/cancel] error, uid:', req.user?.uid, e.message);
     res.status(500).json({ error: 'internal_error' });
   }
 }
@@ -1738,10 +1743,15 @@ async function reactivateMembershipHandler(req, res) {
     const user = await fireGetUser(req.user.uid);
     if (!user) return res.status(404).json({ error: 'user_not_found' });
     if (user.membershipStatus !== 'active') return res.status(409).json({ error: 'not_active' });
+
+    const subscriptionId = user.billing && user.billing.subscriptionId;
+    if (subscriptionId) {
+      await stripeUpdateSubscription(subscriptionId, { cancelAtPeriodEnd: false });
+    }
     await firePatchUserFields(req.user.uid, ['autoRenew'], { autoRenew: true });
     res.json({ ok: true, autoRenew: true });
   } catch (e) {
-    console.warn('[POST /api/me/membership/reactivate] Firestore error, uid:', req.user?.uid, e.message);
+    console.warn('[POST /api/me/membership/reactivate] error, uid:', req.user?.uid, e.message);
     res.status(500).json({ error: 'internal_error' });
   }
 }

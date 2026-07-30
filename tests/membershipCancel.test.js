@@ -3,10 +3,13 @@ import { createRequire } from 'module'
 
 const requireFn = createRequire(import.meta.url)
 const firestoreModule = requireFn('../api/firestore.js')
+const stripeClientModule = requireFn('../api/stripeClient.js')
 const fireGetUser = vi.fn()
 const firePatchUserFields = vi.fn()
+const stripeUpdateSubscription = vi.fn()
 firestoreModule.fireGetUser = fireGetUser
 firestoreModule.firePatchUserFields = firePatchUserFields
+stripeClientModule.stripeUpdateSubscription = stripeUpdateSubscription
 
 const { cancelMembershipHandler, reactivateMembershipHandler } = await import('../api/index.js')
 
@@ -19,7 +22,7 @@ function makeRes() {
 }
 
 describe('cancelMembershipHandler', () => {
-  beforeEach(() => { fireGetUser.mockReset(); firePatchUserFields.mockReset() })
+  beforeEach(() => { fireGetUser.mockReset(); firePatchUserFields.mockReset(); stripeUpdateSubscription.mockReset() })
 
   it('sets autoRenew false for an active membership', async () => {
     fireGetUser.mockResolvedValue({ membershipStatus: 'active' })
@@ -31,6 +34,18 @@ describe('cancelMembershipHandler', () => {
 
     expect(firePatchUserFields).toHaveBeenCalledWith('uid-1', ['autoRenew'], { autoRenew: false })
     expect(res.body).toEqual({ ok: true, autoRenew: false })
+  })
+
+  it('calls Stripe to set cancel_at_period_end when the user has a subscriptionId', async () => {
+    fireGetUser.mockResolvedValue({ membershipStatus: 'active', billing: { subscriptionId: 'sub_1' } })
+    firePatchUserFields.mockResolvedValue(true)
+    stripeUpdateSubscription.mockResolvedValue({ id: 'sub_1', cancel_at_period_end: true })
+    const req = { user: { uid: 'uid-1' } }
+    const res = makeRes()
+
+    await cancelMembershipHandler(req, res)
+
+    expect(stripeUpdateSubscription).toHaveBeenCalledWith('sub_1', { cancelAtPeriodEnd: true })
   })
 
   it('responds 409 not_active for a pending/expired membership, without patching', async () => {
@@ -67,7 +82,7 @@ describe('cancelMembershipHandler', () => {
 })
 
 describe('reactivateMembershipHandler', () => {
-  beforeEach(() => { fireGetUser.mockReset(); firePatchUserFields.mockReset() })
+  beforeEach(() => { fireGetUser.mockReset(); firePatchUserFields.mockReset(); stripeUpdateSubscription.mockReset() })
 
   it('sets autoRenew true for an active membership', async () => {
     fireGetUser.mockResolvedValue({ membershipStatus: 'active' })
@@ -79,6 +94,18 @@ describe('reactivateMembershipHandler', () => {
 
     expect(firePatchUserFields).toHaveBeenCalledWith('uid-1', ['autoRenew'], { autoRenew: true })
     expect(res.body).toEqual({ ok: true, autoRenew: true })
+  })
+
+  it('calls Stripe to unset cancel_at_period_end when the user has a subscriptionId', async () => {
+    fireGetUser.mockResolvedValue({ membershipStatus: 'active', billing: { subscriptionId: 'sub_1' } })
+    firePatchUserFields.mockResolvedValue(true)
+    stripeUpdateSubscription.mockResolvedValue({ id: 'sub_1', cancel_at_period_end: false })
+    const req = { user: { uid: 'uid-1' } }
+    const res = makeRes()
+
+    await reactivateMembershipHandler(req, res)
+
+    expect(stripeUpdateSubscription).toHaveBeenCalledWith('sub_1', { cancelAtPeriodEnd: false })
   })
 
   it('responds 409 not_active for a pending/expired membership, without patching', async () => {
