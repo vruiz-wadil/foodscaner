@@ -1669,15 +1669,54 @@ app.post('/api/me/verification-email', requireUser, verificationEmailHandler);
 
 async function payMembershipHandler(req, res) {
   try {
-    const result = await fireRecordMembershipPayment(req.user.uid);
-    res.json({ ok: true, membershipStatus: result.membershipStatus, membershipExpiresAt: result.membershipExpiresAt });
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    let stripeCustomerId = user.billing && user.billing.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await stripeCreateCustomer({ email: req.user.email, uid: req.user.uid });
+      stripeCustomerId = customer.id;
+    }
+
+    const baseUrl = process.env.APP_BASE_URL || 'https://yomi.mx';
+    const session = await stripeCreateCheckoutSession({
+      customerId: stripeCustomerId,
+      priceId: process.env.STRIPE_PRICE_ID,
+      uid: req.user.uid,
+      successUrl: `${baseUrl}/account.html?stripe=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/account.html?stripe=cancel`
+    });
+
+    res.json({ ok: true, checkoutUrl: session.url });
   } catch (e) {
-    console.warn('[POST /api/me/membership/pay] Firestore error, uid:', req.user?.uid, e.message);
+    console.warn('[POST /api/me/membership/pay] error creando checkout, uid:', req.user?.uid, e.message);
     res.status(500).json({ error: 'internal_error' });
   }
 }
 
 app.post('/api/me/membership/pay', requireUser, payMembershipHandler);
+
+async function checkoutResultHandler(req, res) {
+  const sessionId = req.query.session_id;
+  if (typeof sessionId !== 'string' || !sessionId) return res.status(400).json({ error: 'invalid_request' });
+
+  try {
+    const session = await stripeRetrieveCheckoutSession(sessionId);
+    if (session.client_reference_id !== req.user.uid) return res.status(403).json({ error: 'forbidden' });
+    if (session.payment_status !== 'paid' || !session.subscription) {
+      return res.status(409).json({ error: 'payment_not_completed' });
+    }
+
+    await fulfillSubscription(req.user.uid, session.subscription);
+    const user = await fireGetUser(req.user.uid);
+    res.json({ ok: true, membershipStatus: user.membershipStatus, membershipExpiresAt: user.membershipExpiresAt });
+  } catch (e) {
+    console.warn('[GET /api/me/membership/checkout-result] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.get('/api/me/membership/checkout-result', requireUser, checkoutResultHandler);
 
 async function cancelMembershipHandler(req, res) {
   try {
@@ -2212,6 +2251,7 @@ module.exports.authSyncHandler = authSyncHandler;
 module.exports.getMeHandler = getMeHandler;
 module.exports.putProfileHandler = putProfileHandler;
 module.exports.payMembershipHandler = payMembershipHandler;
+module.exports.checkoutResultHandler = checkoutResultHandler;
 module.exports.cancelMembershipHandler = cancelMembershipHandler;
 module.exports.reactivateMembershipHandler = reactivateMembershipHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
