@@ -4,13 +4,17 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireRecordMembershipPayment, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail, fireListUsers } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireFulfillStripeSubscription, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail, fireListUsers } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, lookupAuthAccount, setUserDisabled } = require('./phoneAuth');
 const { generateActionLink } = require('./emailActions');
 const { sendMail } = require('./mailer');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
+const {
+  stripeCreateCustomer, stripeCreateCheckoutSession, stripeRetrieveCheckoutSession,
+  stripeRetrieveSubscription, stripeUpdateSubscription, constructStripeEvent
+} = require('./stripeClient');
 
 function detectOS(ua = '') {
   ua = ua.toLowerCase();
@@ -40,6 +44,64 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, '..')));
+
+async function fulfillSubscription(uid, subscriptionId) {
+  const subscription = await stripeRetrieveSubscription(subscriptionId);
+  const price = subscription.items?.data?.[0]?.price;
+  await fireFulfillStripeSubscription({
+    uid,
+    stripeCustomerId: subscription.customer,
+    subscriptionId: subscription.id,
+    subscriptionStatus: subscription.status,
+    currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    invoiceId: subscription.latest_invoice,
+    amount: price ? price.unit_amount / 100 : 0,
+    currency: price ? price.currency : 'mxn'
+  });
+}
+
+async function stripeWebhookHandler(req, res) {
+  let event;
+  try {
+    event = constructStripeEvent(req.body, req.get('stripe-signature'), process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (e) {
+    console.warn('[POST /api/webhooks/stripe] firma inválida:', e.message);
+    return res.status(400).json({ error: 'invalid_signature' });
+  }
+
+  try {
+    const obj = event.data.object;
+    if (event.type === 'checkout.session.completed') {
+      if (obj.mode === 'subscription' && obj.client_reference_id && obj.subscription) {
+        await fulfillSubscription(obj.client_reference_id, obj.subscription);
+      }
+    } else if (event.type === 'invoice.paid') {
+      if (obj.subscription) {
+        const subscription = await stripeRetrieveSubscription(obj.subscription);
+        const uid = subscription.metadata && subscription.metadata.firebaseUid;
+        if (uid) await fulfillSubscription(uid, obj.subscription);
+      }
+    } else if (event.type === 'customer.subscription.updated') {
+      const uid = obj.metadata && obj.metadata.firebaseUid;
+      if (uid) await firePatchUserFields(uid, ['autoRenew'], { autoRenew: !obj.cancel_at_period_end });
+    } else if (event.type === 'customer.subscription.deleted') {
+      const uid = obj.metadata && obj.metadata.firebaseUid;
+      if (uid) await firePatchUserFields(uid, ['autoRenew'], { autoRenew: false });
+    }
+    res.json({ received: true });
+  } catch (e) {
+    console.warn('[POST /api/webhooks/stripe] error procesando', event.type, ':', e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+// La firma del webhook se verifica sobre el body crudo — esta ruta se registra
+// ANTES del express.json() global de abajo. Si json() corriera primero ya
+// habría parseado/consumido el body y stripeWebhookHandler nunca podría
+// verificar la firma contra los bytes exactos que Stripe firmó.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json({ limit: '5mb' }));
 
 const limiter = rateLimit({ windowMs: 60000, max: 60, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
@@ -2169,6 +2231,7 @@ module.exports.phoneVerifyHandler = phoneVerifyHandler;
 module.exports.changePhoneHandler = changePhoneHandler;
 module.exports.passwordResetHandler = passwordResetHandler;
 module.exports.verificationEmailHandler = verificationEmailHandler;
+module.exports.stripeWebhookHandler = stripeWebhookHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
