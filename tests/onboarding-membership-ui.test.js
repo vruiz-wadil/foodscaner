@@ -50,6 +50,6 @@ it('shows an error and re-enables the button when the pay call fails', async () 
 
   const btn = document.getElementById('btn-confirm-payment')
   expect(btn.disabled).toBe(false)
-  expect(btn.textContent).toBe('Confirmar pago')
+  expect(btn.textContent).toBe('Continuar al pago')
   expect(document.getElementById('membership-error').classList.contains('hidden')).toBe(false)
 })

@@ -29,7 +29,7 @@ export async function confirmMembershipPayment() {
     const data = await res.json();
     window.location.href = data.checkoutUrl;
   } catch (err) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar pago'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Continuar al pago'; }
     throw err;
   }
 }
