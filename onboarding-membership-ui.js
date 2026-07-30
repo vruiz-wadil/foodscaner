@@ -1,6 +1,4 @@
-import { getIdToken, syncUserProfile } from './authClient.js';
-
-const ONBOARDING_PREFS_KEY = 'yomi_pending_preferences';
+import { getIdToken } from './authClient.js';
 
 function showError(message) {
   const el = document.getElementById('membership-error');
@@ -12,7 +10,7 @@ function showError(message) {
 export async function confirmMembershipPayment() {
   const checkbox = document.getElementById('pay-checkbox');
   if (!checkbox?.checked) {
-    showError('Marca la casilla para confirmar el pago simulado.');
+    showError('Marca la casilla para continuar.');
     throw new Error('pay_checkbox_required');
   }
 
@@ -25,28 +23,14 @@ export async function confirmMembershipPayment() {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) {
-      showError('No se pudo procesar el pago. Intenta de nuevo.');
+      showError('No se pudo iniciar el pago. Intenta de nuevo.');
       throw new Error('pay_failed');
     }
-
-    const pendingPrefs = sessionStorage.getItem(ONBOARDING_PREFS_KEY);
-    if (pendingPrefs) {
-      try {
-        await fetch('/api/me/preferences', {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: pendingPrefs
-        });
-      } catch (e) {
-        console.warn('[onboarding] no se pudieron guardar preferencias pendientes:', e.message);
-      }
-      sessionStorage.removeItem(ONBOARDING_PREFS_KEY);
-    }
-
-    await syncUserProfile();
-    window.location.href = 'index.html';
-  } finally {
+    const data = await res.json();
+    window.location.href = data.checkoutUrl;
+  } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Confirmar pago'; }
+    throw err;
   }
 }
 
