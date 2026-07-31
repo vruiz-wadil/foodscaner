@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -22,6 +22,7 @@ beforeAll(() => {
   expandUpcE = exports.expandUpcE
   validateBarcode = exports.validateBarcode
   computeVerdict = exports.computeVerdict
+  computeVerdictReasons = exports.computeVerdictReasons
   hasNoRealData = exports.hasNoRealData
   getUserPreferencesForVerdict = exports.getUserPreferencesForVerdict
   renderPersonalizedDisclaimer = exports.renderPersonalizedDisclaimer
@@ -601,6 +602,118 @@ describe('computeVerdict — con userPreferences', () => {
     const product = { sellos: [], notRecommended: [], dietary: { vegan: false }, allergens: ['Lácteos'] }
     const prefs = { allergens: [{ code: 'leche', severity: 'mild' }], dietary: ['vegan'], healthConditions: [] }
     expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+
+  it('detecta alergia a lácteos aunque el code de preferencias no tenga acento ("lacteos" vs "lácteos")', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'lacteos', severity: 'severe' }], dietary: [], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('evitar')
+  })
+})
+
+// ─── computeVerdictReasons (filas de diagnóstico personalizado) ───
+
+describe('computeVerdictReasons', () => {
+  it('regresa array vacío si userPreferences es null/undefined', () => {
+    const product = { sellos: [], notRecommended: [] }
+    expect(computeVerdictReasons(product, null)).toEqual([])
+    expect(computeVerdictReasons(product)).toEqual([])
+  })
+
+  it('regresa array vacío si el usuario no configuró ninguna restricción', () => {
+    const product = { sellos: [], notRecommended: [] }
+    const prefs = { allergens: [], dietary: [], healthConditions: [] }
+    expect(computeVerdictReasons(product, prefs)).toEqual([])
+  })
+
+  it('alérgeno grave detectado: ok:false, severity:"grave"', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'] }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: false, severity: 'grave', title: 'Contiene Cacahuate' })
+    expect(reasons[0].detail).toMatch(/alergia grave a cacahuate/i)
+  })
+
+  it('alérgeno leve NO detectado: ok:true, severity:"leve"', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Huevo'] }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'mild' }], dietary: [], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: true, severity: 'leve', title: 'Sin Cacahuate', detail: 'No detectamos tu alergia' })
+  })
+
+  it('dieta violada: ok:false, title "No es {label}"', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { vegan: false } }
+    const prefs = { allergens: [], dietary: ['vegan'], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: false, severity: null, title: 'No es Vegano', detail: 'El producto no cumple esta preferencia' })
+  })
+
+  it('dieta cumplida: ok:true, title "Es {label}"', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { glutenFree: true } }
+    const prefs = { allergens: [], dietary: ['glutenFree'], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: true, title: 'Es Sin gluten', detail: 'Cumple esta preferencia' })
+  })
+
+  it('dieta sin dato (undefined): ok:null, título "Sin datos: {label}"', () => {
+    const product = { sellos: [], notRecommended: [], dietary: {} }
+    const prefs = { allergens: [], dietary: ['keto'], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: null, title: 'Sin datos: Keto' })
+  })
+
+  it('dieta con dato null se trata igual que undefined: ok:null', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { vegan: null } }
+    const prefs = { allergens: [], dietary: ['vegan'], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons[0].ok).toBe(null)
+  })
+
+  it('condición de salud con match certain:true: ok:false, detail = razon del producto', () => {
+    const product = { sellos: [], notRecommended: [{ grupo: 'Diabéticos', razon: 'Alto en azúcares', certain: true }] }
+    const prefs = { allergens: [], dietary: [], healthConditions: ['diabet'] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: false, title: 'Diabetes', detail: 'Alto en azúcares' })
+  })
+
+  it('condición de salud sin match: ok:true', () => {
+    const product = { sellos: [], notRecommended: [] }
+    const prefs = { allergens: [], dietary: [], healthConditions: ['celiac'] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: true, title: 'Celiaquía', detail: 'No encontramos alertas para esta condición' })
+  })
+
+  it('orden: alérgeno grave conflicto, salud conflicto, dieta conflicto, alérgeno leve conflicto, luego ok:true, luego ok:null', () => {
+    const product = {
+      sellos: [], allergens: ['Cacahuate', 'Lácteos'],
+      notRecommended: [{ grupo: 'Diabéticos', razon: 'Alto en azúcares', certain: true }],
+      dietary: { vegan: false, organic: true }
+    }
+    const prefs = {
+      allergens: [
+        { code: 'lacteos', severity: 'mild' },   // leve, conflicto
+        { code: 'cacahuate', severity: 'severe' } // grave, conflicto
+      ],
+      dietary: ['vegan', 'organic', 'keto'], // vegan conflicto, organic ok, keto sin dato
+      healthConditions: ['diabet'] // conflicto
+    }
+    const reasons = computeVerdictReasons(product, prefs)
+    const titles = reasons.map(r => r.title)
+    expect(titles).toEqual([
+      'Contiene Cacahuate',   // alérgeno grave conflicto
+      'Diabetes',             // salud conflicto
+      'No es Vegano',         // dieta conflicto
+      'Contiene Lácteos',     // alérgeno leve conflicto
+      'Es Orgánico',          // ok:true
+      'Sin datos: Keto'       // ok:null
+    ])
   })
 })
 

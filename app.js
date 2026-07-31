@@ -1644,20 +1644,27 @@ function grupoClaveVerdict(s) {
   return n;
 }
 
+// Normaliza acentos igual que grupoClaveVerdict — el code de preferencias
+// ("lacteos") no lleva acento pero COMMON_ALLERGENS sí ("lácteos"), y sin
+// esto la alergia a lácteos (la más común) nunca se detectaba.
+function normalizeAccents(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 // True cuando product.allergens (labels detectados, ej. "Lácteos", "Cacahuate")
 // incluye el alérgeno identificado por `code` (ej. "leche", "cacahuate") —
 // usa COMMON_ALLERGENS para traducir entre el code canónico de userPreferences
 // y el label que ya usa el pipeline de parseApiProduct.
 function isAllergenDetected(product, code) {
   if (!product.allergens || !Array.isArray(product.allergens)) return false;
-  const codeLower = String(code).toLowerCase();
+  const codeNorm = normalizeAccents(code);
   const entry = COMMON_ALLERGENS.find(ca =>
-    ca.match.some(m => m.toLowerCase() === codeLower) || ca.label.toLowerCase() === codeLower
+    ca.match.some(m => normalizeAccents(m) === codeNorm) || normalizeAccents(ca.label) === codeNorm
   );
   const namesToMatch = entry
-    ? [entry.label.toLowerCase(), ...entry.match.map(m => m.toLowerCase())]
-    : [codeLower];
-  return product.allergens.some(a => namesToMatch.includes(String(a).toLowerCase()));
+    ? [normalizeAccents(entry.label), ...entry.match.map(normalizeAccents)]
+    : [codeNorm];
+  return product.allergens.some(a => namesToMatch.includes(normalizeAccents(a)));
 }
 
 // Verdict base SANO/REGULAR/EVITAR — misma lógica de siempre (NOM-051 sellos +
@@ -1673,6 +1680,77 @@ function computeBaseVerdict(product) {
   return 'sano';
 }
 
+const DIETARY_LABELS = {
+  vegan: 'Vegano', vegetarian: 'Vegetariano', keto: 'Keto', glutenFree: 'Sin gluten',
+  caseinFree: 'Sin caseína', organic: 'Orgánico', kosher: 'Kosher', halal: 'Halal',
+  nonGmo: 'Sin OGM', noAdditives: 'Sin aditivos', palmOilFree: 'Sin palma', fairTrade: 'C. justo'
+};
+
+const HEALTH_LABELS = { diabet: 'Diabetes', celiac: 'Celiaquía', hipert: 'Hipertensión', ninos: 'Niños en casa' };
+
+function allergenLabel(code) {
+  const codeNorm = normalizeAccents(code);
+  const entry = COMMON_ALLERGENS.find(ca =>
+    ca.match.some(m => normalizeAccents(m) === codeNorm) || normalizeAccents(ca.label) === codeNorm
+  );
+  return entry ? entry.label : code;
+}
+
+function allergenEmoji(code) {
+  const codeNorm = normalizeAccents(code);
+  const entry = COMMON_ALLERGENS.find(ca =>
+    ca.match.some(m => normalizeAccents(m) === codeNorm) || normalizeAccents(ca.label) === codeNorm
+  );
+  return entry ? entry.emoji : '🍽️';
+}
+
+// Filas de diagnóstico personalizado: una por cada restricción configurada
+// por el usuario, con el estado ok/conflicto/sin-dato y el texto para
+// mostrar en la UI. computeVerdict deriva el veredicto de esta misma lista
+// (una sola fuente de verdad para el matching perfil-vs-producto).
+function computeVerdictReasons(product, userPreferences) {
+  if (!userPreferences) return [];
+
+  const allergens = userPreferences.allergens || [];
+  const dietary = userPreferences.dietary || [];
+  const healthConditions = userPreferences.healthConditions || [];
+
+  const allergenRows = allergens.filter(Boolean).map(a => {
+    const detected = isAllergenDetected(product, a.code);
+    const label = allergenLabel(a.code);
+    const severity = a.severity === 'severe' ? 'grave' : 'leve';
+    return detected
+      ? { ok: false, severity, icon: allergenEmoji(a.code), title: `Contiene ${label}`, detail: `Registraste alergia ${severity} a ${label}` }
+      : { ok: true, severity, icon: allergenEmoji(a.code), title: `Sin ${label}`, detail: 'No detectamos tu alergia' };
+  });
+
+  const dietaryRows = dietary.map(key => {
+    const label = DIETARY_LABELS[key] || key;
+    const value = product.dietary ? product.dietary[key] : undefined;
+    if (value === false) return { ok: false, severity: null, icon: '🍽️', title: `No es ${label}`, detail: 'El producto no cumple esta preferencia' };
+    if (value === true) return { ok: true, severity: null, icon: '🍽️', title: `Es ${label}`, detail: 'Cumple esta preferencia' };
+    return { ok: null, severity: null, icon: '🍽️', title: `Sin datos: ${label}`, detail: 'No tenemos información sobre esta preferencia para este producto' };
+  });
+
+  const healthRows = healthConditions.map(cond => {
+    const label = HEALTH_LABELS[cond] || cond;
+    const match = (product.notRecommended || []).find(n => n.certain === true && grupoClaveVerdict(n.grupo) === cond);
+    return match
+      ? { ok: false, severity: null, icon: '⚕️', title: label, detail: String(match.razon || '').slice(0, 140) }
+      : { ok: true, severity: null, icon: '⚕️', title: label, detail: 'No encontramos alertas para esta condición' };
+  });
+
+  const isConflict = r => r.ok === false;
+  const severeAllergenConflict = allergenRows.filter(r => isConflict(r) && r.severity === 'grave');
+  const healthConflict = healthRows.filter(isConflict);
+  const dietConflict = dietaryRows.filter(isConflict);
+  const mildAllergenConflict = allergenRows.filter(r => isConflict(r) && r.severity === 'leve');
+  const okRows = [...allergenRows, ...dietaryRows, ...healthRows].filter(r => r.ok === true);
+  const unknownRows = dietaryRows.filter(r => r.ok === null);
+
+  return [...severeAllergenConflict, ...healthConflict, ...dietConflict, ...mildAllergenConflict, ...okRows, ...unknownRows];
+}
+
 // Deriva el verdict SANO/REGULAR/EVITAR. `userPreferences` es opcional — si es
 // null/undefined (usuario free o no logueado), el comportamiento es idéntico
 // al de computeBaseVerdict (retrocompatible). Cuando se pasa, aplica 5 reglas
@@ -1686,23 +1764,13 @@ function computeVerdict(product, userPreferences) {
   const base = computeBaseVerdict(product);
   if (!userPreferences) return base;
 
-  const allergens = userPreferences.allergens || [];
-  const healthConditions = userPreferences.healthConditions || [];
-  const dietary = userPreferences.dietary || [];
+  const reasons = computeVerdictReasons(product, userPreferences);
+  const isConflict = r => r.ok === false;
 
-  const severeHit = allergens.some(a => a && a.severity === 'severe' && isAllergenDetected(product, a.code));
-  if (severeHit) return 'evitar';
-
-  const conditionHit = healthConditions.some(cond =>
-    (product.notRecommended || []).some(n => n.certain === true && grupoClaveVerdict(n.grupo) === cond)
-  );
-  if (conditionHit) return 'evitar';
-
-  const dietHit = dietary.some(key => product.dietary && product.dietary[key] === false);
-  if (dietHit) return 'evitar';
-
-  const mildHit = allergens.some(a => a && a.severity === 'mild' && isAllergenDetected(product, a.code));
-  if (mildHit && base === 'sano') return 'regular';
+  if (reasons.some(r => isConflict(r) && r.severity === 'grave')) return 'evitar';
+  if (reasons.some(r => isConflict(r) && r.icon === '⚕️')) return 'evitar';
+  if (reasons.some(r => isConflict(r) && r.icon === '🍽️')) return 'evitar';
+  if (base === 'sano' && reasons.some(r => isConflict(r) && r.severity === 'leve')) return 'regular';
 
   return base;
 }
