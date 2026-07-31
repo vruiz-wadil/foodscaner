@@ -228,7 +228,7 @@ function renderHistory() {
   `).join("");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   // Disclaimer gate — show on first visit, persist acceptance in localStorage
   const DISCLAIMER_KEY = 'yomi_disclaimer_accepted';
   const dm = document.getElementById('disclaimer-modal');
@@ -246,7 +246,15 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   const params = new URLSearchParams(location.search);
   const bc = params.get('barcode');
-  if (bc) analyzeBarcode(bc.trim());
+  if (bc) {
+    // Llegando desde el historial (scan.html?barcode=X) el DOMContentLoaded
+    // de este script dispara analyzeBarcode antes de que authClient termine
+    // de sincronizar el perfil (fetch async en otro <script type=module>),
+    // por lo que getCachedProfile() regresaba null y el veredicto salia sin
+    // personalizar. Se espera el sync explicitamente, igual que home.js.
+    if (window.authClient) await window.authClient.syncUserProfile();
+    analyzeBarcode(bc.trim());
+  }
   else if (params.get('scan')) {
     if (!dm || localStorage.getItem(DISCLAIMER_KEY)) {
       toggleCamera();
