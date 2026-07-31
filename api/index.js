@@ -1894,10 +1894,11 @@ app.delete('/api/me/preferences', requireUser, requireActiveMembership, deletePr
 const ALLOWED_VERDICTS = ['sano', 'regular', 'evitar'];
 const MAX_BARCODE_LEN = 32;
 const MAX_PRODUCT_NAME_LEN = 200;
+const MAX_IMAGE_URL_LEN = 500;
 
 async function postHistoryHandler(req, res) {
   try {
-    const { barcode, productName, verdict } = req.body || {};
+    const { barcode, productName, verdict, image } = req.body || {};
     if (!barcode || !productName || !verdict) return res.status(400).json({ error: 'invalid_history_entry' });
     if (typeof barcode !== 'string' || barcode.length > MAX_BARCODE_LEN) {
       return res.status(400).json({ error: 'invalid_barcode' });
@@ -1909,9 +1910,14 @@ async function postHistoryHandler(req, res) {
       return res.status(400).json({ error: 'invalid_verdict' });
     }
 
-    const { id } = await fireLogUserHistory(req.user.uid, {
+    const entry = {
       barcode, productName: productName.slice(0, MAX_PRODUCT_NAME_LEN), verdict, scannedAt: new Date().toISOString()
-    });
+    };
+    if (typeof image === 'string' && image.length > 0 && image.length <= MAX_IMAGE_URL_LEN) {
+      entry.image = image;
+    }
+
+    const { id } = await fireLogUserHistory(req.user.uid, entry);
     res.json({ ok: true, id });
   } catch (e) {
     console.warn('[POST /api/me/history] Firestore error, uid:', req.user?.uid, e.message);
