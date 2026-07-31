@@ -1718,7 +1718,7 @@ function computeVerdictReasons(product, userPreferences) {
   const allergenRows = allergens.filter(Boolean).map(a => {
     const detected = isAllergenDetected(product, a.code);
     const label = allergenLabel(a.code);
-    const severity = a.severity === 'severe' ? 'grave' : 'leve';
+    const severity = a.severity === 'severe' ? 'grave' : (a.severity === 'mild' ? 'leve' : null);
     return detected
       ? { ok: false, severity, icon: allergenEmoji(a.code), type: 'allergen', title: `Contiene ${label}`, detail: `Registraste alergia ${severity} a ${label}` }
       : { ok: true, severity, icon: allergenEmoji(a.code), type: 'allergen', title: `Sin ${label}`, detail: 'No detectamos tu alergia' };
@@ -1745,10 +1745,14 @@ function computeVerdictReasons(product, userPreferences) {
   const healthConflict = healthRows.filter(isConflict);
   const dietConflict = dietaryRows.filter(isConflict);
   const mildAllergenConflict = allergenRows.filter(r => isConflict(r) && r.severity === 'leve');
+  // Alérgeno con severity ausente/no reconocida (severity:null) que sí se detectó
+  // en el producto: no cae en la regla "grave" ni "leve", pero sigue siendo un
+  // conflicto y debe mostrarse en la tarjeta de diagnóstico igual.
+  const otherAllergenConflict = allergenRows.filter(r => isConflict(r) && r.severity !== 'grave' && r.severity !== 'leve');
   const okRows = [...allergenRows, ...dietaryRows, ...healthRows].filter(r => r.ok === true);
   const unknownRows = dietaryRows.filter(r => r.ok === null);
 
-  return [...severeAllergenConflict, ...healthConflict, ...dietConflict, ...mildAllergenConflict, ...okRows, ...unknownRows];
+  return [...severeAllergenConflict, ...healthConflict, ...dietConflict, ...mildAllergenConflict, ...otherAllergenConflict, ...okRows, ...unknownRows];
 }
 
 // Deriva el verdict SANO/REGULAR/EVITAR. `userPreferences` es opcional — si es
@@ -1865,7 +1869,7 @@ function renderPersonalizedReasons(product, userPreferences) {
         <span class="reason-icon">${escReasons(r.icon)}</span>
         <span class="reason-state" aria-hidden="true">${reasonStateGlyph(r.ok)}</span>
         <span class="reason-text"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
-        ${r.severity === 'grave' ? '<span class="reason-severity">grave</span>' : ''}
+        ${r.ok === false && r.severity === 'grave' ? '<span class="reason-severity">grave</span>' : ''}
       </li>
     `).join('');
   }

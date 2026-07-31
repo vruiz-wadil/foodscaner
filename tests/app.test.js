@@ -574,6 +574,12 @@ describe('computeVerdict — con userPreferences', () => {
     expect(computeVerdict(product, prefs)).toBe('regular')
   })
 
+  it('Regla 4: alérgeno con severity ausente/no reconocida NO topa "sano" a "regular" (matching old computeVerdict behavior)', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: undefined }], dietary: [], healthConditions: [] }
+    expect(computeVerdict(product, prefs)).toBe('sano')
+  })
+
   it('Regla 5: sin conflictos, comportamiento normal', () => {
     const product = { sellos: [], notRecommended: [], allergens: [], dietary: {} }
     const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: ['vegan'], healthConditions: ['diabet'] }
@@ -643,6 +649,14 @@ describe('computeVerdictReasons', () => {
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
     expect(reasons[0]).toMatchObject({ ok: true, severity: 'leve', type: 'allergen', title: 'Sin Cacahuate', detail: 'No detectamos tu alergia' })
+  })
+
+  it('alérgeno con severity ausente/no reconocida y detectado: severity:null (no cae por default a "leve")', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Lácteos'] }
+    const prefs = { allergens: [{ code: 'leche', severity: undefined }], dietary: [], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: false, severity: null, type: 'allergen', title: 'Contiene Lácteos' })
   })
 
   it('dieta violada: ok:false, type:"dietary", title "No es {label}"', () => {
@@ -783,7 +797,7 @@ describe('renderPersonalizedDisclaimer', () => {
 describe('renderPersonalizedReasons', () => {
   beforeEach(() => {
     document.body.innerHTML = `
-      <div id="verdict-reasons" class="reason-card hidden" role="status">
+      <div id="verdict-reasons" class="reason-card hidden">
         <h3 id="verdict-reasons-title"></h3>
         <ul id="verdict-reasons-list"></ul>
       </div>
@@ -827,6 +841,15 @@ describe('renderPersonalizedReasons', () => {
     expect(rows[0].querySelector('.reason-severity').textContent).toBe('grave')
     expect(rows[0].querySelector('.reason-text strong').textContent).toBe('Contiene Cacahuate')
     expect(rows[1].querySelector('.reason-severity')).toBeNull()
+  })
+
+  it('fila ok:true de un alérgeno grave (NO detectado) no muestra el badge de severidad "grave"', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Huevo'] }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    const row = document.querySelector('#verdict-reasons-list li.reason-row')
+    expect(row.classList.contains('reason-row--ok')).toBe(true)
+    expect(row.querySelector('.reason-severity')).toBeNull()
   })
 
   it('fila ok:null usa la clase --unknown y el ícono ❔', () => {
