@@ -1720,24 +1720,24 @@ function computeVerdictReasons(product, userPreferences) {
     const label = allergenLabel(a.code);
     const severity = a.severity === 'severe' ? 'grave' : 'leve';
     return detected
-      ? { ok: false, severity, icon: allergenEmoji(a.code), title: `Contiene ${label}`, detail: `Registraste alergia ${severity} a ${label}` }
-      : { ok: true, severity, icon: allergenEmoji(a.code), title: `Sin ${label}`, detail: 'No detectamos tu alergia' };
+      ? { ok: false, severity, icon: allergenEmoji(a.code), type: 'allergen', title: `Contiene ${label}`, detail: `Registraste alergia ${severity} a ${label}` }
+      : { ok: true, severity, icon: allergenEmoji(a.code), type: 'allergen', title: `Sin ${label}`, detail: 'No detectamos tu alergia' };
   });
 
   const dietaryRows = dietary.map(key => {
     const label = DIETARY_LABELS[key] || key;
     const value = product.dietary ? product.dietary[key] : undefined;
-    if (value === false) return { ok: false, severity: null, icon: '🍽️', title: `No es ${label}`, detail: 'El producto no cumple esta preferencia' };
-    if (value === true) return { ok: true, severity: null, icon: '🍽️', title: `Es ${label}`, detail: 'Cumple esta preferencia' };
-    return { ok: null, severity: null, icon: '🍽️', title: `Sin datos: ${label}`, detail: 'No tenemos información sobre esta preferencia para este producto' };
+    if (value === false) return { ok: false, severity: null, icon: '🍽️', type: 'dietary', title: `No es ${label}`, detail: 'El producto no cumple esta preferencia' };
+    if (value === true) return { ok: true, severity: null, icon: '🍽️', type: 'dietary', title: `Es ${label}`, detail: 'Cumple esta preferencia' };
+    return { ok: null, severity: null, icon: '🍽️', type: 'dietary', title: `Sin datos: ${label}`, detail: 'No tenemos información sobre esta preferencia para este producto' };
   });
 
   const healthRows = healthConditions.map(cond => {
     const label = HEALTH_LABELS[cond] || cond;
     const match = (product.notRecommended || []).find(n => n.certain === true && grupoClaveVerdict(n.grupo) === cond);
     return match
-      ? { ok: false, severity: null, icon: '⚕️', title: label, detail: String(match.razon || '').slice(0, 140) }
-      : { ok: true, severity: null, icon: '⚕️', title: label, detail: 'No encontramos alertas para esta condición' };
+      ? { ok: false, severity: null, icon: '⚕️', type: 'health', title: label, detail: String(match.razon || '').slice(0, 140) }
+      : { ok: true, severity: null, icon: '⚕️', type: 'health', title: label, detail: 'No encontramos alertas para esta condición' };
   });
 
   const isConflict = r => r.ok === false;
@@ -1768,8 +1768,8 @@ function computeVerdict(product, userPreferences) {
   const isConflict = r => r.ok === false;
 
   if (reasons.some(r => isConflict(r) && r.severity === 'grave')) return 'evitar';
-  if (reasons.some(r => isConflict(r) && r.icon === '⚕️')) return 'evitar';
-  if (reasons.some(r => isConflict(r) && r.icon === '🍽️')) return 'evitar';
+  if (reasons.some(r => isConflict(r) && r.type === 'health')) return 'evitar';
+  if (reasons.some(r => isConflict(r) && r.type === 'dietary')) return 'evitar';
   if (base === 'sano' && reasons.some(r => isConflict(r) && r.severity === 'leve')) return 'regular';
 
   return base;

@@ -626,68 +626,72 @@ describe('computeVerdictReasons', () => {
     expect(computeVerdictReasons(product, prefs)).toEqual([])
   })
 
-  it('alérgeno grave detectado: ok:false, severity:"grave"', () => {
+  it('alérgeno grave detectado: ok:false, severity:"grave", type:"allergen"', () => {
     const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'] }
     const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toMatchObject({ ok: false, severity: 'grave', title: 'Contiene Cacahuate' })
+    expect(reasons[0]).toMatchObject({ ok: false, severity: 'grave', type: 'allergen', title: 'Contiene Cacahuate' })
     expect(reasons[0].detail).toMatch(/alergia grave a cacahuate/i)
+    expect(reasons[0].type).toBe('allergen')
   })
 
-  it('alérgeno leve NO detectado: ok:true, severity:"leve"', () => {
+  it('alérgeno leve NO detectado: ok:true, severity:"leve", type:"allergen"', () => {
     const product = { sellos: [], notRecommended: [], allergens: ['Huevo'] }
     const prefs = { allergens: [{ code: 'cacahuate', severity: 'mild' }], dietary: [], healthConditions: [] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toMatchObject({ ok: true, severity: 'leve', title: 'Sin Cacahuate', detail: 'No detectamos tu alergia' })
+    expect(reasons[0]).toMatchObject({ ok: true, severity: 'leve', type: 'allergen', title: 'Sin Cacahuate', detail: 'No detectamos tu alergia' })
   })
 
-  it('dieta violada: ok:false, title "No es {label}"', () => {
+  it('dieta violada: ok:false, type:"dietary", title "No es {label}"', () => {
     const product = { sellos: [], notRecommended: [], dietary: { vegan: false } }
     const prefs = { allergens: [], dietary: ['vegan'], healthConditions: [] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toMatchObject({ ok: false, severity: null, title: 'No es Vegano', detail: 'El producto no cumple esta preferencia' })
+    expect(reasons[0]).toMatchObject({ ok: false, severity: null, type: 'dietary', title: 'No es Vegano', detail: 'El producto no cumple esta preferencia' })
+    expect(reasons[0].type).toBe('dietary')
   })
 
-  it('dieta cumplida: ok:true, title "Es {label}"', () => {
+  it('dieta cumplida: ok:true, type:"dietary", title "Es {label}"', () => {
     const product = { sellos: [], notRecommended: [], dietary: { glutenFree: true } }
     const prefs = { allergens: [], dietary: ['glutenFree'], healthConditions: [] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toMatchObject({ ok: true, title: 'Es Sin gluten', detail: 'Cumple esta preferencia' })
+    expect(reasons[0]).toMatchObject({ ok: true, type: 'dietary', title: 'Es Sin gluten', detail: 'Cumple esta preferencia' })
   })
 
-  it('dieta sin dato (undefined): ok:null, título "Sin datos: {label}"', () => {
+  it('dieta sin dato (undefined): ok:null, type:"dietary", título "Sin datos: {label}"', () => {
     const product = { sellos: [], notRecommended: [], dietary: {} }
     const prefs = { allergens: [], dietary: ['keto'], healthConditions: [] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toMatchObject({ ok: null, title: 'Sin datos: Keto' })
+    expect(reasons[0]).toMatchObject({ ok: null, type: 'dietary', title: 'Sin datos: Keto' })
   })
 
-  it('dieta con dato null se trata igual que undefined: ok:null', () => {
+  it('dieta con dato null se trata igual que undefined: ok:null, type:"dietary"', () => {
     const product = { sellos: [], notRecommended: [], dietary: { vegan: null } }
     const prefs = { allergens: [], dietary: ['vegan'], healthConditions: [] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons[0].ok).toBe(null)
+    expect(reasons[0].type).toBe('dietary')
   })
 
-  it('condición de salud con match certain:true: ok:false, detail = razon del producto', () => {
+  it('condición de salud con match certain:true: ok:false, type:"health", detail = razon del producto', () => {
     const product = { sellos: [], notRecommended: [{ grupo: 'Diabéticos', razon: 'Alto en azúcares', certain: true }] }
     const prefs = { allergens: [], dietary: [], healthConditions: ['diabet'] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toMatchObject({ ok: false, title: 'Diabetes', detail: 'Alto en azúcares' })
+    expect(reasons[0]).toMatchObject({ ok: false, type: 'health', title: 'Diabetes', detail: 'Alto en azúcares' })
+    expect(reasons[0].type).toBe('health')
   })
 
-  it('condición de salud sin match: ok:true', () => {
+  it('condición de salud sin match: ok:true, type:"health"', () => {
     const product = { sellos: [], notRecommended: [] }
     const prefs = { allergens: [], dietary: [], healthConditions: ['celiac'] }
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
-    expect(reasons[0]).toMatchObject({ ok: true, title: 'Celiaquía', detail: 'No encontramos alertas para esta condición' })
+    expect(reasons[0]).toMatchObject({ ok: true, type: 'health', title: 'Celiaquía', detail: 'No encontramos alertas para esta condición' })
   })
 
   it('orden: alérgeno grave conflicto, salud conflicto, dieta conflicto, alérgeno leve conflicto, luego ok:true, luego ok:null', () => {
