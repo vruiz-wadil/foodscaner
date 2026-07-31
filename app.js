@@ -1953,6 +1953,7 @@ function renderProductData(product, barcode) {
   const userPreferences = getUserPreferencesForVerdict();
   const verdict = computeVerdict(product, userPreferences);
   renderPersonalizedDisclaimer(userPreferences);
+  renderPersonalizedReasons(product, userPreferences);
   logScanToCloudHistory(barcode, product.name, verdict, product.image);
   incrementScanCounter();
   const verdictBanner = document.getElementById('verdict-banner');
