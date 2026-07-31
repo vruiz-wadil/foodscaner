@@ -690,6 +690,19 @@ describe('logScanToCloudHistory', () => {
       getCachedProfile: () => ({ membershipStatus: 'active' }),
       getIdToken: vi.fn().mockResolvedValue('tok-789')
     }
+    await logScanToCloudHistory('111', 'Producto A', 'sano', 'https://example.com/p.jpg')
+    expect(global.fetch).toHaveBeenCalledWith('/api/me/history', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-789', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcode: '111', productName: 'Producto A', verdict: 'sano', image: 'https://example.com/p.jpg' })
+    })
+  })
+
+  it('POSTea sin campo image cuando no se pasa (producto sin imagen)', async () => {
+    window.authClient = {
+      getCachedProfile: () => ({ membershipStatus: 'active' }),
+      getIdToken: vi.fn().mockResolvedValue('tok-789')
+    }
     await logScanToCloudHistory('111', 'Producto A', 'sano')
     expect(global.fetch).toHaveBeenCalledWith('/api/me/history', {
       method: 'POST',

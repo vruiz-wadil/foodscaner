@@ -1758,17 +1758,19 @@ function renderPersonalizedDisclaimer(userPreferences) {
 // Registra el escaneo en el historial en la nube — solo usuarios premium
 // (free se queda con su historial local de 5, sin cambios). Fire-and-forget:
 // un fallo de red no debe bloquear ni ensuciar el render del resultado.
-async function logScanToCloudHistory(barcode, productName, verdict) {
+async function logScanToCloudHistory(barcode, productName, verdict, image) {
   if (typeof window === 'undefined' || !window.authClient) return;
   const profile = window.authClient.getCachedProfile();
   if (!profile || profile.membershipStatus !== 'active') return;
 
   try {
     const token = await window.authClient.getIdToken();
+    const body = { barcode, productName, verdict };
+    if (image) body.image = image;
     await fetch('/api/me/history', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barcode, productName, verdict })
+      body: JSON.stringify(body)
     });
   } catch (e) {
     console.warn('[history] no se pudo registrar el escaneo en la nube:', e.message);
@@ -1833,7 +1835,7 @@ function renderProductData(product, barcode) {
   const userPreferences = getUserPreferencesForVerdict();
   const verdict = computeVerdict(product, userPreferences);
   renderPersonalizedDisclaimer(userPreferences);
-  logScanToCloudHistory(barcode, product.name, verdict);
+  logScanToCloudHistory(barcode, product.name, verdict, product.image);
   incrementScanCounter();
   const verdictBanner = document.getElementById('verdict-banner');
   if (verdictBanner) {
