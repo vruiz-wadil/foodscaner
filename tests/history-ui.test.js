@@ -98,3 +98,100 @@ describe('renderHistoryScreen — botón de compartir (usuario premium, historia
     expect(window.shareResult).toHaveBeenCalledWith({ name: 'Producto A', verdict: 'sano', barcode: '111' }, shareBtn)
   })
 })
+
+describe('renderHistoryScreen — thumbnail', () => {
+  it('muestra la imagen del producto cuando item.image existe (historial local)', async () => {
+    window.getLocalHistory.mockReturnValue([
+      { barcode: '111', name: 'Producto A', brand: 'Marca', image: 'https://example.com/a.jpg', rating: 'sano' }
+    ])
+    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    await renderHistoryScreen()
+    const img = document.querySelector('#history-root .row-card img')
+    expect(img.src).toBe('https://example.com/a.jpg')
+  })
+
+  it('muestra un placeholder cuando item.image esta vacio (historial local)', async () => {
+    window.getLocalHistory.mockReturnValue([
+      { barcode: '111', name: 'Producto A', brand: 'Marca', image: '', rating: 'sano' }
+    ])
+    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    await renderHistoryScreen()
+    const root = document.getElementById('history-root')
+    expect(root.querySelector('.row-card img')).toBeNull()
+    expect(root.querySelector('.row-card .history-thumb-placeholder')).toBeTruthy()
+  })
+
+  it('muestra la imagen del producto cuando el entry de la nube trae image (historial premium)', async () => {
+    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    getIdToken.mockResolvedValue('tok-1')
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ history: [
+        { barcode: '111', productName: 'Producto A', verdict: 'sano', scannedAt: '2026-07-15T10:00:00.000Z', image: 'https://example.com/a.jpg' }
+      ] })
+    })
+    await renderHistoryScreen()
+    const img = document.querySelector('#history-root .row-card img')
+    expect(img.src).toBe('https://example.com/a.jpg')
+  })
+
+  it('muestra un placeholder cuando el entry de la nube no trae image', async () => {
+    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    getIdToken.mockResolvedValue('tok-1')
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ history: [
+        { barcode: '111', productName: 'Producto A', verdict: 'sano', scannedAt: '2026-07-15T10:00:00.000Z' }
+      ] })
+    })
+    await renderHistoryScreen()
+    const root = document.getElementById('history-root')
+    expect(root.querySelector('.row-card img')).toBeNull()
+    expect(root.querySelector('.row-card .history-thumb-placeholder')).toBeTruthy()
+  })
+})
+
+describe('renderHistoryScreen — click navega a scan.html', () => {
+  let originalLocation
+
+  beforeEach(() => {
+    originalLocation = window.location
+    delete window.location
+    window.location = { href: '' }
+  })
+
+  afterEach(() => {
+    window.location = originalLocation
+  })
+
+  it('click en la row-card (historial local) navega a scan.html?barcode=X', async () => {
+    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    await renderHistoryScreen()
+    const card = document.querySelector('#history-root .row-card')
+    card.click()
+    expect(window.location.href).toBe('scan.html?barcode=111')
+  })
+
+  it('click en el boton de compartir NO navega (stopPropagation)', async () => {
+    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    await renderHistoryScreen()
+    const shareBtn = document.querySelector('#history-root .row-card .share-btn')
+    shareBtn.click()
+    expect(window.location.href).toBe('')
+  })
+
+  it('click en la row-card (historial cloud) navega a scan.html?barcode=X', async () => {
+    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    getIdToken.mockResolvedValue('tok-1')
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ history: [
+        { barcode: '222', productName: 'Producto B', verdict: 'evitar', scannedAt: '2026-07-14T10:00:00.000Z' }
+      ] })
+    })
+    await renderHistoryScreen()
+    const card = document.querySelector('#history-root .row-card')
+    card.click()
+    expect(window.location.href).toBe('scan.html?barcode=222')
+  })
+})

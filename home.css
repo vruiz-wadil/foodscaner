@@ -677,6 +677,12 @@ body:has(.app-main.content-page) {
 }
 .row-card:first-child { border-top: none; padding-top: 0; }
 
+.history-thumb, .history-thumb-placeholder {
+  width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
+  object-fit: cover; background: #f0f0f0;
+  display: flex; align-items: center; justify-content: center;
+}
+
 /* El nombre del producto ocupa el espacio disponible para que el botón de
    compartir quede alineado al borde derecho de la row-card (hallazgo:
    sin flex:1 aquí, .share-btn queda pegado al texto en vez de al borde). */
