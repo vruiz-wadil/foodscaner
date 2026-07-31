@@ -211,7 +211,10 @@
 
           <!-- 0. VEREDICTO -->
           <div id="verdict-banner" class="verdict-banner" role="status">
-            <span id="verdict-text"></span>
+            <span class="verdict-main">
+              <span id="verdict-icon" class="verdict-icon" aria-hidden="true"></span>
+              <span id="verdict-text"></span>
+            </span>
             <button type="button" id="btn-share-result" class="verdict-share-btn" aria-label="Compartir resultado">
               <svg class="share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="18" cy="5" r="3"/>
@@ -225,6 +228,7 @@
           </div>
           <div id="verdict-reasons" class="reason-card hidden">
             <h3 id="verdict-reasons-title"></h3>
+            <p id="verdict-reasons-summary" class="reason-summary"></p>
             <ul id="verdict-reasons-list" tabindex="0" aria-labelledby="verdict-reasons-title"></ul>
           </div>
           <p id="verdict-disclaimer" class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>

@@ -1858,9 +1858,17 @@ function renderPersonalizedReasons(product, userPreferences) {
     return;
   }
 
-  const hasConflict = reasons.some(r => r.ok === false);
+  const conflictCount = reasons.filter(r => r.ok === false).length;
+  const hasConflict = conflictCount > 0;
   const titleEl = document.getElementById('verdict-reasons-title');
   if (titleEl) titleEl.textContent = hasConflict ? 'Tu perfil vs. este producto' : 'Cumple con tu perfil';
+
+  const summaryEl = document.getElementById('verdict-reasons-summary');
+  if (summaryEl) {
+    summaryEl.textContent = hasConflict
+      ? `${conflictCount} de ${reasons.length} restricciones en conflicto`
+      : `Revisamos ${reasons.length} restricciones de tu perfil`;
+  }
 
   const list = document.getElementById('verdict-reasons-list');
   if (list) {
@@ -1875,6 +1883,11 @@ function renderPersonalizedReasons(product, userPreferences) {
   }
 
   card.classList.remove('hidden');
+  // Reinicia la animación de entrada en cada escaneo, mismo patrón que
+  // verdict-reveal en el banner (remove/reflow/add fuerza el restart).
+  card.classList.remove('verdict-reasons-reveal');
+  void card.offsetWidth;
+  card.classList.add('verdict-reasons-reveal');
 }
 
 // Registra el escaneo en el historial en la nube — solo usuarios premium
@@ -1962,10 +1975,14 @@ function renderProductData(product, barcode) {
   incrementScanCounter();
   const verdictBanner = document.getElementById('verdict-banner');
   if (verdictBanner) {
-    const verdictText = hasNoRealData(product)
-      ? '⚠ Sin datos suficientes para evaluar'
-      : { sano: '✓ Puedes comerlo', regular: '⚠ Con moderación', evitar: '✗ Mejor evítalo' }[verdict];
+    const noData = hasNoRealData(product);
+    const verdictIcon = noData ? '⚠' : { sano: '✓', regular: '⚠', evitar: '✗' }[verdict];
+    const verdictText = noData
+      ? 'Sin datos suficientes para evaluar'
+      : { sano: 'Puedes comerlo', regular: 'Con moderación', evitar: 'Mejor evítalo' }[verdict];
     verdictBanner.className = 'verdict-banner verdict-' + verdict;
+    const verdictIconEl = document.getElementById('verdict-icon');
+    if (verdictIconEl) verdictIconEl.textContent = verdictIcon;
     const verdictTextEl = document.getElementById('verdict-text');
     if (verdictTextEl) verdictTextEl.textContent = verdictText;
     // Celebratory entrance only for the "you can eat this" verdict — REGULAR/EVITAR

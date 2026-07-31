@@ -799,9 +799,24 @@ describe('renderPersonalizedReasons', () => {
     document.body.innerHTML = `
       <div id="verdict-reasons" class="reason-card hidden">
         <h3 id="verdict-reasons-title"></h3>
+        <p id="verdict-reasons-summary"></p>
         <ul id="verdict-reasons-list"></ul>
       </div>
     `
+  })
+
+  it('resumen: "N de M restricciones en conflicto" cuando hay conflictos', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'], dietary: { organic: true } }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: ['organic'], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    expect(document.getElementById('verdict-reasons-summary').textContent).toBe('1 de 2 restricciones en conflicto')
+  })
+
+  it('resumen: "Revisamos N restricciones de tu perfil" cuando no hay conflictos', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { organic: true } }
+    const prefs = { allergens: [], dietary: ['organic'], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    expect(document.getElementById('verdict-reasons-summary').textContent).toBe('Revisamos 1 restricciones de tu perfil')
   })
 
   it('oculta la tarjeta si userPreferences es null', () => {
