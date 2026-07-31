@@ -677,6 +677,16 @@ body:has(.app-main.content-page) {
 }
 .row-card:first-child { border-top: none; padding-top: 0; }
 
+.row-card-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
 .history-thumb, .history-thumb-placeholder {
   width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
   object-fit: cover; background: #f0f0f0;

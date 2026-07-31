@@ -1913,7 +1913,7 @@ async function postHistoryHandler(req, res) {
     const entry = {
       barcode, productName: productName.slice(0, MAX_PRODUCT_NAME_LEN), verdict, scannedAt: new Date().toISOString()
     };
-    if (typeof image === 'string' && image.length > 0 && image.length <= MAX_IMAGE_URL_LEN) {
+    if (typeof image === 'string' && image.length > 0 && image.length <= MAX_IMAGE_URL_LEN && /^https:\/\//i.test(image)) {
       entry.image = image;
     }
 

@@ -73,6 +73,25 @@ describe('postHistoryHandler', () => {
     const entry = fireLogUserHistory.mock.calls[0][1]
     expect(entry.image).toBeUndefined()
   })
+
+  it('omite image silenciosamente si no usa esquema https:// (evita SSRF/tracking-pixel via http:// u otros esquemas)', async () => {
+    fireLogUserHistory.mockResolvedValue({ id: 'abc' })
+    const req = { user: { uid: 'uid-2' }, body: { barcode: '111', productName: 'A', verdict: 'sano', image: 'http://example.com/p.jpg' } }
+    const res = makeRes()
+    await postHistoryHandler(req, res)
+    const entry = fireLogUserHistory.mock.calls[0][1]
+    expect(entry.image).toBeUndefined()
+    expect(res.body).toEqual({ ok: true, id: 'abc' })
+  })
+
+  it('omite image silenciosamente si usa esquema javascript: u otro no-https', async () => {
+    fireLogUserHistory.mockResolvedValue({ id: 'abc' })
+    const req = { user: { uid: 'uid-2' }, body: { barcode: '111', productName: 'A', verdict: 'sano', image: 'javascript:alert(1)' } }
+    const res = makeRes()
+    await postHistoryHandler(req, res)
+    const entry = fireLogUserHistory.mock.calls[0][1]
+    expect(entry.image).toBeUndefined()
+  })
 })
 
 describe('getHistoryHandler', () => {
