@@ -1823,6 +1823,56 @@ function renderPersonalizedDisclaimer(userPreferences) {
     : BASE_VERDICT_DISCLAIMER;
 }
 
+function escReasons(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function reasonStateGlyph(ok) {
+  if (ok === true) return '✅';
+  if (ok === false) return '❌';
+  return '❔';
+}
+
+function reasonRowClass(ok) {
+  if (ok === true) return 'reason-row--ok';
+  if (ok === false) return 'reason-row--warn';
+  return 'reason-row--unknown';
+}
+
+// Pinta/oculta la tarjeta de diagnóstico personalizado bajo el banner de
+// veredicto. userPreferences null (sin personalización activa) u
+// computeVerdictReasons vacío (usuario premium sin restricciones
+// configuradas) ocultan la tarjeta sin removerla del DOM — así su layout
+// ya está estable antes de que corra la animación verdict-reveal del
+// banner (evita un salto de layout simultáneo).
+function renderPersonalizedReasons(product, userPreferences) {
+  const card = document.getElementById('verdict-reasons');
+  if (!card) return;
+  const reasons = computeVerdictReasons(product, userPreferences);
+  if (!reasons.length) {
+    card.classList.add('hidden');
+    return;
+  }
+
+  const hasConflict = reasons.some(r => r.ok === false);
+  const titleEl = document.getElementById('verdict-reasons-title');
+  if (titleEl) titleEl.textContent = hasConflict ? 'Tu perfil vs. este producto' : 'Cumple con tu perfil';
+
+  const list = document.getElementById('verdict-reasons-list');
+  if (list) {
+    list.innerHTML = reasons.map(r => `
+      <li class="reason-row ${reasonRowClass(r.ok)}">
+        <span class="reason-icon">${escReasons(r.icon)}</span>
+        <span class="reason-state" aria-hidden="true">${reasonStateGlyph(r.ok)}</span>
+        <span class="reason-text"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
+        ${r.severity === 'grave' ? '<span class="reason-severity">grave</span>' : ''}
+      </li>
+    `).join('');
+  }
+
+  card.classList.remove('hidden');
+}
+
 // Registra el escaneo en el historial en la nube — solo usuarios premium
 // (free se queda con su historial local de 5, sin cambios). Fire-and-forget:
 // un fallo de red no debe bloquear ni ensuciar el render del resultado.

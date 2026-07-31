@@ -10,10 +10,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
+let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
@@ -26,6 +26,7 @@ beforeAll(() => {
   hasNoRealData = exports.hasNoRealData
   getUserPreferencesForVerdict = exports.getUserPreferencesForVerdict
   renderPersonalizedDisclaimer = exports.renderPersonalizedDisclaimer
+  renderPersonalizedReasons = exports.renderPersonalizedReasons
   logScanToCloudHistory = exports.logScanToCloudHistory
   incrementScanCounter = exports.incrementScanCounter
   buildCameraConstraints = exports.buildCameraConstraints
@@ -774,6 +775,67 @@ describe('renderPersonalizedDisclaimer', () => {
     const el = document.getElementById('verdict-disclaimer')
     expect(el.textContent).toBe('Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.')
     expect(el.textContent).not.toMatch(/preferencias guardadas/i)
+  })
+})
+
+// ─── renderPersonalizedReasons (tarjeta de diagnóstico) ─────
+
+describe('renderPersonalizedReasons', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="verdict-reasons" class="reason-card hidden" role="status">
+        <h3 id="verdict-reasons-title"></h3>
+        <ul id="verdict-reasons-list"></ul>
+      </div>
+    `
+  })
+
+  it('oculta la tarjeta si userPreferences es null', () => {
+    renderPersonalizedReasons({ sellos: [], notRecommended: [] }, null)
+    expect(document.getElementById('verdict-reasons').classList.contains('hidden')).toBe(true)
+  })
+
+  it('oculta la tarjeta si no hay ninguna restricción configurada', () => {
+    const prefs = { allergens: [], dietary: [], healthConditions: [] }
+    renderPersonalizedReasons({ sellos: [], notRecommended: [] }, prefs)
+    expect(document.getElementById('verdict-reasons').classList.contains('hidden')).toBe(true)
+  })
+
+  it('muestra la tarjeta con título de conflicto cuando hay al menos un ok:false', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'] }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    const card = document.getElementById('verdict-reasons')
+    expect(card.classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('verdict-reasons-title').textContent).toBe('Tu perfil vs. este producto')
+  })
+
+  it('muestra título positivo cuando todas las filas son ok:true', () => {
+    const product = { sellos: [], notRecommended: [], dietary: { organic: true } }
+    const prefs = { allergens: [], dietary: ['organic'], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    expect(document.getElementById('verdict-reasons-title').textContent).toBe('Cumple con tu perfil')
+  })
+
+  it('renderiza una fila <li> por cada reason, con clase de estado y severidad visible cuando aplica', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'] }
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: ['organic'], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    const rows = document.querySelectorAll('#verdict-reasons-list li.reason-row')
+    expect(rows.length).toBe(2)
+    expect(rows[0].classList.contains('reason-row--warn')).toBe(true)
+    expect(rows[0].querySelector('.reason-severity').textContent).toBe('grave')
+    expect(rows[0].querySelector('.reason-text strong').textContent).toBe('Contiene Cacahuate')
+    expect(rows[1].querySelector('.reason-severity')).toBeNull()
+  })
+
+  it('fila ok:null usa la clase --unknown y el ícono ❔', () => {
+    const product = { sellos: [], notRecommended: [], dietary: {} }
+    const prefs = { allergens: [], dietary: ['keto'], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    const row = document.querySelector('#verdict-reasons-list li.reason-row')
+    expect(row.classList.contains('reason-row--unknown')).toBe(true)
+    expect(row.querySelector('.reason-state').textContent).toBe('❔')
   })
 })
 
