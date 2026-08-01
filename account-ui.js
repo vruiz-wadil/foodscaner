@@ -219,7 +219,6 @@ function renderSubscriptionBlock(profile) {
 
   return `
     <div class="account-subscription-block" data-row="subscription">
-      <div class="account-data-label">Suscripción</div>
       <div class="account-subscription-status">${statusLine}</div>
       ${actionBtn}
     </div>
@@ -274,6 +273,7 @@ export function renderAccountHub() {
 
   root.innerHTML = `
     <div class="content-card">
+      <div class="account-data-label" style="margin-bottom:10px;">Perfil</div>
       <div class="hero-card-dark">
         <div class="icon-wrap">${PROFILE_ICON_SVG}</div>
         <div>
@@ -287,20 +287,6 @@ export function renderAccountHub() {
         <div class="stat-tile"><div class="stat-num">${totalScans}</div><div class="stat-label">Escaneos</div></div>
         <div class="stat-tile"><div class="stat-num">${alertsActive}</div><div class="stat-label">Alertas activas</div></div>
       </div>
-      <div class="row-card account-preference-row">
-        ${summaryHtml}
-        <a href="preferences.html" class="btn btn-secondary">Editar preferencias</a>
-      </div>
-      ${isActive ? renderSubscriptionBlock(profile) : ''}
-      ${!isActive ? `
-        <div class="row-card account-renew">
-          <div class="icon-wrap" style="background:rgba(245,166,35,0.15);">🔔</div>
-          <div>
-            <p class="about-text">${renewCta.text}</p>
-            <button type="button" id="btn-renew-membership" class="btn btn-primary">${renewCta.btn}</button>
-            <p id="account-renew-error" class="hidden"></p>
-          </div>
-        </div>` : ''}
       <div class="account-data-section">
         ${renderNameRow(displayName)}
         ${renderPhoneRow(profile, phoneContact)}
@@ -310,8 +296,27 @@ export function renderAccountHub() {
             <button type="button" id="btn-open-password-modal" class="account-link-btn">Cambiar contraseña</button>
           </div>` : ''}
       </div>
-      <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
     </div>
+    <div class="content-card">
+      <div class="account-data-label" style="margin-bottom:10px;">Preferencias</div>
+      <div class="row-card account-preference-row">
+        ${summaryHtml}
+        <a href="preferences.html" class="btn btn-secondary">Editar preferencias</a>
+      </div>
+    </div>
+    <div class="content-card">
+      <div class="account-data-label" style="margin-bottom:10px;">Suscripción</div>
+      ${isActive ? renderSubscriptionBlock(profile) : `
+        <div class="row-card account-renew">
+          <div class="icon-wrap" style="background:rgba(245,166,35,0.15);">🔔</div>
+          <div>
+            <p class="about-text">${renewCta.text}</p>
+            <button type="button" id="btn-renew-membership" class="btn btn-primary">${renewCta.btn}</button>
+            <p id="account-renew-error" class="hidden"></p>
+          </div>
+        </div>`}
+    </div>
+    <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
   `;
 
   wireAccountHubEvents(profile);

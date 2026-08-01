@@ -870,8 +870,7 @@ body:has(.app-main.content-page) {
    estilo Netflix: ver si se renovará/cuándo vence, cancelar (conserva
    acceso hasta el vencimiento) o reactivar, e historial de pagos. */
 .account-subscription-block {
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
+  padding: 0;
 }
 .account-subscription-status { font-size: 0.88rem; color: var(--ink-2); margin: 4px 0 8px; }
 

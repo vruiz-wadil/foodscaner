@@ -195,11 +195,11 @@ describe('renderAccountHub', () => {
     expect(nums).toEqual(['0', '0'])
   })
 
-  it('envuelve todo el contenido en un único .content-card, no en cards sueltas', () => {
+  it('separa el contenido en 3 bloques (.content-card): Perfil, Preferencias, Suscripción', () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
     renderAccountHub()
     const root = document.getElementById('account-root')
-    expect(root.querySelectorAll(':scope > .content-card').length).toBe(1)
+    expect(root.querySelectorAll(':scope > .content-card').length).toBe(3)
   })
 
   it('escapa HTML en el nombre mostrado (valor guardado hostil no inyecta markup)', () => {
