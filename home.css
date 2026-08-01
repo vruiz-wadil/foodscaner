@@ -183,7 +183,7 @@ body {
 .about-text {
   font-size: 13px;
   color: var(--ink-3);
-  margin: 0;
+  margin: 0 0 10px;
   line-height: 1.5;
 }
 
