@@ -838,6 +838,15 @@ describe('renderPersonalizedReasons', () => {
     expect(cta.getAttribute('href')).toBe('onboarding-membership.html')
   })
 
+  it('usuario premium activo sin preferences configuradas: oculta la tarjeta y NO muestra el teaser', () => {
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active' }) }
+    const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    const card = document.getElementById('verdict-reasons')
+    expect(card.classList.contains('hidden')).toBe(true)
+    expect(card.classList.contains('reason-card--teaser')).toBe(false)
+  })
+
   it('usuario premium sin restricciones configuradas: oculta la tarjeta (regresión)', () => {
     const prefs = { allergens: [], dietary: [], healthConditions: [] }
     renderPersonalizedReasons({ sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }, prefs)

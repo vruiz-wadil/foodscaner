@@ -1844,17 +1844,24 @@ function reasonRowClass(ok) {
 }
 
 // Pinta/oculta la tarjeta de diagnóstico personalizado bajo el banner de
-// veredicto. userPreferences null (sin personalización activa) u
-// computeVerdictReasons vacío (usuario premium sin restricciones
-// configuradas) ocultan la tarjeta sin removerla del DOM — así su layout
-// ya está estable antes de que corra la animación verdict-reveal del
+// veredicto. Con userPreferences null hay dos casos: si el usuario ES un
+// miembro activo (solo que aún no configuró preferences), la tarjeta se
+// oculta sin removerla del DOM, igual que con computeVerdictReasons vacío;
+// si no es miembro activo (free, no logueado, expirado, pendiente...), se
+// muestra el teaser de upsell en su lugar. Ocultar sin remover del DOM deja
+// el layout estable antes de que corra la animación verdict-reveal del
 // banner (evita un salto de layout simultáneo).
 function renderPersonalizedReasons(product, userPreferences) {
   const card = document.getElementById('verdict-reasons');
   if (!card) return;
 
   if (!userPreferences) {
-    if (hasNoRealData(product)) {
+    const profile = (typeof window !== 'undefined' && window.authClient && typeof window.authClient.getCachedProfile === 'function')
+      ? window.authClient.getCachedProfile()
+      : null;
+    const isActiveMember = !!profile && profile.membershipStatus === 'active';
+
+    if (isActiveMember || hasNoRealData(product)) {
       card.classList.add('hidden');
       return;
     }
