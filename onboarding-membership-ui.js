@@ -38,4 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-confirm-payment')?.addEventListener('click', () => {
     confirmMembershipPayment().catch(() => {});
   });
+  document.getElementById('btn-skip-membership')?.addEventListener('click', () => {
+    window.location.href = 'index.html';
+  });
 });
