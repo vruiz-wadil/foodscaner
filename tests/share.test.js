@@ -24,10 +24,20 @@ afterEach(() => {
 })
 
 describe('buildShareText', () => {
-  it('formats the product name and verdict in plain caps, distinct from the emoji verdict-banner text', () => {
-    expect(buildShareText('Gamesa Emperador', 'evitar')).toBe('Gamesa Emperador: EVITAR — descúbrelo tú con Yomi')
-    expect(buildShareText('Yogurt Natural', 'sano')).toBe('Yogurt Natural: SANO — descúbrelo tú con Yomi')
-    expect(buildShareText('Cereal X', 'regular')).toBe('Cereal X: REGULAR — descúbrelo tú con Yomi')
+  it('sano verdict produces emoji-led copy with call to action', () => {
+    expect(buildShareText('Yogurt Natural', 'sano')).toBe('✅ Yogurt Natural está SANO según Yomi. Escanea el tuyo gratis.')
+  })
+
+  it('regular verdict produces warning emoji and time-value copy', () => {
+    expect(buildShareText('Cereal X', 'regular')).toBe('⚠️ Cereal X: REGULAR. Yomi te dice por qué en 2 segundos.')
+  })
+
+  it('evitar verdict produces stop emoji with question engagement copy', () => {
+    expect(buildShareText('Gamesa Emperador', 'evitar')).toBe('🚫 Gamesa Emperador salió EVITAR en Yomi. ¿El tuyo qué dirá?')
+  })
+
+  it('unknown/unexpected verdict falls back to the old generic format without throwing', () => {
+    expect(buildShareText('Unknown Product', 'misterio')).toBe('Unknown Product: misterio — descúbrelo tú con Yomi')
   })
 })
 
@@ -41,7 +51,7 @@ describe('shareResult — navigator.share available', () => {
 
     expect(share).toHaveBeenCalledWith({
       title: 'Yomi',
-      text: 'Gamesa Emperador: EVITAR — descúbrelo tú con Yomi',
+      text: '🚫 Gamesa Emperador salió EVITAR en Yomi. ¿El tuyo qué dirá?',
       url: 'https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result'
     })
     expect(writeText).not.toHaveBeenCalled()
@@ -76,7 +86,7 @@ describe('shareResult — navigator.share available', () => {
 
     await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })
 
-    expect(writeText).toHaveBeenCalledWith('Gamesa Emperador: EVITAR — descúbrelo tú con Yomi https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
+    expect(writeText).toHaveBeenCalledWith('🚫 Gamesa Emperador salió EVITAR en Yomi. ¿El tuyo qué dirá? https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
   })
 })
 
@@ -87,7 +97,7 @@ describe('shareResult — no navigator.share (Firefox desktop, old Chrome deskto
 
     await shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })
 
-    expect(writeText).toHaveBeenCalledWith('Gamesa Emperador: EVITAR — descúbrelo tú con Yomi https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
+    expect(writeText).toHaveBeenCalledWith('🚫 Gamesa Emperador salió EVITAR en Yomi. ¿El tuyo qué dirá? https://yomi.mx/scan.html?barcode=7501000673209&utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result')
   })
 
   it('escapa el barcode al construir la URL (caracteres especiales no rompen el query string)', async () => {
