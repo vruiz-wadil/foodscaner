@@ -1852,11 +1852,23 @@ function reasonRowClass(ok) {
 function renderPersonalizedReasons(product, userPreferences) {
   const card = document.getElementById('verdict-reasons');
   if (!card) return;
+
+  if (!userPreferences) {
+    if (hasNoRealData(product)) {
+      card.classList.add('hidden');
+      return;
+    }
+    renderTeaserReasons(card);
+    return;
+  }
+
   const reasons = computeVerdictReasons(product, userPreferences);
   if (!reasons.length) {
     card.classList.add('hidden');
     return;
   }
+
+  card.classList.remove('reason-card--teaser');
 
   const conflictCount = reasons.filter(r => r.ok === false).length;
   const hasConflict = conflictCount > 0;
@@ -1882,9 +1894,55 @@ function renderPersonalizedReasons(product, userPreferences) {
     `).join('');
   }
 
+  const existingCta = card.querySelector('.btn-teaser-cta');
+  if (existingCta) existingCta.remove();
+
   card.classList.remove('hidden');
-  // Reinicia la animación de entrada en cada escaneo, mismo patrón que
-  // verdict-reveal en el banner (remove/reflow/add fuerza el restart).
+  card.classList.remove('verdict-reasons-reveal');
+  void card.offsetWidth;
+  card.classList.add('verdict-reasons-reveal');
+}
+
+// Pinta la variante "teaser" de la tarjeta de diagnóstico para usuarios sin
+// preferencias configuradas (free, no logueados, o premium sin setup) — filas
+// genéricas con blur en vez de datos reales del producto, más un CTA a
+// onboarding-membership.html. No hay reasons reales que mostrar (no hay
+// preferencias contra qué evaluar), así que el contenido es fijo, no derivado
+// de computeVerdictReasons.
+function renderTeaserReasons(card) {
+  card.classList.add('reason-card--teaser');
+
+  const titleEl = document.getElementById('verdict-reasons-title');
+  if (titleEl) titleEl.textContent = 'Desbloquea tu análisis personalizado';
+
+  const summaryEl = document.getElementById('verdict-reasons-summary');
+  if (summaryEl) summaryEl.textContent = 'Alergias, dietas y condiciones de salud — verificado contra tu perfil';
+
+  const teaserRows = [
+    { icon: '🥜', title: 'Alergias', detail: 'Verificación automática' },
+    { icon: '🍽️', title: 'Dieta', detail: 'Compatibilidad con tu estilo de alimentación' },
+    { icon: '⚕️', title: 'Condiciones de salud', detail: 'Alertas relevantes para ti' }
+  ];
+
+  const list = document.getElementById('verdict-reasons-list');
+  if (list) {
+    list.innerHTML = teaserRows.map(r => `
+      <li class="reason-row reason-row--teaser">
+        <span class="reason-icon">${escReasons(r.icon)}</span>
+        <span class="reason-text"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
+      </li>
+    `).join('');
+  }
+
+  const existingCta = card.querySelector('.btn-teaser-cta');
+  if (existingCta) existingCta.remove();
+  const cta = document.createElement('a');
+  cta.href = 'onboarding-membership.html';
+  cta.className = 'btn btn-primary btn-teaser-cta';
+  cta.textContent = 'Ver mi análisis — $29.90/mes';
+  card.appendChild(cta);
+
+  card.classList.remove('hidden');
   card.classList.remove('verdict-reasons-reveal');
   void card.offsetWidth;
   card.classList.add('verdict-reasons-reveal');

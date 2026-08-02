@@ -819,8 +819,28 @@ describe('renderPersonalizedReasons', () => {
     expect(document.getElementById('verdict-reasons-summary').textContent).toBe('Revisamos 1 restricciones de tu perfil')
   })
 
-  it('oculta la tarjeta si userPreferences es null', () => {
-    renderPersonalizedReasons({ sellos: [], notRecommended: [] }, null)
+  it('oculta la tarjeta si userPreferences es null y el producto no tiene datos reales', () => {
+    renderPersonalizedReasons({ sellos: [], notRecommended: [], isFromFallback: true }, null)
+    expect(document.getElementById('verdict-reasons').classList.contains('hidden')).toBe(true)
+  })
+
+  it('usuario free (sin userPreferences) con producto real: muestra el teaser con título, 3 filas y CTA', () => {
+    const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    const card = document.getElementById('verdict-reasons')
+    expect(card.classList.contains('hidden')).toBe(false)
+    expect(card.classList.contains('reason-card--teaser')).toBe(true)
+    expect(document.getElementById('verdict-reasons-title').textContent).toBe('Desbloquea tu análisis personalizado')
+    const rows = document.querySelectorAll('#verdict-reasons-list li.reason-row--teaser')
+    expect(rows.length).toBe(3)
+    const cta = card.querySelector('.btn-teaser-cta')
+    expect(cta).not.toBeNull()
+    expect(cta.getAttribute('href')).toBe('onboarding-membership.html')
+  })
+
+  it('usuario premium sin restricciones configuradas: oculta la tarjeta (regresión)', () => {
+    const prefs = { allergens: [], dietary: [], healthConditions: [] }
+    renderPersonalizedReasons({ sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }, prefs)
     expect(document.getElementById('verdict-reasons').classList.contains('hidden')).toBe(true)
   })
 

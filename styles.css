@@ -2329,3 +2329,5 @@ body {
 .reason-row .reason-text strong { display: block; font-size: 14px; color: #1f2937; }
 .reason-row .reason-text span { font-size: 12.5px; color: #5b6472; }
 .reason-severity { flex-shrink: 0; align-self: center; font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: rgba(220,38,38,0.15); color: #ac1e1e; text-transform: uppercase; }
+.reason-card--teaser .reason-row--teaser .reason-text { filter: blur(3px); user-select: none; }
+.btn-teaser-cta { display: block; text-align: center; text-decoration: none; margin-top: 12px; }
