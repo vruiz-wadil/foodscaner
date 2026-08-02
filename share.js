@@ -7,8 +7,15 @@ const SHARE_VERDICT_LABELS = { sano: 'SANO', regular: 'REGULAR', evitar: 'EVITAR
 const SHARE_BASE_URL = 'https://yomi.mx';
 const SHARE_UTM = 'utm_source=share&utm_medium=verdict_card&utm_campaign=scan_result';
 
+const SHARE_TEXT_BY_VERDICT = {
+  sano: name => `✅ ${name} está SANO según Yomi. Escanea el tuyo gratis.`,
+  regular: name => `⚠️ ${name}: REGULAR. Yomi te dice por qué en 2 segundos.`,
+  evitar: name => `🚫 ${name} salió EVITAR en Yomi. ¿El tuyo qué dirá?`
+};
+
 function buildShareText(name, verdict) {
-  return `${name}: ${SHARE_VERDICT_LABELS[verdict]} — descúbrelo tú con Yomi`;
+  const build = SHARE_TEXT_BY_VERDICT[verdict];
+  return build ? build(name) : `${name}: ${SHARE_VERDICT_LABELS[verdict] || verdict} — descúbrelo tú con Yomi`;
 }
 
 // Hallazgo UX: el link compartido apuntaba siempre al home (SHARE_URL fija),
