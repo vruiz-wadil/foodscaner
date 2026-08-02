@@ -32,14 +32,14 @@ function pickHeadline() {
   if (!payload) return null;
 
   const severeAllergen = (payload.allergens || []).find(a => a.severity === 'severe');
-  if (severeAllergen) {
+  if (severeAllergen?.code) {
     return {
       title: `No más sustos con ${allergenLabel(severeAllergen.code)}`,
       sub: 'Premium te avisa automáticamente cuando un producto lo contiene.'
     };
   }
   const anyAllergen = (payload.allergens || [])[0];
-  if (anyAllergen) {
+  if (anyAllergen?.code) {
     return {
       title: `Cuidado con ${allergenLabel(anyAllergen.code)}, sin adivinar`,
       sub: 'Premium revisa cada producto contra tu alergia automáticamente.'

@@ -88,6 +88,38 @@ it('personalizes the heading and button copy for a severe allergen, keeping the 
   expect(btn.querySelector('img.btn-icon')).not.toBeNull()
 })
 
+it('personalizes the heading and button copy for a mild/any allergen, keeping the icon', () => {
+  sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({
+    allergens: [{ code: 'lacteos', severity: 'mild' }],
+    dietary: [],
+    healthConditions: []
+  }))
+
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+
+  const btn = document.getElementById('btn-confirm-payment')
+  expect(document.querySelector('.heading-title').textContent).toBe('Cuidado con lácteos, sin adivinar')
+  expect(document.querySelector('.heading-sub').textContent).toBe('Premium revisa cada producto contra tu alergia automáticamente.')
+  expect(btn.textContent).toContain('Sí, quiero Premium — $29.90/mes')
+  expect(btn.querySelector('img.btn-icon')).not.toBeNull()
+})
+
+it('personalizes the heading and button copy for a health condition, keeping the icon', () => {
+  sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({
+    allergens: [],
+    dietary: [],
+    healthConditions: ['diabetes']
+  }))
+
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+
+  const btn = document.getElementById('btn-confirm-payment')
+  expect(document.querySelector('.heading-title').textContent).toBe('Cuida tu salud sin adivinar')
+  expect(document.querySelector('.heading-sub').textContent).toBe('Cada escaneo revisa el producto contra tu perfil de salud.')
+  expect(btn.textContent).toContain('Sí, quiero Premium — $29.90/mes')
+  expect(btn.querySelector('img.btn-icon')).not.toBeNull()
+})
+
 it('personalizes the heading for a dietary-only payload', () => {
   sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({
     allergens: [],
