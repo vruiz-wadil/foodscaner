@@ -12,11 +12,14 @@ beforeEach(async () => {
   vi.clearAllMocks()
   vi.resetModules()
   document.body.innerHTML = `
+    <h1 class="heading-title">Activa tu membresía</h1>
+    <p class="heading-sub">Compara lo que obtienes gratis vs. con Yomi Premium.</p>
     <input type="checkbox" id="pay-checkbox">
     <button id="btn-confirm-payment"><img src="assets/redesign/icon-stripe.svg" alt="" class="btn-icon">Suscribirme — $29.90/mes</button>
     <button id="btn-skip-membership">Seguir sin membresía</button>
     <p id="membership-error" class="hidden"></p>
   `
+  sessionStorage.clear()
   const mod = await import('../onboarding-membership-ui.js')
   confirmMembershipPayment = mod.confirmMembershipPayment
   getIdToken.mockResolvedValue('tok')
@@ -60,4 +63,46 @@ it('navigates to index.html when the skip-membership button is clicked', async (
   document.getElementById('btn-skip-membership').click()
 
   expect(window.location.href).toBe('index.html')
+})
+
+it('keeps the default heading and button copy when there is no pending-preferences payload', () => {
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+
+  expect(document.querySelector('.heading-title').textContent).toBe('Activa tu membresía')
+  expect(document.querySelector('.heading-sub').textContent).toBe('Compara lo que obtienes gratis vs. con Yomi Premium.')
+  expect(document.getElementById('btn-confirm-payment').textContent).toBe('Suscribirme — $29.90/mes')
+})
+
+it('personalizes the heading and button copy for a severe allergen, keeping the icon', () => {
+  sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({
+    allergens: [{ code: 'cacahuate', severity: 'severe' }],
+    dietary: [],
+    healthConditions: []
+  }))
+
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+
+  const btn = document.getElementById('btn-confirm-payment')
+  expect(document.querySelector('.heading-title').textContent).toBe('No más sustos con cacahuate')
+  expect(btn.textContent).toContain('Sí, quiero Premium — $29.90/mes')
+  expect(btn.querySelector('img.btn-icon')).not.toBeNull()
+})
+
+it('personalizes the heading for a dietary-only payload', () => {
+  sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({
+    allergens: [],
+    dietary: ['vegan'],
+    healthConditions: []
+  }))
+
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+
+  expect(document.querySelector('.heading-title').textContent).toBe('Come vegano sin leer etiquetas')
+})
+
+it('falls back to the default copy when sessionStorage has malformed JSON', () => {
+  sessionStorage.setItem('yomi_pending_preferences', 'not json')
+
+  expect(() => document.dispatchEvent(new Event('DOMContentLoaded'))).not.toThrow()
+  expect(document.querySelector('.heading-title').textContent).toBe('Activa tu membresía')
 })
