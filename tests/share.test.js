@@ -10,13 +10,14 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const shareCode = fs.readFileSync(path.join(__dirname, '..', 'share.js'), 'utf8')
 
-let buildShareText, shareResult
+let buildShareText, shareResult, shareApp
 
 beforeAll(() => {
-  const fn = new Function(shareCode + '\nreturn { buildShareText, shareResult }')
+  const fn = new Function(shareCode + '\nreturn { buildShareText, shareResult, shareApp }')
   const exports = fn()
   buildShareText = exports.buildShareText
   shareResult = exports.shareResult
+  shareApp = exports.shareApp
 })
 
 afterEach(() => {
@@ -131,5 +132,34 @@ describe('shareResult — no navigator.share (Firefox desktop, old Chrome deskto
     await expect(shareResult({ name: 'Gamesa Emperador', verdict: 'evitar', barcode: '7501000673209' })).resolves.toBeUndefined()
     expect(warnSpy).toHaveBeenCalled()
     warnSpy.mockRestore()
+  })
+})
+
+describe('shareApp', () => {
+  it('calls navigator.share with the invite text and a URL containing utm_medium=invite_friend', async () => {
+    const share = vi.fn().mockResolvedValue(undefined)
+    const writeText = vi.fn()
+    vi.stubGlobal('navigator', { share, clipboard: { writeText } })
+
+    await shareApp()
+
+    expect(share).toHaveBeenCalledWith({
+      title: 'Yomi',
+      text: 'Yo uso Yomi para saber en 2 segundos si un producto me conviene. Pruébalo tú:',
+      url: 'https://yomi.mx/?utm_source=share&utm_medium=invite_friend&utm_campaign=account_invite'
+    })
+    expect(writeText).not.toHaveBeenCalled()
+  })
+
+  it('falls back to copyShareFallback (clipboard) when navigator.share is absent', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    const button = document.createElement('button')
+    button.textContent = 'Compartir Yomi'
+
+    await shareApp(button)
+
+    expect(writeText).toHaveBeenCalledWith('Yo uso Yomi para saber en 2 segundos si un producto me conviene. Pruébalo tú: https://yomi.mx/?utm_source=share&utm_medium=invite_friend&utm_campaign=account_invite')
+    expect(button.textContent).toBe('Copiado')
   })
 })

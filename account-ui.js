@@ -305,6 +305,13 @@ export function renderAccountHub() {
       </div>
     </div>
     <div class="content-card">
+      <div class="account-data-label" style="margin-bottom:10px;">Invita a un amigo</div>
+      <div class="row-card">
+        <p class="about-text">¿Conoces a alguien a quien le sirva saber qué come? Compártele Yomi.</p>
+        <button type="button" id="btn-invite-friend" class="btn btn-secondary">Compartir Yomi</button>
+      </div>
+    </div>
+    <div class="content-card">
       <div class="account-data-label" style="margin-bottom:10px;">Suscripción</div>
       ${isActive ? renderSubscriptionBlock(profile) : `
         <div class="row-card account-renew">
@@ -324,6 +331,9 @@ export function renderAccountHub() {
 
 function wireAccountHubEvents(profile) {
   document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
+  document.getElementById('btn-invite-friend')?.addEventListener('click', (e) => {
+    window.shareApp(e.currentTarget);
+  });
   document.getElementById('btn-resend-verification')?.addEventListener('click', () => {
     submitResendVerification().catch(() => {});
   });

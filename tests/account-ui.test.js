@@ -195,11 +195,11 @@ describe('renderAccountHub', () => {
     expect(nums).toEqual(['0', '0'])
   })
 
-  it('separa el contenido en 3 bloques (.content-card): Perfil, Preferencias, Suscripción', () => {
+  it('separa el contenido en 4 bloques (.content-card): Perfil, Preferencias, Invita a un amigo, Suscripción', () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
     renderAccountHub()
     const root = document.getElementById('account-root')
-    expect(root.querySelectorAll(':scope > .content-card').length).toBe(3)
+    expect(root.querySelectorAll(':scope > .content-card').length).toBe(4)
   })
 
   it('escapa HTML en el nombre mostrado (valor guardado hostil no inyecta markup)', () => {
@@ -208,6 +208,23 @@ describe('renderAccountHub', () => {
     const root = document.getElementById('account-root')
     expect(root.querySelector('img')).toBeNull()
     expect(root.innerHTML).toMatch(/&lt;img/)
+  })
+
+  it('renderiza la tarjeta "Invita a un amigo" con el botón #btn-invite-friend', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    renderAccountHub()
+    const root = document.getElementById('account-root')
+    expect(root.querySelector('#btn-invite-friend')).not.toBeNull()
+  })
+
+  it('clic en #btn-invite-friend llama a window.shareApp con el botón como trigger', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    window.shareApp = vi.fn()
+    renderAccountHub()
+    const btn = document.getElementById('btn-invite-friend')
+    btn.click()
+    expect(window.shareApp).toHaveBeenCalledWith(btn)
+    delete window.shareApp
   })
 })
 

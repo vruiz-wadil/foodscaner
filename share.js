@@ -61,3 +61,21 @@ async function shareResult({ name, verdict, barcode }, triggerButton) {
 
 window.buildShareText = buildShareText;
 window.shareResult = shareResult;
+
+const INVITE_TEXT = 'Yo uso Yomi para saber en 2 segundos si un producto me conviene. Pruébalo tú:';
+const INVITE_UTM = 'utm_source=share&utm_medium=invite_friend&utm_campaign=account_invite';
+
+async function shareApp(triggerButton) {
+  const url = `${SHARE_BASE_URL}/?${INVITE_UTM}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Yomi', text: INVITE_TEXT, url });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+  await copyShareFallback(INVITE_TEXT, url, triggerButton);
+}
+
+window.shareApp = shareApp;
