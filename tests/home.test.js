@@ -28,9 +28,9 @@ describe('redirectTargetForIncompleteOnboarding', () => {
     expect(redirectTargetForIncompleteOnboarding(profile)).toBe('onboarding-profile.html')
   })
 
-  it('regresa onboarding-membership.html cuando el perfil ya está completo pero la membresía sigue pending', () => {
+  it('regresa null cuando el perfil ya está completo aunque la membresía siga pending — skip es una opción válida', () => {
     const profile = { profile: { completedAt: '2026-07-22T00:00:00.000Z' }, membershipStatus: 'pending' }
-    expect(redirectTargetForIncompleteOnboarding(profile)).toBe('onboarding-membership.html')
+    expect(redirectTargetForIncompleteOnboarding(profile)).toBeNull()
   })
 
   it('regresa null cuando el perfil está completo y la membresía está activa (nada que redirigir)', () => {

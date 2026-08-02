@@ -83,7 +83,6 @@ function goScan() { window.location.href = 'scan.html?scan=1'; }
 function redirectTargetForIncompleteOnboarding(profile) {
   if (!profile) return null;
   if (!profile.profile || !profile.profile.completedAt) return 'onboarding-profile.html';
-  if (profile.membershipStatus === 'pending') return 'onboarding-membership.html';
   return null;
 }
 
