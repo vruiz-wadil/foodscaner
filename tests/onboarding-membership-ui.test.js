@@ -13,7 +13,8 @@ beforeEach(async () => {
   vi.resetModules()
   document.body.innerHTML = `
     <input type="checkbox" id="pay-checkbox">
-    <button id="btn-confirm-payment">Confirmar pago</button>
+    <button id="btn-confirm-payment"><img src="assets/redesign/icon-stripe.svg" alt="" class="btn-icon">Suscribirme — $29.90/mes</button>
+    <button id="btn-skip-membership">Seguir sin membresía</button>
     <p id="membership-error" class="hidden"></p>
   `
   const mod = await import('../onboarding-membership-ui.js')
@@ -50,6 +51,13 @@ it('shows an error and re-enables the button when the pay call fails', async () 
 
   const btn = document.getElementById('btn-confirm-payment')
   expect(btn.disabled).toBe(false)
-  expect(btn.textContent).toBe('Continuar al pago')
+  expect(btn.innerHTML).toBe('<img src="assets/redesign/icon-stripe.svg" alt="" class="btn-icon">Suscribirme — $29.90/mes')
   expect(document.getElementById('membership-error').classList.contains('hidden')).toBe(false)
+})
+
+it('navigates to index.html when the skip-membership button is clicked', async () => {
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+  document.getElementById('btn-skip-membership').click()
+
+  expect(window.location.href).toBe('index.html')
 })

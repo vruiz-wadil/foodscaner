@@ -15,6 +15,7 @@ export async function confirmMembershipPayment() {
   }
 
   const btn = document.getElementById('btn-confirm-payment');
+  const originalBtnHtml = btn ? btn.innerHTML : null;
   if (btn) { btn.disabled = true; btn.textContent = 'Procesando…'; }
   try {
     const token = await getIdToken();
@@ -29,7 +30,7 @@ export async function confirmMembershipPayment() {
     const data = await res.json();
     window.location.href = data.checkoutUrl;
   } catch (err) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Continuar al pago'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = originalBtnHtml; }
     throw err;
   }
 }
