@@ -2289,11 +2289,39 @@ async function setUserDisabledHandler(req, res) {
   }
 }
 
+async function adminCancelSubscriptionHandler(req, res) {
+  const { uid } = req.params;
+  try {
+    const user = await fireGetUser(uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    const subscriptionId = user.billing && user.billing.subscriptionId;
+    if (!subscriptionId) return res.status(409).json({ error: 'no_subscription' });
+    await stripeCancelSubscriptionNow(subscriptionId);
+    await firePatchUserFields(uid, ['autoRenew'], { autoRenew: false });
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[POST /api/admin/users/:uid/cancel-subscription] error, uid:', uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function adminDeleteAccountHandler(req, res) {
+  try {
+    await deleteUserAccount(req.params.uid);
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[DELETE /api/admin/users/:uid] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
 app.get('/api/admin/users/search', requireAdmin, searchUserHandler);
 app.get('/api/admin/users/list', requireAdmin, listUsersHandler);
 app.patch('/api/admin/users/:uid/membership', requireAdmin, patchUserMembershipHandler);
 app.post('/api/admin/users/:uid/disabled', requireAdmin, setUserDisabledHandler);
 app.get('/api/admin/users/:uid', requireAdmin, getUserByUidHandler);
+app.post('/api/admin/users/:uid/cancel-subscription', requireAdmin, adminCancelSubscriptionHandler);
+app.delete('/api/admin/users/:uid', requireAdmin, adminDeleteAccountHandler);
 
 app.get('/api/admin/:collection', requireAdmin, validCol, async (req, res) => {
   const result = await fireListDocs(req.params.collection, req.query.pageToken || null);
@@ -2343,6 +2371,8 @@ module.exports.patchUserMembershipHandler = patchUserMembershipHandler;
 module.exports.setUserDisabledHandler = setUserDisabledHandler;
 module.exports.getUserByUidHandler = getUserByUidHandler;
 module.exports.listUsersHandler = listUsersHandler;
+module.exports.adminCancelSubscriptionHandler = adminCancelSubscriptionHandler;
+module.exports.adminDeleteAccountHandler = adminDeleteAccountHandler;
 module.exports.ocrProcessHandler = ocrProcessHandler;
 module.exports.postHistoryHandler = postHistoryHandler;
 module.exports.getHistoryHandler = getHistoryHandler;
