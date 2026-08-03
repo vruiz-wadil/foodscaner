@@ -71,6 +71,10 @@ async function stripeUpdateSubscription(subscriptionId, { cancelAtPeriodEnd }) {
   });
 }
 
+async function stripeCancelSubscriptionNow(subscriptionId) {
+  return stripeRequest('DELETE', `/subscriptions/${encodeURIComponent(subscriptionId)}`);
+}
+
 const WEBHOOK_TOLERANCE_SECONDS = 300;
 
 function constructStripeEvent(rawBody, signatureHeader, webhookSecret) {
@@ -99,5 +103,5 @@ function constructStripeEvent(rawBody, signatureHeader, webhookSecret) {
 
 module.exports = {
   stripeCreateCustomer, stripeCreateCheckoutSession, stripeRetrieveCheckoutSession,
-  stripeRetrieveSubscription, stripeUpdateSubscription, constructStripeEvent
+  stripeRetrieveSubscription, stripeUpdateSubscription, stripeCancelSubscriptionNow, constructStripeEvent
 };

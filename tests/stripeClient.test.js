@@ -3,7 +3,7 @@ import crypto from 'crypto'
 
 const {
   stripeCreateCustomer, stripeCreateCheckoutSession, stripeRetrieveCheckoutSession,
-  stripeRetrieveSubscription, stripeUpdateSubscription, constructStripeEvent
+  stripeRetrieveSubscription, stripeUpdateSubscription, stripeCancelSubscriptionNow, constructStripeEvent
 } = await import('../api/stripeClient.js')
 
 describe('stripeClient REST calls', () => {
@@ -101,6 +101,18 @@ describe('stripeClient REST calls', () => {
     } catch (e) {
       expect(e.status).toBe(402)
     }
+  })
+
+  it('stripeCancelSubscriptionNow sends a DELETE to /v1/subscriptions/{id}', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'sub_1', status: 'canceled' }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await stripeCancelSubscriptionNow('sub_1')
+
+    expect(result).toEqual({ id: 'sub_1', status: 'canceled' })
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.stripe.com/v1/subscriptions/sub_1')
+    expect(opts.method).toBe('DELETE')
   })
 })
 
