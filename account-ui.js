@@ -243,6 +243,25 @@ function openCancelSubscriptionModal(profile) {
   });
 }
 
+function openDeleteAccountModal() {
+  openModal(`
+    <div class="modal-header"><h2>Eliminar tu cuenta</h2><button type="button" class="modal-close" aria-label="Cerrar">×</button></div>
+    <p>Esta acción no se puede deshacer. Se borra tu perfil, tu historial de escaneos y tus preferencias. Si tienes membresía activa, se cancela de inmediato.</p>
+    <p>Escribe <strong>ELIMINAR</strong> para confirmar:</p>
+    <input type="text" id="input-delete-confirm" autocomplete="off">
+    <button type="button" id="btn-delete-account-back" class="btn btn-secondary">Volver</button>
+    <button type="button" id="btn-delete-account-confirm" class="btn btn-danger" disabled>Eliminar cuenta</button>
+    <p id="delete-account-error" class="hidden modal-inline-error" role="alert"></p>
+  `);
+  document.getElementById('btn-delete-account-back')?.addEventListener('click', closeModal);
+  document.getElementById('input-delete-confirm')?.addEventListener('input', (e) => {
+    document.getElementById('btn-delete-account-confirm').disabled = e.target.value !== 'ELIMINAR';
+  });
+  document.getElementById('btn-delete-account-confirm')?.addEventListener('click', () => {
+    submitDeleteAccount().catch(() => {});
+  });
+}
+
 export function renderAccountHub() {
   const profile = getCachedProfile();
   const root = document.getElementById('account-root');
@@ -323,6 +342,13 @@ export function renderAccountHub() {
           </div>
         </div>`}
     </div>
+    <div class="content-card">
+      <div class="account-data-label" style="margin-bottom:10px;">Zona de peligro</div>
+      <div class="row-card">
+        <p class="about-text">Eliminar tu cuenta borra tu perfil, historial y preferencias de forma permanente.</p>
+        <button type="button" id="btn-open-delete-account-modal" class="account-link-btn">Eliminar cuenta</button>
+      </div>
+    </div>
     <button type="button" id="btn-logout" class="btn btn-secondary">Cerrar sesión</button>
   `;
 
@@ -339,6 +365,9 @@ function wireAccountHubEvents(profile) {
   });
   document.getElementById('btn-renew-membership')?.addEventListener('click', () => {
     handleRenewMembership().catch(() => {});
+  });
+  document.getElementById('btn-open-delete-account-modal')?.addEventListener('click', () => {
+    openDeleteAccountModal();
   });
 
   document.getElementById('btn-toggle-preference-summary')?.addEventListener('click', () => {
@@ -766,6 +795,11 @@ function showCancelSubscriptionError(message) {
   el.classList.remove('hidden');
 }
 
+function showDeleteAccountError(message) {
+  const el = document.getElementById('delete-account-error');
+  if (el) { el.textContent = message; el.classList.remove('hidden'); }
+}
+
 function showReactivateSubscriptionError(message) {
   const el = document.getElementById('reactivate-subscription-error');
   if (!el) return;
@@ -850,6 +884,16 @@ export async function submitCancelSubscription() {
   }
   await syncUserProfile();
   renderAccountHub();
+}
+
+export async function submitDeleteAccount() {
+  const token = await getIdToken();
+  const res = await fetch('/api/me/account', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    showDeleteAccountError('No se pudo eliminar tu cuenta. Intenta de nuevo.');
+    throw new Error('delete_failed');
+  }
+  window.location.href = 'index.html';
 }
 
 export async function submitReactivateSubscription() {

@@ -30,6 +30,7 @@ vi.mock('../country-codes.js', () => ({
 let renderAccountHub, handleLogout, computeAlertsActive, handleRenewMembership, submitNameEdit
 let submitPhoneContactEdit, submitPhoneSendCode, submitPhoneChangeConfirm, submitEmailEdit, submitPasswordEdit
 let submitCancelSubscription, submitReactivateSubscription, submitResendVerification, submitEmailContactEdit
+let submitDeleteAccount
 let initAccountPage
 let originalLocation
 
@@ -55,6 +56,7 @@ beforeEach(async () => {
   submitReactivateSubscription = mod.submitReactivateSubscription
   submitResendVerification = mod.submitResendVerification
   submitEmailContactEdit = mod.submitEmailContactEdit
+  submitDeleteAccount = mod.submitDeleteAccount
   initAccountPage = mod.initAccountPage
 })
 
@@ -195,11 +197,11 @@ describe('renderAccountHub', () => {
     expect(nums).toEqual(['0', '0'])
   })
 
-  it('separa el contenido en 4 bloques (.content-card): Perfil, Preferencias, Invita a un amigo, Suscripción', () => {
+  it('separa el contenido en 5 bloques (.content-card): Perfil, Preferencias, Invita a un amigo, Suscripción, Zona de peligro', () => {
     getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
     renderAccountHub()
     const root = document.getElementById('account-root')
-    expect(root.querySelectorAll(':scope > .content-card').length).toBe(4)
+    expect(root.querySelectorAll(':scope > .content-card').length).toBe(5)
   })
 
   it('escapa HTML en el nombre mostrado (valor guardado hostil no inyecta markup)', () => {
@@ -754,6 +756,62 @@ describe('bloque Suscripción (membresía activa)', () => {
     const errorEl = document.getElementById('reactivate-subscription-error')
     expect(errorEl.classList.contains('hidden')).toBe(false)
     expect(errorEl.textContent).toMatch(/No se pudo reactivar/)
+  })
+
+  it('la sección "Zona de peligro" muestra el botón de eliminar cuenta', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    renderAccountHub()
+    expect(document.getElementById('btn-open-delete-account-modal')).toBeTruthy()
+  })
+
+  it('click en "Eliminar cuenta" abre el modal, y el botón de confirmar arranca deshabilitado', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    renderAccountHub()
+    document.getElementById('btn-open-delete-account-modal').click()
+    const confirmBtn = document.getElementById('btn-delete-account-confirm')
+    expect(confirmBtn).toBeTruthy()
+    expect(confirmBtn.disabled).toBe(true)
+  })
+
+  it('el botón de confirmar se habilita solo cuando el input dice exactamente ELIMINAR', () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    renderAccountHub()
+    document.getElementById('btn-open-delete-account-modal').click()
+    const input = document.getElementById('input-delete-confirm')
+    const confirmBtn = document.getElementById('btn-delete-account-confirm')
+
+    input.value = 'eliminar'
+    input.dispatchEvent(new Event('input'))
+    expect(confirmBtn.disabled).toBe(true)
+
+    input.value = 'ELIMINAR'
+    input.dispatchEvent(new Event('input'))
+    expect(confirmBtn.disabled).toBe(false)
+  })
+
+  it('submitDeleteAccount llama DELETE /api/me/account y redirige a index.html', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+
+    await submitDeleteAccount()
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/me/account')
+    expect(options.method).toBe('DELETE')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+    expect(window.location.href).toBe('index.html')
+  })
+
+  it('submitDeleteAccount muestra error y no redirige si falla', async () => {
+    getCachedProfile.mockReturnValue({ email: 'a@b.com', membershipStatus: 'pending' })
+    renderAccountHub()
+    getIdToken.mockResolvedValue('tok')
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
+
+    await expect(submitDeleteAccount()).rejects.toThrow()
+    expect(window.location.href).toBe('')
   })
 })
 
