@@ -7,7 +7,8 @@
     "start": "node api/index.js",
     "vercel-build": "node scripts/inject-firebase-config.js && echo 'Static build complete'",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
