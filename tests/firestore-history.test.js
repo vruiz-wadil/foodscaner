@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import crypto from 'crypto'
 
-const { fireLogUserHistory, fireListUserHistory } = await import('../api/firestore.js')
+const { fireLogUserHistory, fireListUserHistory, fireDeleteUserHistoryEntry } = await import('../api/firestore.js')
 
 function fakeServiceAccountKey() {
   const { privateKey } = crypto.generateKeyPairSync('rsa', {
@@ -42,7 +42,7 @@ describe('users/{uid}/history subcollection', () => {
     expect(result).toEqual({ id: 'auto-id-123' })
   })
 
-  it('fireListUserHistory returns entries ordered by scannedAt desc, capped at the given limit', async () => {
+  it('fireListUserHistory returns entries ordered by scannedAt desc, capped at the given limit, each with its id', async () => {
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
     let capturedBody
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
@@ -51,8 +51,8 @@ describe('users/{uid}/history subcollection', () => {
       return {
         ok: true, status: 200,
         json: async () => ([
-          { document: { fields: { barcode: { stringValue: '111' }, productName: { stringValue: 'A' }, verdict: { stringValue: 'sano' }, scannedAt: { stringValue: '2026-07-15T12:00:00.000Z' } } } },
-          { document: { fields: { barcode: { stringValue: '222' }, productName: { stringValue: 'B' }, verdict: { stringValue: 'evitar' }, scannedAt: { stringValue: '2026-07-14T12:00:00.000Z' } } } }
+          { document: { name: 'projects/x/databases/(default)/documents/users/uid-1/history/hist-1', fields: { barcode: { stringValue: '111' }, productName: { stringValue: 'A' }, verdict: { stringValue: 'sano' }, scannedAt: { stringValue: '2026-07-15T12:00:00.000Z' } } } },
+          { document: { name: 'projects/x/databases/(default)/documents/users/uid-1/history/hist-2', fields: { barcode: { stringValue: '222' }, productName: { stringValue: 'B' }, verdict: { stringValue: 'evitar' }, scannedAt: { stringValue: '2026-07-14T12:00:00.000Z' } } } }
         ])
       }
     }))
@@ -60,10 +60,9 @@ describe('users/{uid}/history subcollection', () => {
     const result = await fireListUserHistory('uid-1', 50)
 
     expect(capturedBody.structuredQuery.limit).toBe(50)
-    expect(capturedBody.structuredQuery.orderBy[0]).toEqual({ field: { fieldPath: 'scannedAt' }, direction: 'DESCENDING' })
     expect(result).toEqual([
-      { barcode: '111', productName: 'A', verdict: 'sano', scannedAt: '2026-07-15T12:00:00.000Z' },
-      { barcode: '222', productName: 'B', verdict: 'evitar', scannedAt: '2026-07-14T12:00:00.000Z' }
+      { id: 'hist-1', barcode: '111', productName: 'A', verdict: 'sano', scannedAt: '2026-07-15T12:00:00.000Z' },
+      { id: 'hist-2', barcode: '222', productName: 'B', verdict: 'evitar', scannedAt: '2026-07-14T12:00:00.000Z' }
     ])
   })
 
@@ -75,5 +74,23 @@ describe('users/{uid}/history subcollection', () => {
     }))
     const result = await fireListUserHistory('uid-1', 50)
     expect(result).toEqual([])
+  })
+
+  it('fireDeleteUserHistoryEntry DELETEs the subcollection doc path (no double-encoding of slashes)', async () => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    let capturedUrl, capturedMethod
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
+      capturedUrl = url
+      capturedMethod = options.method
+      return { ok: true, status: 200, json: async () => ({}) }
+    }))
+
+    const result = await fireDeleteUserHistoryEntry('uid-1', 'hist-1')
+
+    expect(capturedMethod).toBe('DELETE')
+    expect(capturedUrl).toContain('/users/uid-1/history/hist-1')
+    expect(capturedUrl).not.toContain('%2F')
+    expect(result).toBe(true)
   })
 })

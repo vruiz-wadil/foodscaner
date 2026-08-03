@@ -27,7 +27,7 @@ async function getAccessToken() {
     const jwtHeader = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
     const claim = JSON.stringify({
-      iss: sa.client_email, scope: 'https://www.googleapis.com/auth/datastore',
+      iss: sa.client_email, scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit',
       aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
     });
     const jwtPayload = Buffer.from(claim).toString('base64url');
@@ -473,6 +473,21 @@ async function fireGetUser(uid) {
   }
 }
 
+async function deleteFirebaseAuthUser(uid) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No access token');
+  const resp = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/projects/${getProjectId()}/accounts:delete`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ localId: uid }),
+      signal: AbortSignal.timeout(5000)
+    }
+  );
+  if (!resp.ok) throw new Error(`Identity Toolkit delete error (status ${resp.status})`);
+}
+
 async function fireUpsertUser(uid, data) {
   const token = await getAccessToken();
   if (!token) throw new Error('No Firestore access token');
@@ -681,6 +696,15 @@ async function fireLogUserHistory(uid, entry) {
   return { id };
 }
 
+async function fireDeleteUserHistoryEntry(uid, id) {
+  const token = await getAccessToken();
+  if (!token) return false;
+  const resp = await fetch(`${docPath('users', uid)}/history/${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(5000)
+  });
+  return resp.ok;
+}
+
 async function fireListUserHistory(uid, limit = 50) {
   const token = await getAccessToken();
   if (!token) throw new Error('No Firestore access token');
@@ -699,7 +723,10 @@ async function fireListUserHistory(uid, limit = 50) {
   });
   if (!resp.ok) throw new Error(`Firestore list history failed: ${resp.status}`);
   const rows = await resp.json();
-  return rows.filter(r => r.document).map(r => fromFirestoreFields(r.document.fields || {}));
+  return rows.filter(r => r.document).map(r => ({
+    id: r.document.name.split('/').pop(),
+    ...fromFirestoreFields(r.document.fields || {})
+  }));
 }
 
 // --- phoneIndex/{phone}: phone -> uid mapping ---
@@ -797,8 +824,8 @@ module.exports = {
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
   fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
-  fireGetUser, fireUpsertUser, firePatchUserFields,
+  fireGetUser, deleteFirebaseAuthUser, fireUpsertUser, firePatchUserFields,
   fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter, fireFulfillStripeSubscription,
-  fireLogUserHistory, fireListUserHistory,
+  fireLogUserHistory, fireListUserHistory, fireDeleteUserHistoryEntry,
   fireGetPhoneIndex, fireSetPhoneIndex, findUserByEmail, fireListUsers
 };
