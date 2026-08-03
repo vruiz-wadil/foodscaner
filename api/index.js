@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireFulfillStripeSubscription, fireLogUserHistory, fireListUserHistory, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail, fireListUsers } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireFulfillStripeSubscription, fireLogUserHistory, fireListUserHistory, fireDeleteUserHistoryEntry, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail, fireListUsers, deleteFirebaseAuthUser } = require('./firestore');
 const { verifyFirebaseIdToken } = require('./auth');
 const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, lookupAuthAccount, setUserDisabled } = require('./phoneAuth');
 const { generateActionLink } = require('./emailActions');
@@ -13,7 +13,7 @@ const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
 const {
   stripeCreateCustomer, stripeCreateCheckoutSession, stripeRetrieveCheckoutSession,
-  stripeRetrieveSubscription, stripeUpdateSubscription, constructStripeEvent
+  stripeRetrieveSubscription, stripeUpdateSubscription, constructStripeEvent, stripeCancelSubscriptionNow
 } = require('./stripeClient');
 
 function detectOS(ua = '') {
@@ -1777,6 +1777,50 @@ async function reactivateMembershipHandler(req, res) {
 
 app.post('/api/me/membership/reactivate', requireUser, reactivateMembershipHandler);
 
+async function deleteUserAccount(uid) {
+  const user = await fireGetUser(uid);
+  if (!user) return { alreadyGone: true };
+
+  const subscriptionId = user.billing && user.billing.subscriptionId;
+  if (subscriptionId) {
+    try {
+      await stripeCancelSubscriptionNow(subscriptionId);
+    } catch (e) {
+      console.warn('[deleteUserAccount] Stripe cancel error, uid:', uid, e.message);
+    }
+  }
+
+  const history = await fireListUserHistory(uid, 1000);
+  for (const entry of history) {
+    await fireDeleteUserHistoryEntry(uid, entry.id).catch(e =>
+      console.warn('[deleteUserAccount] history delete error, uid:', uid, e.message));
+  }
+
+  if (user.phoneNumber) {
+    await fireDeleteDoc('phoneIndex', user.phoneNumber).catch(e =>
+      console.warn('[deleteUserAccount] phoneIndex delete error, uid:', uid, e.message));
+  }
+
+  await fireDeleteDoc('users', uid);
+
+  await deleteFirebaseAuthUser(uid).catch(e =>
+    console.warn('[deleteUserAccount] Auth delete error, uid:', uid, e.message));
+
+  return { alreadyGone: false };
+}
+
+async function deleteAccountHandler(req, res) {
+  try {
+    await deleteUserAccount(req.user.uid);
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[DELETE /api/me/account] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.delete('/api/me/account', requireUser, deleteAccountHandler);
+
 async function changePhoneHandler(req, res) {
   const { phone, code } = req.body || {};
   if (typeof phone !== 'string' || !E164_RE.test(phone) || typeof code !== 'string') {
@@ -2291,6 +2335,8 @@ module.exports.cancelMembershipHandler = cancelMembershipHandler;
 module.exports.reactivateMembershipHandler = reactivateMembershipHandler;
 module.exports.putPreferencesHandler = putPreferencesHandler;
 module.exports.deletePreferencesHandler = deletePreferencesHandler;
+module.exports.deleteUserAccount = deleteUserAccount;
+module.exports.deleteAccountHandler = deleteAccountHandler;
 module.exports.optionalUser = optionalUser;
 module.exports.searchUserHandler = searchUserHandler;
 module.exports.patchUserMembershipHandler = patchUserMembershipHandler;
