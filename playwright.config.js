@@ -3,6 +3,8 @@ const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './tests/e2e',
   timeout: 30000,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
   webServer: {
     command: 'node tests/e2e/server.mjs 3456',
     url: 'http://localhost:3456',

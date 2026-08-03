@@ -8,5 +8,5 @@ node_modules/
 .worktrees/
 .playwright-mcp/
 /test-results/
-test-results.txt
+/test-results.txt
 /*.png
