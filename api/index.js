@@ -116,6 +116,8 @@ app.use(express.json({ limit: '5mb' }));
 const limiter = rateLimit({ windowMs: 60000, max: 60, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
 app.use('/api/', limiter);
 
+const expensiveLimiter = rateLimit({ windowMs: 60000, max: 20, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
+
 // --- Auth Middleware (Firebase ID token, verificación manual sin firebase-admin) ---
 async function requireUser(req, res, next) {
   try {
@@ -1083,7 +1085,7 @@ app.get('/api/product/:barcode', async (req, res) => {
   }
 });
 
-app.post('/api/ai-query', async (req, res) => {
+app.post('/api/ai-query', expensiveLimiter, async (req, res) => {
   const { name, brand, ingredients, allergens, sugars, carbohydrates, fiber, isBeverage, dietary, scanLogId } = req.body;
   if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
 
@@ -1260,10 +1262,10 @@ Responde con UNA SOLA transcripción — no repitas ni vuelvas a transcribir el 
   }
 }
 
-app.post('/api/ocr/process', optionalUser, ocrProcessHandler);
+app.post('/api/ocr/process', expensiveLimiter, optionalUser, ocrProcessHandler);
 
 // Process nutrition from image using vision LLM (no Tesseract)
-app.post('/api/nutrition/process', async (req, res) => {
+app.post('/api/nutrition/process', expensiveLimiter, async (req, res) => {
   try {
     const { imageData } = req.body;
     if (!imageData) return res.status(400).json({ error: 'Missing imageData' });
