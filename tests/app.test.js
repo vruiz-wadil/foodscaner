@@ -923,6 +923,18 @@ describe('renderPersonalizedReasons', () => {
     expect(card.querySelector('.btn-teaser-cta')).toBeNull()
   })
 
+  it('limpia el label sr-only del teaser al mostrar reasons personalizadas reales', () => {
+    delete window.authClient
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    const card = document.getElementById('verdict-reasons')
+    expect(card.querySelector('.sr-only')).not.toBeNull()
+
+    const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    expect(card.querySelector('.sr-only')).toBeNull()
+  })
+
   it('filas del teaser y sus textos llevan aria-hidden="true"', () => {
     delete window.authClient
     const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }

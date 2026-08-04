@@ -1862,9 +1862,7 @@ function renderPersonalizedReasons(product, userPreferences) {
     const isActiveMember = !!profile && profile.membershipStatus === 'active';
 
     if (isActiveMember || hasNoRealData(product)) {
-      card.classList.remove('reason-card--teaser');
-      const existingCta = card.querySelector('.btn-teaser-cta');
-      if (existingCta) existingCta.remove();
+      clearTeaserState(card);
       card.classList.add('hidden');
       return;
     }
@@ -1874,14 +1872,12 @@ function renderPersonalizedReasons(product, userPreferences) {
 
   const reasons = computeVerdictReasons(product, userPreferences);
   if (!reasons.length) {
-    card.classList.remove('reason-card--teaser');
-    const existingCta = card.querySelector('.btn-teaser-cta');
-    if (existingCta) existingCta.remove();
+    clearTeaserState(card);
     card.classList.add('hidden');
     return;
   }
 
-  card.classList.remove('reason-card--teaser');
+  clearTeaserState(card);
 
   const conflictCount = reasons.filter(r => r.ok === false).length;
   const hasConflict = conflictCount > 0;
@@ -1907,13 +1903,21 @@ function renderPersonalizedReasons(product, userPreferences) {
     `).join('');
   }
 
-  const existingCta = card.querySelector('.btn-teaser-cta');
-  if (existingCta) existingCta.remove();
-
   card.classList.remove('hidden');
   card.classList.remove('verdict-reasons-reveal');
   void card.offsetWidth;
   card.classList.add('verdict-reasons-reveal');
+}
+
+// Limpia cualquier resto visual/accesible dejado por el teaser (clase,
+// CTA de suscripción, y label sr-only "Vista previa bloqueada...") antes de
+// pintar un estado distinto (oculto o reasons reales). Sin esto, un lector
+// de pantalla puede anunciar el mensaje de teaser junto a un análisis real.
+function clearTeaserState(card) {
+  card.classList.remove('reason-card--teaser');
+  const existingCta = card.querySelector('.btn-teaser-cta');
+  if (existingCta) existingCta.remove();
+  card.querySelector('.sr-only')?.remove();
 }
 
 // Pinta la variante "teaser" de la tarjeta de diagnóstico para usuarios sin
