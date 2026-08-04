@@ -805,6 +805,10 @@ describe('renderPersonalizedReasons', () => {
     `
   })
 
+  afterEach(() => {
+    delete window.authClient
+  })
+
   it('resumen: "N de M restricciones en conflicto" cuando hay conflictos', () => {
     const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'], dietary: { organic: true } }
     const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: ['organic'], healthConditions: [] }
