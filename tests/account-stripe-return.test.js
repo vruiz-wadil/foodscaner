@@ -29,6 +29,7 @@ beforeEach(async () => {
   sessionStorage.clear()
   getIdToken.mockResolvedValue('tok')
   window.history.replaceState({}, '', '/account.html')
+  window.track = vi.fn()
   const mod = await import('../account-ui.js')
   handleStripeReturn = mod.handleStripeReturn
 })
@@ -53,6 +54,24 @@ it('on stripe=success, confirms the checkout session', async () => {
     expect.objectContaining({ headers: { Authorization: 'Bearer tok' } })
   )
   expect(window.location.search).toBe('')
+})
+
+it('tracks "Checkout Completado" only when the checkout confirmation succeeds', async () => {
+  window.history.replaceState({}, '', '/account.html?stripe=success&session_id=cs_1')
+  global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+
+  await handleStripeReturn()
+
+  expect(window.track).toHaveBeenCalledWith('Checkout Completado')
+})
+
+it('does NOT track "Checkout Completado" when checkout-result responds non-ok', async () => {
+  window.history.replaceState({}, '', '/account.html?stripe=success&session_id=cs_1')
+  global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
+
+  await handleStripeReturn()
+
+  expect(window.track).not.toHaveBeenCalledWith('Checkout Completado')
 })
 
 it('flushes pending preferences from sessionStorage after a confirmed checkout', async () => {
