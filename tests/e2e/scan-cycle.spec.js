@@ -75,6 +75,19 @@ test.describe('Ciclo completo de escaneo', () => {
     await expect(page.locator('#verdict-banner')).not.toBeEmpty();
   });
 
+  test('dispara el evento "Scan Completado" con el verdict correcto', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    });
+    await page.locator('#barcode-input').fill(VALID_BARCODE);
+    await page.locator('#barcode-form button[type="submit"]').click();
+    await expect(page.locator('#result-success')).toHaveClass(/active/);
+    const events = await page.evaluate(() => (window.vaq || []).map(args => args[1]));
+    const scanEvent = events.find(e => e && e.name === 'Scan Completado');
+    expect(scanEvent).toBeTruthy();
+    expect(['sano', 'regular', 'evitar']).toContain(scanEvent.data.verdict);
+  });
+
   test('2. Not found → rejected screen', async ({ page }) => {
     await page.locator('#barcode-input').fill(NOTFOUND_BARCODE);
     await page.locator('#barcode-form button[type="submit"]').click();

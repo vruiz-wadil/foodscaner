@@ -2055,6 +2055,9 @@ function renderProductData(product, barcode) {
 
   const userPreferences = getUserPreferencesForVerdict();
   const verdict = computeVerdict(product, userPreferences);
+  if (typeof window.track === 'function') {
+    window.track('Scan Completado', { verdict });
+  }
   renderPersonalizedDisclaimer(userPreferences);
   renderPersonalizedReasons(product, userPreferences);
   logScanToCloudHistory(barcode, product.name, verdict, product.image);
