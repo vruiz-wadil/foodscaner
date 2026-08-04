@@ -11,6 +11,7 @@ let confirmMembershipPayment
 beforeEach(async () => {
   vi.clearAllMocks()
   vi.resetModules()
+  window.track = vi.fn()
   document.body.innerHTML = `
     <h1 class="heading-title">Activa tu membresía</h1>
     <p class="heading-sub">Compara lo que obtienes gratis vs. con Yomi Premium.</p>
@@ -44,6 +45,15 @@ it('calls POST /api/me/membership/pay and redirects to the returned checkoutUrl'
 
   expect(global.fetch).toHaveBeenCalledWith('/api/me/membership/pay', expect.objectContaining({ method: 'POST' }))
   expect(window.location.href).toBe('https://checkout.stripe.com/cs_1')
+})
+
+it('tracks "Checkout Iniciado" before redirecting to Stripe', async () => {
+  document.getElementById('pay-checkbox').checked = true
+  global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, checkoutUrl: 'https://checkout.stripe.com/cs_1' }) })
+
+  await confirmMembershipPayment()
+
+  expect(window.track).toHaveBeenCalledWith('Checkout Iniciado')
 })
 
 it('shows an error and re-enables the button when the pay call fails', async () => {
