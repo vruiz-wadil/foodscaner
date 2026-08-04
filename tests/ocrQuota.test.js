@@ -80,44 +80,24 @@ describe('ocrProcessHandler — gate de membresía', () => {
     expect(res.body.status).toBe('ok')
   })
 
-  it('usuario logueado con membershipStatus "pending" → 402 membership_required, no llama a Gemini', async () => {
+  it('usuario logueado sin membresía activa procesa OCR igual (freemium, no bloquea por membresía)', async () => {
     const token = signRS256({}, privateKey)
-    let geminiCalled = false
+    let groqCalled = false
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
       if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
       if (url.includes('firestore.googleapis.com')) {
         return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'pending' }), updateTime: 't' }) }
       }
-      if (url.includes('api.groq.com')) { geminiCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'x' } }] }) } }
+      if (url.includes('api.groq.com')) { groqCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'ingredientes: harina' } }] }) } }
       return { ok: true, status: 200 }
     }))
     const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
     const res = makeRes()
     await runOcrRoute(req, res)
-    expect(res.statusCode).toBe(402)
-    expect(res.body).toEqual({ error: 'membership_required' })
-    expect(geminiCalled).toBe(false)
-  })
-
-  it('usuario logueado con membershipStatus "expired" → 402 membership_expired, no llama a Gemini', async () => {
-    const token = signRS256({}, privateKey)
-    let geminiCalled = false
-    vi.stubGlobal('fetch', vi.fn(async (url) => {
-      if (url.includes('service_accounts/v1/jwk')) return { ok: true, headers: { get: () => 'public, max-age=21600' }, json: async () => ({ keys: [jwk] }) }
-      if (url.includes('oauth2.googleapis.com/token')) return { ok: true, json: async () => ({ access_token: 'tok', expires_in: 3600 }) }
-      if (url.includes('firestore.googleapis.com')) {
-        return { ok: true, status: 200, json: async () => ({ fields: toFields({ membershipStatus: 'expired' }), updateTime: 't' }) }
-      }
-      if (url.includes('api.groq.com')) { geminiCalled = true; return { ok: true, json: async () => ({ choices: [{ message: { content: 'x' } }] }) } }
-      return { ok: true, status: 200 }
-    }))
-    const req = { get: (n) => (n.toLowerCase() === 'authorization' ? `Bearer ${token}` : undefined), body: { imageData: 'x' } }
-    const res = makeRes()
-    await runOcrRoute(req, res)
-    expect(res.statusCode).toBe(402)
-    expect(res.body).toEqual({ error: 'membership_expired' })
-    expect(geminiCalled).toBe(false)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.status).toBe('ok')
+    expect(groqCalled).toBe(true)
   })
 
   it('usuario logueado con membershipStatus "active" → procesa normal, sin límite', async () => {

@@ -1241,16 +1241,6 @@ async function ocrProcessHandler(req, res) {
     const { imageData } = req.body;
     if (!imageData) return res.status(400).json({ error: 'Missing imageData' });
 
-    if (req.user) {
-      // Fail-closed: si el perfil todavía no se sincronizó (fireGetUser === null),
-      // se trata como membresía no activa — NUNCA se salta el gate por falta de doc.
-      const profile = await fireGetUser(req.user.uid);
-      const membershipStatus = profile ? profile.membershipStatus : 'pending';
-      if (membershipStatus !== 'active') {
-        return res.status(402).json({ error: membershipStatus === 'expired' ? 'membership_expired' : 'membership_required' });
-      }
-    }
-
     const prompt = `Extrae el texto de ingredientes de esta imagen de etiqueta alimentaria.
 Devuelve el texto tal como aparece, incluyendo ingredientes y cualquier declaración de alérgenos como "Contiene:", "Puede contener:", "Trazas de:" u otras advertencias similares.
 Corrige errores obvios de lectura pero no inventes texto ni omitas secciones.
