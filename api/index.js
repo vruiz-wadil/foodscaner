@@ -91,12 +91,33 @@ async function stripeWebhookHandler(req, res) {
         const uid = subscription.metadata && subscription.metadata.firebaseUid;
         if (uid) await fulfillSubscription(uid, invoiceSubscriptionId);
       }
+    } else if (event.type === 'invoice.payment_failed') {
+      const invoiceSubscriptionId = obj.parent?.subscription_details?.subscription;
+      if (invoiceSubscriptionId) {
+        const subscription = await stripeRetrieveSubscription(invoiceSubscriptionId);
+        const uid = subscription.metadata && subscription.metadata.firebaseUid;
+        if (uid) {
+          const user = await fireGetUser(uid);
+          if (user && user.email) {
+            await sendMail({
+              to: user.email,
+              subject: 'No pudimos cobrar tu membresía de Yomi',
+              html: `<p>No pudimos procesar el cobro de tu membresía Premium. Stripe lo reintentará automáticamente en los próximos días.</p><p>Si el problema persiste, actualiza tu método de pago desde tu cuenta:</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
+            });
+          }
+        }
+      }
     } else if (event.type === 'customer.subscription.updated') {
       const uid = obj.metadata && obj.metadata.firebaseUid;
       if (uid) await firePatchUserFields(uid, ['autoRenew'], { autoRenew: !obj.cancel_at_period_end });
     } else if (event.type === 'customer.subscription.deleted') {
       const uid = obj.metadata && obj.metadata.firebaseUid;
-      if (uid) await firePatchUserFields(uid, ['autoRenew'], { autoRenew: false });
+      if (uid) {
+        await firePatchUserFields(uid, ['autoRenew', 'membershipStatus'], {
+          autoRenew: false,
+          membershipStatus: 'expired'
+        });
+      }
     }
     res.json({ received: true });
   } catch (e) {

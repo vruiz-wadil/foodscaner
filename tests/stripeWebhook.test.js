@@ -16,10 +16,15 @@ const fireFulfillStripeSubscription = vi.fn()
 const firePatchUserFields = vi.fn()
 const constructStripeEvent = vi.fn()
 const stripeRetrieveSubscription = vi.fn()
+const fireGetUser = vi.fn()
+const sendMail = vi.fn()
 firestoreModule.fireFulfillStripeSubscription = fireFulfillStripeSubscription
 firestoreModule.firePatchUserFields = firePatchUserFields
 stripeClientModule.constructStripeEvent = constructStripeEvent
 stripeClientModule.stripeRetrieveSubscription = stripeRetrieveSubscription
+firestoreModule.fireGetUser = fireGetUser
+const mailerModule = requireFn('../api/mailer.js')
+mailerModule.sendMail = sendMail
 
 const { stripeWebhookHandler } = await import('../api/index.js')
 
@@ -39,6 +44,7 @@ describe('stripeWebhookHandler', () => {
   beforeEach(() => {
     fireFulfillStripeSubscription.mockReset(); firePatchUserFields.mockReset()
     constructStripeEvent.mockReset(); stripeRetrieveSubscription.mockReset()
+    fireGetUser.mockReset(); sendMail.mockReset()
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test'
   })
 
@@ -129,6 +135,56 @@ describe('stripeWebhookHandler', () => {
     expect(res.body).toEqual({ received: true })
   })
 
+  it('sends a payment-failed email on invoice.payment_failed, without touching membershipStatus', async () => {
+    constructStripeEvent.mockReturnValue({
+      type: 'invoice.payment_failed',
+      data: { object: { parent: { subscription_details: { subscription: 'sub_1' } } } }
+    })
+    stripeRetrieveSubscription.mockResolvedValue({
+      id: 'sub_1', metadata: { firebaseUid: 'uid-1' }
+    })
+    fireGetUser.mockResolvedValue({ email: 'user@example.com' })
+    const res = makeRes()
+
+    await stripeWebhookHandler(makeReq(), res)
+
+    expect(sendMail).toHaveBeenCalledWith({
+      to: 'user@example.com',
+      subject: 'No pudimos cobrar tu membresía de Yomi',
+      html: expect.stringContaining('account.html')
+    })
+    expect(firePatchUserFields).not.toHaveBeenCalled()
+    expect(res.body).toEqual({ received: true })
+  })
+
+  it('does not send an email or throw when the user has no email on invoice.payment_failed', async () => {
+    constructStripeEvent.mockReturnValue({
+      type: 'invoice.payment_failed',
+      data: { object: { parent: { subscription_details: { subscription: 'sub_1' } } } }
+    })
+    stripeRetrieveSubscription.mockResolvedValue({ id: 'sub_1', metadata: { firebaseUid: 'uid-1' } })
+    fireGetUser.mockResolvedValue({ email: null })
+    const res = makeRes()
+
+    await stripeWebhookHandler(makeReq(), res)
+
+    expect(sendMail).not.toHaveBeenCalled()
+    expect(res.body).toEqual({ received: true })
+  })
+
+  it('ignores an invoice.payment_failed with no subscription in parent.subscription_details', async () => {
+    constructStripeEvent.mockReturnValue({
+      type: 'invoice.payment_failed',
+      data: { object: { parent: { subscription_details: {} } } }
+    })
+    const res = makeRes()
+
+    await stripeWebhookHandler(makeReq(), res)
+
+    expect(stripeRetrieveSubscription).not.toHaveBeenCalled()
+    expect(res.body).toEqual({ received: true })
+  })
+
   it('syncs autoRenew on customer.subscription.updated', async () => {
     constructStripeEvent.mockReturnValue({
       type: 'customer.subscription.updated',
@@ -142,7 +198,7 @@ describe('stripeWebhookHandler', () => {
     expect(firePatchUserFields).toHaveBeenCalledWith('uid-1', ['autoRenew'], { autoRenew: false })
   })
 
-  it('sets autoRenew false on customer.subscription.deleted', async () => {
+  it('sets autoRenew false AND membershipStatus expired on customer.subscription.deleted', async () => {
     constructStripeEvent.mockReturnValue({
       type: 'customer.subscription.deleted',
       data: { object: { metadata: { firebaseUid: 'uid-1' } } }
@@ -152,7 +208,11 @@ describe('stripeWebhookHandler', () => {
 
     await stripeWebhookHandler(makeReq(), res)
 
-    expect(firePatchUserFields).toHaveBeenCalledWith('uid-1', ['autoRenew'], { autoRenew: false })
+    expect(firePatchUserFields).toHaveBeenCalledWith(
+      'uid-1',
+      ['autoRenew', 'membershipStatus'],
+      { autoRenew: false, membershipStatus: 'expired' }
+    )
   })
 
   it('responds 200 with received:true for unhandled event types', async () => {
