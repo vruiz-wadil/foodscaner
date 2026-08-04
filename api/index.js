@@ -1801,10 +1801,12 @@ async function deleteUserAccount(uid) {
       console.warn('[deleteUserAccount] phoneIndex delete error, uid:', uid, e.message));
   }
 
-  await fireDeleteDoc('users', uid);
+  const userDocDeleted = await fireDeleteDoc('users', uid);
+  if (!userDocDeleted) {
+    throw new Error('deleteUserAccount: failed to delete users/' + uid + ', aborting before Auth deletion');
+  }
 
-  await deleteFirebaseAuthUser(uid).catch(e =>
-    console.warn('[deleteUserAccount] Auth delete error, uid:', uid, e.message));
+  await deleteFirebaseAuthUser(uid);
 
   return { alreadyGone: false };
 }

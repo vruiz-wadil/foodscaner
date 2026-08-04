@@ -54,7 +54,7 @@ describe('deleteUserAccount', () => {
     fireListUserHistory.mockResolvedValue([{ id: 'hist-1' }, { id: 'hist-2' }])
     stripeCancelSubscriptionNow.mockImplementation(async () => { callOrder.push('stripe') })
     fireDeleteUserHistoryEntry.mockImplementation(async () => { callOrder.push('history') })
-    fireDeleteDoc.mockImplementation(async (col) => { callOrder.push('doc:' + col) })
+    fireDeleteDoc.mockImplementation(async (col) => { callOrder.push('doc:' + col); return true })
     deleteFirebaseAuthUser.mockImplementation(async () => { callOrder.push('auth') })
 
     const result = await deleteUserAccount('uid-1')
@@ -87,6 +87,17 @@ describe('deleteUserAccount', () => {
     expect(result).toEqual({ alreadyGone: false })
     expect(fireDeleteDoc).toHaveBeenCalledWith('users', 'uid-1')
     expect(deleteFirebaseAuthUser).toHaveBeenCalledWith('uid-1')
+  })
+
+  it('aborts before deleting the Auth user when the users doc delete fails, to avoid an orphaned Auth account with no data', async () => {
+    fireGetUser.mockResolvedValue({ phoneNumber: null, billing: null })
+    fireListUserHistory.mockResolvedValue([])
+    fireDeleteDoc.mockImplementation(async (col) => col !== 'users')
+
+    await expect(deleteUserAccount('uid-1')).rejects.toThrow()
+
+    expect(deleteFirebaseAuthUser).not.toHaveBeenCalled()
+    fireDeleteDoc.mockResolvedValue(true)
   })
 })
 
