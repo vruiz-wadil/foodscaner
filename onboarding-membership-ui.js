@@ -15,6 +15,21 @@ const DIETARY_LABELS = {
 };
 function dietaryLabel(key) { return DIETARY_LABELS[key] || key; }
 
+const DIETARY_HEADLINE_PHRASE = {
+  vegan: 'Come vegano sin leer etiquetas',
+  vegetarian: 'Come vegetariano sin leer etiquetas',
+  keto: 'Come keto sin leer etiquetas',
+  glutenFree: 'Evita el gluten sin leer etiquetas',
+  caseinFree: 'Evita la caseína sin leer etiquetas',
+  organic: 'Encuentra lo orgánico sin leer etiquetas',
+  kosher: 'Come kosher sin leer etiquetas',
+  halal: 'Come halal sin leer etiquetas',
+  nonGmo: 'Evita los OGM sin leer etiquetas',
+  noAdditives: 'Evita los aditivos sin leer etiquetas',
+  palmOilFree: 'Evita el aceite de palma sin leer etiquetas',
+  fairTrade: 'Prioriza el comercio justo sin leer etiquetas'
+};
+
 // Personaliza el heading de la pantalla de membresía usando el payload de
 // preferencias que el usuario acaba de llenar (guardado por
 // continueOnboardingPreferences en preferences-ui.js, vía sessionStorage —
@@ -55,7 +70,7 @@ function pickHeadline() {
   const dietary = (payload.dietary || [])[0];
   if (dietary) {
     return {
-      title: `Come ${dietaryLabel(dietary)} sin leer etiquetas`,
+      title: DIETARY_HEADLINE_PHRASE[dietary] || `Come ${dietaryLabel(dietary)} sin leer etiquetas`,
       sub: 'Premium filtra automáticamente lo que no encaja con tu dieta.'
     };
   }

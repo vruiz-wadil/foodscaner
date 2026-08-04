@@ -120,7 +120,7 @@ it('personalizes the heading and button copy for a health condition, keeping the
   expect(btn.querySelector('img.btn-icon')).not.toBeNull()
 })
 
-it('personalizes the heading for a dietary-only payload', () => {
+it('personalizes the heading for a dietary-only payload (adjectival diet)', () => {
   sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({
     allergens: [],
     dietary: ['vegan'],
@@ -130,6 +130,18 @@ it('personalizes the heading for a dietary-only payload', () => {
   document.dispatchEvent(new Event('DOMContentLoaded'))
 
   expect(document.querySelector('.heading-title').textContent).toBe('Come vegano sin leer etiquetas')
+})
+
+it('personalizes the heading for a dietary-only payload (non-adjectival diet)', () => {
+  sessionStorage.setItem('yomi_pending_preferences', JSON.stringify({
+    allergens: [],
+    dietary: ['glutenFree'],
+    healthConditions: []
+  }))
+
+  document.dispatchEvent(new Event('DOMContentLoaded'))
+
+  expect(document.querySelector('.heading-title').textContent).toBe('Evita el gluten sin leer etiquetas')
 })
 
 it('falls back to the default copy when sessionStorage has malformed JSON', () => {
