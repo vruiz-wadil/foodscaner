@@ -396,10 +396,17 @@
           <input type="date" id="user-membership-expires" value="${escHtml(dateInputValue)}">
           <button class="btn" data-action="save-membership" data-uid="${escHtml(uid)}">Guardar membresía</button>
         </div>
-        <div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn-del" data-action="toggle-disabled" data-uid="${escHtml(uid)}" data-disabled="${authState.disabled ? 'true' : 'false'}" ${hasAuth ? '' : 'disabled'}>${hasAuth ? (authState.disabled ? 'Reactivar cuenta' : 'Desactivar cuenta') : 'Sin cuenta de Auth'}</button>
+          <button class="btn-del" data-action="admin-cancel-subscription" data-uid="${escHtml(uid)}">Cancelar suscripción</button>
+          <button class="btn-del" data-action="admin-delete-account" data-uid="${escHtml(uid)}">Eliminar cuenta</button>
         </div>
       </div>`;
+  }
+
+  function confirmWithTypedWord(message) {
+    const input = window.prompt(message + '\n\nEscribí ELIMINAR para confirmar:');
+    return input === 'ELIMINAR';
   }
 
   const SOURCE_LABELS = { cache: '💾 Cache', ia: '🤖 IA', db: '🌐 DB' };
@@ -632,6 +639,32 @@
         alert('Error al cambiar el estado de la cuenta.');
         btn.disabled = false;
         btn.textContent = currentlyDisabled ? 'Reactivar cuenta' : 'Desactivar cuenta';
+      }
+    } else if (btn.dataset.action === 'admin-cancel-subscription') {
+      const uid = btn.dataset.uid;
+      if (!confirmWithTypedWord('¿Cancelar la suscripción de este usuario de inmediato?')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/cancel-subscription', { method: 'POST' });
+      if (r.ok) {
+        loadUserDetail(currentDetailUid);
+      } else {
+        alert('Error al cancelar la suscripción.');
+        btn.disabled = false;
+        btn.textContent = 'Cancelar suscripción';
+      }
+    } else if (btn.dataset.action === 'admin-delete-account') {
+      const uid = btn.dataset.uid;
+      if (!confirmWithTypedWord('¿Eliminar esta cuenta de forma permanente? Esta acción no se puede deshacer.')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid), { method: 'DELETE' });
+      if (r.ok) {
+        loadUserList();
+      } else {
+        alert('Error al eliminar la cuenta.');
+        btn.disabled = false;
+        btn.textContent = 'Eliminar cuenta';
       }
     } else if (btn.dataset.action === 'view-user') {
       loadUserDetail(btn.dataset.uid);
