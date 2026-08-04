@@ -904,6 +904,32 @@ describe('renderPersonalizedReasons', () => {
     expect(row.classList.contains('reason-row--unknown')).toBe(true)
     expect(row.querySelector('.reason-state').textContent).toBe('❔')
   })
+
+  it('limpia el estado stale del teaser al volver a renderizar con perfil premium sin reasons', () => {
+    delete window.authClient
+    const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    const card = document.getElementById('verdict-reasons')
+    expect(card.classList.contains('reason-card--teaser')).toBe(true)
+    expect(card.querySelector('.btn-teaser-cta')).not.toBeNull()
+
+    const prefs = { allergens: [], dietary: [], healthConditions: [] }
+    renderPersonalizedReasons(product, prefs)
+    expect(card.classList.contains('reason-card--teaser')).toBe(false)
+    expect(card.querySelector('.btn-teaser-cta')).toBeNull()
+  })
+
+  it('filas del teaser y sus textos llevan aria-hidden="true"', () => {
+    delete window.authClient
+    const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    const rows = document.querySelectorAll('#verdict-reasons-list li.reason-row--teaser')
+    expect(rows.length).toBe(3)
+    rows.forEach(row => {
+      expect(row.querySelector('.reason-icon').getAttribute('aria-hidden')).toBe('true')
+      expect(row.querySelector('.reason-text').getAttribute('aria-hidden')).toBe('true')
+    })
+  })
 })
 
 // ─── logScanToCloudHistory (wiring de historial en la nube) ───

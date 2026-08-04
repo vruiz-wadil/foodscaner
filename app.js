@@ -1862,6 +1862,9 @@ function renderPersonalizedReasons(product, userPreferences) {
     const isActiveMember = !!profile && profile.membershipStatus === 'active';
 
     if (isActiveMember || hasNoRealData(product)) {
+      card.classList.remove('reason-card--teaser');
+      const existingCta = card.querySelector('.btn-teaser-cta');
+      if (existingCta) existingCta.remove();
       card.classList.add('hidden');
       return;
     }
@@ -1871,6 +1874,9 @@ function renderPersonalizedReasons(product, userPreferences) {
 
   const reasons = computeVerdictReasons(product, userPreferences);
   if (!reasons.length) {
+    card.classList.remove('reason-card--teaser');
+    const existingCta = card.querySelector('.btn-teaser-cta');
+    if (existingCta) existingCta.remove();
     card.classList.add('hidden');
     return;
   }
@@ -1925,6 +1931,14 @@ function renderTeaserReasons(card) {
   const summaryEl = document.getElementById('verdict-reasons-summary');
   if (summaryEl) summaryEl.textContent = 'Alergias, dietas y condiciones de salud — verificado contra tu perfil';
 
+  const listEl = document.getElementById('verdict-reasons-list');
+  if (listEl && !listEl.previousElementSibling?.classList.contains('sr-only')) {
+    const srLabel = document.createElement('p');
+    srLabel.className = 'sr-only';
+    srLabel.textContent = 'Vista previa bloqueada — suscríbete para ver tu análisis real.';
+    listEl.parentNode.insertBefore(srLabel, listEl);
+  }
+
   const teaserRows = [
     { icon: '🥜', title: 'Alergias', detail: 'Verificación automática' },
     { icon: '🍽️', title: 'Dieta', detail: 'Compatibilidad con tu estilo de alimentación' },
@@ -1935,8 +1949,8 @@ function renderTeaserReasons(card) {
   if (list) {
     list.innerHTML = teaserRows.map(r => `
       <li class="reason-row reason-row--teaser">
-        <span class="reason-icon">${escReasons(r.icon)}</span>
-        <span class="reason-text"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
+        <span class="reason-icon" aria-hidden="true">${escReasons(r.icon)}</span>
+        <span class="reason-text" aria-hidden="true"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
       </li>
     `).join('');
   }
