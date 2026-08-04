@@ -1262,6 +1262,7 @@ Responde con UNA SOLA transcripción — no repitas ni vuelvas a transcribir el 
   }
 }
 
+// optionalUser kept for now — req.user is unused since the freemium gate removal (see docs/superpowers/plans/2026-08-04-monetization-gate-audit.md Task 1), verifying it here is currently wasted work but removing the middleware is a separate decision.
 app.post('/api/ocr/process', expensiveLimiter, optionalUser, ocrProcessHandler);
 
 // Process nutrition from image using vision LLM (no Tesseract)
@@ -2360,6 +2361,7 @@ module.exports.deletePreferencesHandler = deletePreferencesHandler;
 module.exports.deleteUserAccount = deleteUserAccount;
 module.exports.deleteAccountHandler = deleteAccountHandler;
 module.exports.optionalUser = optionalUser;
+module.exports.expensiveLimiter = expensiveLimiter;
 module.exports.searchUserHandler = searchUserHandler;
 module.exports.patchUserMembershipHandler = patchUserMembershipHandler;
 module.exports.setUserDisabledHandler = setUserDisabledHandler;
