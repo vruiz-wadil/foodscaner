@@ -1866,6 +1866,9 @@ function renderPersonalizedReasons(product, userPreferences) {
       card.classList.add('hidden');
       return;
     }
+    if (typeof window.track === 'function') {
+      window.track('Paywall Hit', { context: 'personalized-reasons' });
+    }
     renderTeaserReasons(card);
     return;
   }

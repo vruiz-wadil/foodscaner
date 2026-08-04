@@ -946,6 +946,21 @@ describe('renderPersonalizedReasons', () => {
       expect(row.querySelector('.reason-text').getAttribute('aria-hidden')).toBe('true')
     })
   })
+
+  it('dispara el evento "Paywall Hit" al mostrar el teaser a un usuario sin membresía activa', () => {
+    window.track = vi.fn()
+    const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    expect(window.track).toHaveBeenCalledWith('Paywall Hit', { context: 'personalized-reasons' })
+  })
+
+  it('NO dispara "Paywall Hit" para un usuario premium activo', () => {
+    window.track = vi.fn()
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active' }) }
+    const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    expect(window.track).not.toHaveBeenCalled()
+  })
 })
 
 // ─── logScanToCloudHistory (wiring de historial en la nube) ───
