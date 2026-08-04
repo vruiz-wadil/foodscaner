@@ -326,8 +326,10 @@ export function renderAccountHub() {
     <div class="content-card">
       <div class="account-data-label" style="margin-bottom:10px;">Invita a un amigo</div>
       <div class="row-card">
-        <p class="about-text">¿Conoces a alguien a quien le sirva saber qué come? Compártele Yomi.</p>
-        <button type="button" id="btn-invite-friend" class="btn btn-secondary">Compartir Yomi</button>
+        <div>
+          <p class="about-text">¿Conoces a alguien a quien le sirva saber qué come? Compártele Yomi.</p>
+          <button type="button" id="btn-invite-friend" class="btn btn-secondary">Compartir Yomi</button>
+        </div>
       </div>
     </div>
     <div class="content-card">
