@@ -127,7 +127,9 @@ export async function confirmMembershipPayment() {
       throw new Error('pay_failed');
     }
     const data = await res.json();
-    window.track('Checkout Iniciado');
+    if (typeof window.track === 'function') {
+      window.track('Checkout Iniciado');
+    }
     window.location.href = data.checkoutUrl;
   } catch (err) {
     if (btn) { btn.disabled = false; btn.innerHTML = originalBtnHtml; }

@@ -56,6 +56,16 @@ it('tracks "Checkout Iniciado" before redirecting to Stripe', async () => {
   expect(window.track).toHaveBeenCalledWith('Checkout Iniciado')
 })
 
+it('still redirects to Stripe even when window.track is undefined (analytics.js blocked)', async () => {
+  delete window.track
+  document.getElementById('pay-checkbox').checked = true
+  global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, checkoutUrl: 'https://checkout.stripe.com/cs_1' }) })
+
+  await expect(confirmMembershipPayment()).resolves.not.toThrow()
+
+  expect(window.location.href).toBe('https://checkout.stripe.com/cs_1')
+})
+
 it('shows an error and re-enables the button when the pay call fails', async () => {
   document.getElementById('pay-checkbox').checked = true
   global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })

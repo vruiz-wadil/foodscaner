@@ -854,7 +854,9 @@ export async function handleStripeReturn() {
         });
         if (res.ok) {
           await flushPendingPreferences(token);
-          window.track('Checkout Completado');
+          if (typeof window.track === 'function') {
+            window.track('Checkout Completado');
+          }
           showToast('¡Pago confirmado! Tu membresía está activa.');
         } else {
           keepParamsForRetry = true;

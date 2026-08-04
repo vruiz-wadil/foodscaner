@@ -65,6 +65,16 @@ it('tracks "Checkout Completado" only when the checkout confirmation succeeds', 
   expect(window.track).toHaveBeenCalledWith('Checkout Completado')
 })
 
+it('still shows the success toast when window.track is undefined (analytics.js blocked)', async () => {
+  delete window.track
+  window.history.replaceState({}, '', '/account.html?stripe=success&session_id=cs_1')
+  global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+
+  await expect(handleStripeReturn()).resolves.not.toThrow()
+
+  expect(window.location.search).toBe('')
+})
+
 it('does NOT track "Checkout Completado" when checkout-result responds non-ok', async () => {
   window.history.replaceState({}, '', '/account.html?stripe=success&session_id=cs_1')
   global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
