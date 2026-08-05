@@ -89,6 +89,17 @@ describe('deleteUserAccount', () => {
     expect(deleteFirebaseAuthUser).toHaveBeenCalledWith('uid-1')
   })
 
+  it('skips Firebase Auth deletion for legacy "phone:"-prefixed uids (no real Auth account exists)', async () => {
+    fireGetUser.mockResolvedValue({ phoneNumber: '+523345512528', billing: null })
+    fireListUserHistory.mockResolvedValue([])
+
+    const result = await deleteUserAccount('phone:+523345512528')
+
+    expect(result).toEqual({ alreadyGone: false })
+    expect(fireDeleteDoc).toHaveBeenCalledWith('users', 'phone:+523345512528')
+    expect(deleteFirebaseAuthUser).not.toHaveBeenCalled()
+  })
+
   it('aborts before deleting the Auth user when the users doc delete fails, to avoid an orphaned Auth account with no data', async () => {
     fireGetUser.mockResolvedValue({ phoneNumber: null, billing: null })
     fireListUserHistory.mockResolvedValue([])

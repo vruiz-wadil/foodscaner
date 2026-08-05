@@ -1860,7 +1860,13 @@ async function deleteUserAccount(uid) {
     throw new Error('deleteUserAccount: failed to delete users/' + uid + ', aborting before Auth deletion');
   }
 
-  await deleteFirebaseAuthUser(uid);
+  // Docs legado 'phone:'+telefono (ver comentario en /auth/phone/verify) nunca
+  // tuvieron una cuenta real de Firebase Auth creada — el uid es puramente un
+  // id de documento de Firestore. Llamar a Identity Toolkit con ese string
+  // como localId falla con 400 (no es un uid válido).
+  if (!uid.startsWith('phone:')) {
+    await deleteFirebaseAuthUser(uid);
+  }
 
   return { alreadyGone: false };
 }
