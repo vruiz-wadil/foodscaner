@@ -2317,6 +2317,7 @@ body {
 .reason-card.verdict-reasons-reveal { animation: scaleIn 0.3s ease-out; }
 .reason-card h3 { font-size: 14px; margin: 0 0 10px; color: #374151; }
 .reason-summary { font-size: 12.5px; color: var(--ink-muted, #6b7280); margin: 0 0 10px; }
+.teaser-price-line { font-size: 12.5px; font-weight: 600; text-align: center; color: var(--ink-muted, #6b7280); margin: 4px 0 10px; }
 #verdict-reasons-list { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; }
 .reason-row { display: flex; gap: 8px; align-items: flex-start; padding: 9px 6px; border-left: 3px solid transparent; }
 .reason-row + .reason-row { border-top: 1px solid rgba(0,0,0,0.06); }

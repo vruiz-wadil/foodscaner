@@ -1935,6 +1935,7 @@ function clearTeaserState(card) {
   const existingCta = card.querySelector('.btn-teaser-cta');
   if (existingCta) existingCta.remove();
   card.querySelector('.sr-only')?.remove();
+  card.querySelector('.teaser-price-line')?.remove();
 }
 
 // Pinta la variante "teaser" de la tarjeta de diagnóstico para usuarios sin
@@ -1990,7 +1991,19 @@ function renderTeaserReasons(card) {
     && !!window.authClient.getCachedProfile();
   cta.href = isLoggedIn ? 'onboarding-membership.html' : 'auth.html';
   cta.className = 'btn btn-primary btn-teaser-cta';
-  cta.textContent = 'Ver mi análisis — $29.90/mes';
+  cta.textContent = 'Ver mi análisis';
+
+  // Precio visible ANTES de que el usuario haga click en el CTA — sin esto,
+  // alguien sin sesión no se entera de que hay un costo hasta llegar a
+  // onboarding-membership.html, al final de un funnel de 4 pantallas
+  // (auth → perfil → preferencias → membresía). Se agrega arriba del CTA.
+  const existingPriceLine = card.querySelector('.teaser-price-line');
+  if (existingPriceLine) existingPriceLine.remove();
+  const priceLine = document.createElement('p');
+  priceLine.className = 'teaser-price-line';
+  priceLine.textContent = '$29.90 MXN/mes — cancela cuando quieras';
+  card.appendChild(priceLine);
+
   card.appendChild(cta);
 
   card.classList.remove('hidden');

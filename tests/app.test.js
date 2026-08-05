@@ -888,6 +888,10 @@ describe('renderPersonalizedReasons', () => {
     const cta = card.querySelector('.btn-teaser-cta')
     expect(cta).not.toBeNull()
     expect(cta.getAttribute('href')).toBe('auth.html')
+    expect(cta.textContent).toBe('Ver mi análisis')
+    const priceLine = card.querySelector('.teaser-price-line')
+    expect(priceLine).not.toBeNull()
+    expect(priceLine.textContent).toBe('$29.90 MXN/mes — cancela cuando quieras')
   })
 
   it('usuario logueado free (sin userPreferences, sin membresia activa) con producto real: CTA va a onboarding-membership.html', () => {
@@ -987,10 +991,12 @@ describe('renderPersonalizedReasons', () => {
     renderPersonalizedReasons(product, null)
     const card = document.getElementById('verdict-reasons')
     expect(card.querySelector('.sr-only')).not.toBeNull()
+    expect(card.querySelector('.teaser-price-line')).not.toBeNull()
 
     const prefs = { allergens: [{ code: 'cacahuate', severity: 'severe' }], dietary: [], healthConditions: [] }
     renderPersonalizedReasons(product, prefs)
     expect(card.querySelector('.sr-only')).toBeNull()
+    expect(card.querySelector('.teaser-price-line')).toBeNull()
   })
 
   it('filas del teaser y sus textos llevan aria-hidden="true"', () => {
