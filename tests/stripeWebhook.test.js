@@ -135,7 +135,29 @@ describe('stripeWebhookHandler', () => {
     expect(res.body).toEqual({ received: true })
   })
 
-  it('sends a payment-failed email on invoice.payment_failed, without touching membershipStatus', async () => {
+  it('sends the retry-copy payment-failed email when next_payment_attempt exists, without touching membershipStatus', async () => {
+    constructStripeEvent.mockReturnValue({
+      type: 'invoice.payment_failed',
+      data: { object: { parent: { subscription_details: { subscription: 'sub_1' } } } }
+    })
+    stripeRetrieveSubscription.mockResolvedValue({
+      id: 'sub_1', metadata: { firebaseUid: 'uid-1' }, next_payment_attempt: 1785900000
+    })
+    fireGetUser.mockResolvedValue({ email: 'user@example.com' })
+    const res = makeRes()
+
+    await stripeWebhookHandler(makeReq(), res)
+
+    expect(sendMail).toHaveBeenCalledWith({
+      to: 'user@example.com',
+      subject: 'No pudimos cobrar tu membresía — lo intentaremos de nuevo',
+      html: expect.stringContaining('account.html')
+    })
+    expect(firePatchUserFields).not.toHaveBeenCalled()
+    expect(res.body).toEqual({ received: true })
+  })
+
+  it('sends the last-attempt-copy payment-failed email when next_payment_attempt is absent', async () => {
     constructStripeEvent.mockReturnValue({
       type: 'invoice.payment_failed',
       data: { object: { parent: { subscription_details: { subscription: 'sub_1' } } } }
@@ -150,7 +172,7 @@ describe('stripeWebhookHandler', () => {
 
     expect(sendMail).toHaveBeenCalledWith({
       to: 'user@example.com',
-      subject: 'No pudimos cobrar tu membresía de Yomi',
+      subject: 'Última oportunidad: tu membresía Premium está por vencer',
       html: expect.stringContaining('account.html')
     })
     expect(firePatchUserFields).not.toHaveBeenCalled()

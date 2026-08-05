@@ -99,12 +99,21 @@ async function stripeWebhookHandler(req, res) {
         if (uid) {
           const user = await fireGetUser(uid);
           if (user && user.email) {
+            // subscription.next_payment_attempt ausente/null significa que Stripe
+            // ya agotó los reintentos automáticos — este email es el último aviso
+            // antes de que llegue customer.subscription.deleted y se corte el acceso.
+            const isLastAttempt = !subscription.next_payment_attempt;
+            const emailCopy = isLastAttempt
+              ? {
+                  subject: 'Última oportunidad: tu membresía Premium está por vencer',
+                  html: `<p>Ya intentamos varias veces cobrar tu membresía y no lo logramos. Este fue el último intento automático.</p><p>Si no actualizas tu método de pago, tu cuenta pasa a plan gratis y pierdes el análisis personalizado y el historial en la nube.</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
+                }
+              : {
+                  subject: 'No pudimos cobrar tu membresía — lo intentaremos de nuevo',
+                  html: `<p>Intentamos cobrar tu membresía Premium y no se pudo procesar.</p><p>Tranquilo, no tienes que hacer nada todavía — Stripe reintentará el cobro automáticamente en los próximos días.</p><p>Si tu tarjeta cambió o venció, actualízala ahora para evitar cualquier interrupción:</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
+                };
             try {
-              await sendMail({
-                to: user.email,
-                subject: 'No pudimos cobrar tu membresía de Yomi',
-                html: `<p>No pudimos procesar el cobro de tu membresía Premium. Stripe lo reintentará automáticamente en los próximos días.</p><p>Si el problema persiste, actualiza tu método de pago desde tu cuenta:</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
-              });
+              await sendMail({ to: user.email, subject: emailCopy.subject, html: emailCopy.html });
             } catch (mailErr) {
               console.warn('[POST /api/webhooks/stripe] error procesando', event.type, ':', mailErr.message);
             }
