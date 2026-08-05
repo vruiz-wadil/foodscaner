@@ -1119,6 +1119,17 @@ app.get('/api/product/:barcode', async (req, res) => {
   }
 });
 
+// Localización de terminología: ver comentario equivalente en app.js.
+// Copia independiente — backend y frontend no comparten módulos hoy.
+function normalizeSoyTerm(text) {
+  if (!text) return text;
+  return text.replace(/\bsoja\b/gi, (match) => {
+    if (match === 'SOJA') return 'SOYA';
+    if (match === 'Soja') return 'Soya';
+    return 'soya';
+  });
+}
+
 app.post('/api/ai-query', expensiveLimiter, async (req, res) => {
   const { name, brand, ingredients, allergens, sugars, carbohydrates, fiber, isBeverage, dietary, scanLogId } = req.body;
   if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
@@ -1180,6 +1191,7 @@ REGLAS:
 - Dietary: analiza contra ingredientes. vegan=sin origen animal, halal=sin cerdo/alcohol, nonGmo=sin OGM, noAdditives=sin aditivos, palmOilFree=sin aceite palma, fairTrade=solo si nombre/marca lo indica, caseinFree=sin leche ni derivados (caseína/caseinato/suero/whey/queso/crema/yogur/nata). "Sin lactosa"/deslactosado NO es libre de caseína
 - DietaryDetails: explica cada campo mencionando ingredientes concretos que justifiquen la decisión
 - notRecommended: incluir SOLO grupos no aptos (con ingrediente problemático). Si ninguno, array vacío. NUNCA incluir grupos que "no aplican"
+- Terminología: usa "soya" (no "soja") en toda respuesta — términos mexicanos
 - DUDAS → confidence "baja" y explica en notes
 - No inventes ingredientes`;
 
@@ -1215,6 +1227,11 @@ REGLAS:
           const r = (nr.razon || '').toLowerCase();
           return !(r.includes('no aplica') || r.includes('no contiene'));
         });
+        parsed.notRecommended = parsed.notRecommended.map(nr => ({
+          ...nr,
+          grupo: normalizeSoyTerm(nr.grupo),
+          razon: normalizeSoyTerm(nr.razon)
+        }));
       }
     } catch {
       return res.status(502).json({ error: "No se pudo analizar el producto. Intenta de nuevo." });
