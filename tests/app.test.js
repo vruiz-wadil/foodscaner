@@ -876,7 +876,7 @@ describe('renderPersonalizedReasons', () => {
     expect(document.getElementById('verdict-reasons').classList.contains('hidden')).toBe(true)
   })
 
-  it('usuario free (sin userPreferences) con producto real: muestra el teaser con título, 3 filas y CTA', () => {
+  it('usuario anonimo (sin sesion, sin userPreferences) con producto real: muestra el teaser con título, 3 filas y CTA a auth.html', () => {
     const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
     renderPersonalizedReasons(product, null)
     const card = document.getElementById('verdict-reasons')
@@ -885,6 +885,16 @@ describe('renderPersonalizedReasons', () => {
     expect(document.getElementById('verdict-reasons-title').textContent).toBe('Desbloquea tu análisis personalizado')
     const rows = document.querySelectorAll('#verdict-reasons-list li.reason-row--teaser')
     expect(rows.length).toBe(3)
+    const cta = card.querySelector('.btn-teaser-cta')
+    expect(cta).not.toBeNull()
+    expect(cta.getAttribute('href')).toBe('auth.html')
+  })
+
+  it('usuario logueado free (sin userPreferences, sin membresia activa) con producto real: CTA va a onboarding-membership.html', () => {
+    window.authClient = { getCachedProfile: () => ({ membershipStatus: 'pending' }) }
+    const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
+    renderPersonalizedReasons(product, null)
+    const card = document.getElementById('verdict-reasons')
     const cta = card.querySelector('.btn-teaser-cta')
     expect(cta).not.toBeNull()
     expect(cta.getAttribute('href')).toBe('onboarding-membership.html')

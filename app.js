@@ -1979,7 +1979,16 @@ function renderTeaserReasons(card) {
   const existingCta = card.querySelector('.btn-teaser-cta');
   if (existingCta) existingCta.remove();
   const cta = document.createElement('a');
-  cta.href = 'onboarding-membership.html';
+  // Sin sesión, ir directo a onboarding-membership.html deja al usuario
+  // varado: confirmMembershipPayment() manda Authorization: Bearer null,
+  // el backend responde 401 y el error que ve es "No se pudo iniciar el
+  // pago" sin ninguna pista de que el problema es que nunca inició sesión.
+  // Usuarios logueados (aunque no hayan completado perfil/preferencias)
+  // sí pueden pagar — requireUser es el único gate del endpoint.
+  const isLoggedIn = typeof window !== 'undefined' && window.authClient
+    && typeof window.authClient.getCachedProfile === 'function'
+    && !!window.authClient.getCachedProfile();
+  cta.href = isLoggedIn ? 'onboarding-membership.html' : 'auth.html';
   cta.className = 'btn btn-primary btn-teaser-cta';
   cta.textContent = 'Ver mi análisis — $29.90/mes';
   card.appendChild(cta);
