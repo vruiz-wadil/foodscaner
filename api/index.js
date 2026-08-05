@@ -106,7 +106,7 @@ async function stripeWebhookHandler(req, res) {
             const emailCopy = isLastAttempt
               ? {
                   subject: 'Última oportunidad: tu membresía Premium está por vencer',
-                  html: `<p>Ya intentamos varias veces cobrar tu membresía y no lo logramos. Este fue el último intento automático.</p><p>Si no actualizas tu método de pago, tu cuenta pasa a plan gratis y pierdes el análisis personalizado y el historial en la nube.</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
+                  html: `<p>Ya intentamos varias veces cobrar tu membresía y no lo logramos. Este fue el último intento automático.</p><p>Si no actualizas tu método de pago, tu membresía vence y pierdes el análisis personalizado y el historial en la nube.</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
                 }
               : {
                   subject: 'No pudimos cobrar tu membresía — lo intentaremos de nuevo',
