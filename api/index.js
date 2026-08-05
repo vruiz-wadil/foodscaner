@@ -1151,6 +1151,16 @@ app.post('/api/ai-query', expensiveLimiter, async (req, res) => {
   const cached = await getAiCacheEntry(cacheKey);
   if (cached) {
     cached._model = modelLabel;
+    // Entradas cacheadas antes de la normalización soja→soya (release del
+    // 2026-08-05) pueden seguir diciendo "soja" hasta por 24h — se
+    // renormaliza también en el cache-hit, no solo en la respuesta fresca.
+    if (Array.isArray(cached.notRecommended)) {
+      cached.notRecommended = cached.notRecommended.map(nr => ({
+        ...nr,
+        grupo: normalizeSoyTerm(nr.grupo),
+        razon: normalizeSoyTerm(nr.razon)
+      }));
+    }
     if (scanLogId && cached.confidence) fireMarkScanConfidence(scanLogId, cached.confidence, cached.notes);
     return res.json(cached);
   }
