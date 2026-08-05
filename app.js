@@ -1989,7 +1989,7 @@ function renderTeaserReasons(card) {
   const isLoggedIn = typeof window !== 'undefined' && window.authClient
     && typeof window.authClient.getCachedProfile === 'function'
     && !!window.authClient.getCachedProfile();
-  cta.href = isLoggedIn ? 'onboarding-membership.html' : 'auth.html';
+  cta.href = isLoggedIn ? 'onboarding-membership.html' : 'premium-offer.html';
   cta.className = 'btn btn-primary btn-teaser-cta';
   cta.textContent = 'Ver mi análisis';
 

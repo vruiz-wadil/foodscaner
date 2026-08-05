@@ -876,7 +876,7 @@ describe('renderPersonalizedReasons', () => {
     expect(document.getElementById('verdict-reasons').classList.contains('hidden')).toBe(true)
   })
 
-  it('usuario anonimo (sin sesion, sin userPreferences) con producto real: muestra el teaser con título, 3 filas y CTA a auth.html', () => {
+  it('usuario anonimo (sin sesion, sin userPreferences) con producto real: muestra el teaser con título, 3 filas y CTA a premium-offer.html', () => {
     const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
     renderPersonalizedReasons(product, null)
     const card = document.getElementById('verdict-reasons')
@@ -887,7 +887,7 @@ describe('renderPersonalizedReasons', () => {
     expect(rows.length).toBe(3)
     const cta = card.querySelector('.btn-teaser-cta')
     expect(cta).not.toBeNull()
-    expect(cta.getAttribute('href')).toBe('auth.html')
+    expect(cta.getAttribute('href')).toBe('premium-offer.html')
     expect(cta.textContent).toBe('Ver mi análisis')
     const priceLine = card.querySelector('.teaser-price-line')
     expect(priceLine).not.toBeNull()
