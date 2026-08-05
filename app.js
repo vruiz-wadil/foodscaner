@@ -85,7 +85,7 @@ const COMMON_ALLERGENS = [
   { emoji: "🥚", label: "Huevo", match: ["huevo", "huevos", "egg"] },
   { emoji: "🐟", label: "Pescado", match: ["pescado", "fish"] },
   { emoji: "🦐", label: "Mariscos", match: ["crustáceo", "crustacean", "molusco", "mollusc", "mariscos"] },
-  { emoji: "🫘", label: "Soja", match: ["soja", "soya", "soy", "soybean"] }
+  { emoji: "🫘", label: "Soya", match: ["soja", "soya", "soy", "soybean"] }
 ];
 
 // Allergen chips convey status by color alone (detected/traces/safe/ai-suggested) —
@@ -1283,7 +1283,7 @@ function parseApiProduct(product) {
     "en:eggs": "Huevos",
     "en:peanuts": "Cacahuates (Maní)",
     "en:nuts": "Frutos de cáscara (Nueces)",
-    "en:soybeans": "Soja",
+    "en:soybeans": "Soya",
     "en:mustard": "Mostaza",
     "en:molluscs": "Moluscos",
     "en:fish": "Pescado",

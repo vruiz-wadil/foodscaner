@@ -418,6 +418,15 @@ describe('parseApiProduct', () => {
     expect(result.name).toBe('Producto Desconocido')
     expect(result.brand).toBe('Marca genérica')
   })
+
+  it('translates en:soybeans allergen tag to "Soya" (not "Soja")', () => {
+    const product = parseApiProduct({
+      product_name: 'Test Product',
+      allergens_tags: ['en:soybeans']
+    })
+    expect(product.allergens).toContain('Soya')
+    expect(product.allergens).not.toContain('Soja')
+  })
 })
 
 // ─── eanChecksum ───────────────────────────────────────────────
@@ -649,6 +658,15 @@ describe('computeVerdictReasons', () => {
     const reasons = computeVerdictReasons(product, prefs)
     expect(reasons).toHaveLength(1)
     expect(reasons[0]).toMatchObject({ ok: true, severity: 'leve', type: 'allergen', title: 'Sin Cacahuate', detail: 'No detectamos tu alergia' })
+  })
+
+  it('labels the soja allergen as "Soya" in the reason title', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Soya'] }
+    const prefs = { allergens: [{ code: 'soja', severity: 'mild' }], dietary: [], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    const soyaReason = reasons.find(r => r.type === 'allergen' && r.title.includes('Soya'))
+    expect(soyaReason).toBeTruthy()
+    expect(soyaReason.title).not.toContain('Soja')
   })
 
   it('alérgeno con severity ausente/no reconocida y detectado: severity:null (no cae por default a "leve")', () => {

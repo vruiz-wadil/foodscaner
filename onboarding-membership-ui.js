@@ -4,7 +4,7 @@ const PENDING_PREFS_KEY = 'yomi_pending_preferences';
 
 const ALLERGEN_LABELS = {
   cacahuate: 'cacahuate', lacteos: 'lácteos', nueces: 'nueces', trigo: 'trigo',
-  huevo: 'huevo', pescado: 'pescado', mariscos: 'mariscos', soja: 'soja'
+  huevo: 'huevo', pescado: 'pescado', mariscos: 'mariscos', soja: 'soya'
 };
 function allergenLabel(code) { return ALLERGEN_LABELS[code] || code; }
 

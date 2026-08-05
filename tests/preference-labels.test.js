@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildPreferenceSummary } from '../preference-labels.js'
+import { buildPreferenceSummary, ALLERGEN_LABELS } from '../preference-labels.js'
 
 describe('buildPreferenceSummary', () => {
   it('devuelve counts y chips vacíos cuando prefs es null', () => {
@@ -72,5 +72,11 @@ describe('buildPreferenceSummary', () => {
   it('un alérgeno sin severidad reconocida (o ausente) tiene extra:null en el chip', () => {
     const result = buildPreferenceSummary({ dietary: [], allergens: [{ code: 'trigo' }], healthConditions: [] })
     expect(result.chips[0].extra).toBeNull()
+  })
+})
+
+describe('ALLERGEN_LABELS', () => {
+  it('labels soja as "Soya"', () => {
+    expect(ALLERGEN_LABELS.soja.label).toBe('Soya')
   })
 })

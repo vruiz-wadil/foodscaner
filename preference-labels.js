@@ -32,7 +32,7 @@ export const ALLERGEN_LABELS = {
   huevo: { emoji: '🥚', label: 'Huevo' },
   pescado: { emoji: '🐟', label: 'Pescado' },
   mariscos: { emoji: '🦐', label: 'Mariscos' },
-  soja: { emoji: '🫘', label: 'Soja' }
+  soja: { emoji: '🫘', label: 'Soya' }
 };
 
 export const SEVERITY_LABELS = { mild: 'Aviso', severe: 'Estricto' };
