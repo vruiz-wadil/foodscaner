@@ -172,6 +172,23 @@ describe('stripeWebhookHandler', () => {
     expect(res.body).toEqual({ received: true })
   })
 
+  it('still responds received:true when sendMail throws on invoice.payment_failed', async () => {
+    constructStripeEvent.mockReturnValue({
+      type: 'invoice.payment_failed',
+      data: { object: { parent: { subscription_details: { subscription: 'sub_1' } } } }
+    })
+    stripeRetrieveSubscription.mockResolvedValue({ id: 'sub_1', metadata: { firebaseUid: 'uid-1' } })
+    fireGetUser.mockResolvedValue({ email: 'user@example.com' })
+    sendMail.mockRejectedValue(new Error('smtp timeout'))
+    const res = makeRes()
+
+    await stripeWebhookHandler(makeReq(), res)
+
+    expect(sendMail).toHaveBeenCalled()
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ received: true })
+  })
+
   it('ignores an invoice.payment_failed with no subscription in parent.subscription_details', async () => {
     constructStripeEvent.mockReturnValue({
       type: 'invoice.payment_failed',

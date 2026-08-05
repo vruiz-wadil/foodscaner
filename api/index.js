@@ -99,11 +99,15 @@ async function stripeWebhookHandler(req, res) {
         if (uid) {
           const user = await fireGetUser(uid);
           if (user && user.email) {
-            await sendMail({
-              to: user.email,
-              subject: 'No pudimos cobrar tu membresía de Yomi',
-              html: `<p>No pudimos procesar el cobro de tu membresía Premium. Stripe lo reintentará automáticamente en los próximos días.</p><p>Si el problema persiste, actualiza tu método de pago desde tu cuenta:</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
-            });
+            try {
+              await sendMail({
+                to: user.email,
+                subject: 'No pudimos cobrar tu membresía de Yomi',
+                html: `<p>No pudimos procesar el cobro de tu membresía Premium. Stripe lo reintentará automáticamente en los próximos días.</p><p>Si el problema persiste, actualiza tu método de pago desde tu cuenta:</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
+              });
+            } catch (mailErr) {
+              console.warn('[POST \api\webhooks\stripe] error procesando', event.type, ':', mailErr.message);
+            }
           }
         }
       }
