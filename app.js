@@ -77,6 +77,20 @@ const rejectedProductCategory = document.getElementById("rejected-product-catego
 let currentBarcodeQuery = "";
 let currentDataSources = "";
 
+// Localización de terminología: "soja" es el término usado en España, pero
+// en México (audiencia de la app) el término común es "soya" — mismo
+// ingrediente, sinónimo regional. No toca el código interno del alérgeno
+// (sigue siendo 'soja' como key/id en todo el codebase) ni los arrays de
+// detección (que ya reconocen ambos términos como sinónimos).
+function normalizeSoyTerm(text) {
+  if (!text) return text;
+  return text.replace(/\bsoja\b/gi, (match) => {
+    if (match === 'SOJA') return 'SOYA';
+    if (match === 'Soja') return 'Soya';
+    return 'soya';
+  });
+}
+
 const COMMON_ALLERGENS = [
   { emoji: "🥛", label: "Lácteos", match: ["leche", "lácteos", "lactosa", "milk", "dairy"] },
   { emoji: "🥜", label: "Cacahuate", match: ["cacahuate", "cacahuete", "maní", "peanut"] },
@@ -2139,7 +2153,7 @@ function renderProductData(product, barcode) {
   const ocrRequestSection = document.getElementById("ocr-request-section");
   if (ingredientsSection && ingredientsTextEl) {
     if (product.ingredientsText && product.ingredientsText.trim()) {
-      ingredientsTextEl.textContent = product.ingredientsText;
+      ingredientsTextEl.textContent = normalizeSoyTerm(product.ingredientsText);
       ingredientsSection.classList.remove("hidden");
       if (ocrRequestSection) ocrRequestSection.classList.add("hidden");
       // Show grid for ingredients

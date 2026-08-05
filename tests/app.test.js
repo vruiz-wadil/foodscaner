@@ -10,13 +10,14 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
+let parseApiProduct, isGlutenRelated, normalizeSoyTerm, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, normalizeSoyTerm, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
+  normalizeSoyTerm = exports.normalizeSoyTerm
   extractDietaryFromLabels = exports.extractDietaryFromLabels
   eanChecksum = exports.eanChecksum
   expandUpcE = exports.expandUpcE
@@ -31,6 +32,35 @@ beforeAll(() => {
   incrementScanCounter = exports.incrementScanCounter
   buildCameraConstraints = exports.buildCameraConstraints
   processOcrImage = exports.processOcrImage
+})
+
+// ─── normalizeSoyTerm ───────────────────────────────────────
+describe('normalizeSoyTerm', () => {
+  it('replaces lowercase "soja" with "soya"', () => {
+    expect(normalizeSoyTerm('contiene soja y trigo')).toBe('contiene soya y trigo')
+  })
+
+  it('preserves capitalized "Soja" as "Soya"', () => {
+    expect(normalizeSoyTerm('Soja: puede contener')).toBe('Soya: puede contener')
+  })
+
+  it('preserves all-caps "SOJA" as "SOYA"', () => {
+    expect(normalizeSoyTerm('ALERGENOS: SOJA, TRIGO')).toBe('ALERGENOS: SOYA, TRIGO')
+  })
+
+  it('does not touch words that merely contain "soja" as a substring', () => {
+    expect(normalizeSoyTerm('sojamiel')).toBe('sojamiel')
+  })
+
+  it('returns falsy input unchanged', () => {
+    expect(normalizeSoyTerm(null)).toBe(null)
+    expect(normalizeSoyTerm(undefined)).toBe(undefined)
+    expect(normalizeSoyTerm('')).toBe('')
+  })
+
+  it('leaves text with no "soja" mention unchanged', () => {
+    expect(normalizeSoyTerm('harina de trigo, azúcar')).toBe('harina de trigo, azúcar')
+  })
 })
 
 // ─── buildCameraConstraints ────────────────────────────────
