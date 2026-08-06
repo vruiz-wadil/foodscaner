@@ -57,9 +57,11 @@ Starts `hidden` (a CSS class, `display:none`) so there's no flash of wrong/empty
 
 | Session state | Content | `href` |
 |---|---|---|
-| No session | "Hazte Premium" + star/crown icon | `premium-offer.html` |
-| Session, `membershipStatus !== 'active'` | "Hazte Premium" + star/crown icon | `onboarding-membership.html` |
-| Session, `membershipStatus === 'active'` | First name (first whitespace-delimited token of `profile.displayName`; falls back to the local-part of `email` before `@`; falls back to `"Cuenta"` if neither exists) + "Premium" indicator (crown icon + small "Premium" label) | `account.html` |
+| No session | "Hazte Premium" + outline crown icon | `premium-offer.html` |
+| Session, `membershipStatus !== 'active'` | "Hazte Premium" + outline crown icon | `onboarding-membership.html` |
+| Session, `membershipStatus === 'active'` | First name (first whitespace-delimited token of `profile.displayName`; falls back to the local-part of `email` before `@`; falls back to `"Cuenta"` if neither exists) + filled/gold crown icon + small "Premium" label | `account.html` |
+
+**Copy & icon rationale (reviewed by copywriting + UI design):** "Hazte Premium" is a direct, ownable action rather than hype-speak ("Upgrade Now"), matching Yomi's trust-first tone — appropriate for a safety tool where celiac/allergy users want confidence, not sales pressure. The Premium-state pill stays minimal (name + icon + label, no exclamation marks or extra flourish) to read as status/belonging rather than another sell. The CTA state uses an **outline** crown and the Premium state uses a **filled/gold** crown — using the same icon filled vs. outline (rather than two different icons) keeps visual continuity between the two states while avoiding the CTA looking like the user is already a member.
 
 `header-badge.js` re-renders on every `authClient.onAuthChange` firing (covers login, logout, and the auto-sync that already runs after any auth state change) and once eagerly on `DOMContentLoaded` using whatever `authClient.getCachedProfile()` already has cached, to avoid waiting on a network round trip if a profile is already cached from a previous sync this session.
 
@@ -86,7 +88,7 @@ To avoid a flash of pricing content before the redirect fires, the page body sta
 
 ## Styling
 
-Reuses existing design tokens (`--ink`, `--paper`, accent colors already defined in `styles.css` for badges/pills — see `.badge`, `.badge-food` for the existing pill visual language). New rules added to `styles.css`:
+Reviewed against the actual tokens in `styles.css` (`--ink:#0d3d35` dark teal, `--paper:#eaf9f6` mint, `--chile:#dc2626` red, `--amber:#eab308` gold — these differ from the palette the README describes; the README is stale on this point, `styles.css` is the source of truth). The initial flat-fill draft failed two things the review caught: it didn't match the app's existing flat-sticker card language (2px solid border + offset drop shadow, seen on `.badge-food`, `.dietary-grid-item`), and plain paper-on-amber text fails WCAG AA contrast since amber is itself a light/mid-value color.
 
 ```css
 .header-badge {
@@ -95,27 +97,40 @@ Reuses existing design tokens (`--ink`, `--paper`, accent colors already defined
   gap: 6px;
   padding: 6px 14px;
   border-radius: 999px;
+  border: 2px solid var(--ink);
   font-size: 0.85rem;
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.header-badge:hover,
+.header-badge:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
 }
 .header-badge.hidden { display: none; }
 
-/* CTA variant (no active membership) */
+/* CTA variant (no active membership) — borrows the app's existing
+   "act now" warning-red association for urgency */
 .header-badge.cta {
-  background: var(--ink);
+  background: var(--chile);
   color: var(--paper);
+  border-color: var(--ink);
 }
 
-/* Premium member variant */
+/* Premium member variant — ink-on-amber (not paper-on-amber) fixes the
+   contrast failure and reads as a badge/medal, the reward cue an active
+   member should get */
 .header-badge.premium {
-  background: var(--amber, #C87B0B);
-  color: var(--paper);
+  background: var(--amber);
+  color: var(--ink);
+  border-color: var(--ink);
 }
 ```
 
-Exact color/icon choice is implementation-time judgment within these two variants — no further design decision needed, this is cosmetic polish within an already-established two-state visual system (CTA = high-contrast ink pill, Premium = amber accent pill, consistent with the amber accent already used for warnings/highlights elsewhere per the README's design-system palette).
+The press-down hover/active state (shadow collapses as the pill translates toward the ink border) mirrors the tappable-button affordance already used elsewhere in the app, so the badge doesn't read as a static label.
 
 ## Testing
 
