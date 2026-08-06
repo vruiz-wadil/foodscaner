@@ -10,14 +10,15 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')
 
-let parseApiProduct, isGlutenRelated, normalizeSoyTerm, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
+let parseApiProduct, isGlutenRelated, normalizeSoyTerm, grupoClaveVerdict, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage
 
 beforeAll(() => {
-  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, normalizeSoyTerm, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
+  const fn = new Function(appCode + '\nreturn { parseApiProduct, isGlutenRelated, normalizeSoyTerm, grupoClaveVerdict, extractDietaryFromLabels, eanChecksum, expandUpcE, validateBarcode, computeVerdict, computeVerdictReasons, hasNoRealData, getUserPreferencesForVerdict, renderPersonalizedDisclaimer, renderPersonalizedReasons, logScanToCloudHistory, incrementScanCounter, buildCameraConstraints, processOcrImage }')
   const exports = fn()
   parseApiProduct = exports.parseApiProduct
   isGlutenRelated = exports.isGlutenRelated
   normalizeSoyTerm = exports.normalizeSoyTerm
+  grupoClaveVerdict = exports.grupoClaveVerdict
   extractDietaryFromLabels = exports.extractDietaryFromLabels
   eanChecksum = exports.eanChecksum
   expandUpcE = exports.expandUpcE
@@ -255,6 +256,42 @@ describe('parseApiProduct', () => {
     expect(result.sellos.length).toBeGreaterThanOrEqual(1)
     expect(result.gluten.hasGluten).toBe(true)
     expect(result.allergens).toContain('Leche (Lácteos)')
+  })
+
+  it('un producto con gluten se marca dietary.glutenFree:false y notRecommended incluye Celiacos (bug reportado: producto mostraba "Sin datos" en dieta y "seguro" para celiaquia)', () => {
+    const product = {
+      product_name: 'Sazonador con trigo',
+      ingredients_text: 'harina de trigo enriquecida, sal, especias',
+      allergens_tags: ['en:gluten', 'en:soybeans'],
+      nutriments: {}
+    }
+    const result = parseApiProduct(product)
+    expect(result.gluten.hasGluten).toBe(true)
+    // Antes: dietary no tenia la key glutenFree en absoluto -> siempre
+    // undefined -> computeVerdictReasons mostraba "Sin datos: Sin gluten"
+    // sin importar que el producto SI tuviera gluten.
+    expect(result.dietary.glutenFree).toBe(false)
+    // Antes: no habia ningun push deterministico de un grupo "Celiacos" en
+    // notRecommended (solo diabeticos/hipertensos/lactosa/ninos/fenilcetonuricos
+    // tenian deteccion propia) -> el chequeo de healthConditions:['celiac']
+    // en computeVerdictReasons nunca encontraba conflicto.
+    const celiacEntry = result.notRecommended.find(n => n.certain === true && grupoClaveVerdict(n.grupo) === 'celiac')
+    expect(celiacEntry).toBeTruthy()
+  })
+
+  it('un producto certificado sin gluten se marca dietary.glutenFree:true y sin entrada Celiacos', () => {
+    const product = {
+      product_name: 'Galletas certificadas sin gluten',
+      ingredients_text: 'harina de arroz, azúcar, aceite vegetal',
+      labels_tags: ['en:gluten-free'],
+      allergens_tags: [],
+      nutriments: {}
+    }
+    const result = parseApiProduct(product)
+    expect(result.gluten.hasGluten).toBe(false)
+    expect(result.dietary.glutenFree).toBe(true)
+    const celiacEntry = result.notRecommended.find(n => n.certain === true && grupoClaveVerdict(n.grupo) === 'celiac')
+    expect(celiacEntry).toBeUndefined()
   })
 
   it('detects non-food products', () => {

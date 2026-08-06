@@ -1489,6 +1489,14 @@ function parseApiProduct(product) {
     }
   }
 
+  // Sin gluten (hallazgo: dietary nunca tenía la key glutenFree, así que la
+  // preferencia "glutenFree" del usuario siempre caía en "Sin datos" en la
+  // tarjeta de diagnóstico personalizado, sin importar que hasGluten ya
+  // estuviera calculado correctamente unas líneas arriba).
+  dietary.glutenFree = glutenDataAvailable ? !hasGluten : null;
+  dietary.glutenFreeSource = glutenDataAvailable ? 'db' : null;
+  dietary.glutenFreeDetail = glutenDetails;
+
   // Mexican warning seals (NOM-051 Fase 2)
   const sellos = [];
   const hasNutritionData = kcal > 0 || sugars !== null || saturatedFat !== null || sodium !== null;
@@ -1576,6 +1584,15 @@ function parseApiProduct(product) {
   const hasLactosa = filteredAllergens.some(a => a.toLowerCase().includes("leche") || a.toLowerCase().includes("lácteos"));
   if (hasLactosa) {
     notRecommended.push({ icon: "🥛", grupo: "Intolerantes a lactosa", razon: "Contiene leche o derivados lácteos", certain: true });
+  }
+
+  // Gluten → celíacos (hallazgo: no existía ningún push determinístico acá,
+  // solo el AI-suggested podía agregar un item "Celiacos" de forma no
+  // confiable — computeVerdictReasons's healthRows para healthConditions:
+  // ['celiac'] SIEMPRE mostraba "safe" aunque hasGluten ya estuviera
+  // calculado correctamente, porque solo lee de notRecommended).
+  if (hasGluten) {
+    notRecommended.push({ icon: "🌾", grupo: "Celiacos", razon: "Contiene gluten/trigo", certain: true });
   }
 
   // Nutriscore
