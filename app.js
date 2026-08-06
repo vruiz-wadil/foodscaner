@@ -1670,11 +1670,21 @@ function normalizeAccents(s) {
 // usa COMMON_ALLERGENS para traducir entre el code canónico de userPreferences
 // y el label que ya usa el pipeline de parseApiProduct.
 function isAllergenDetected(product, code) {
-  if (!product.allergens || !Array.isArray(product.allergens)) return false;
   const codeNorm = normalizeAccents(code);
   const entry = COMMON_ALLERGENS.find(ca =>
     ca.match.some(m => normalizeAccents(m) === codeNorm) || normalizeAccents(ca.label) === codeNorm
   );
+  // Trigo (checkGluten:true) es un caso especial: product.allergens filtra
+  // deliberadamente las entradas relacionadas a gluten (ver isGlutenRelated,
+  // app.js:1423) para no duplicarlas con la sección de gluten dedicada —
+  // eso significaba que una alergia a trigo/celiaquía NUNCA podía dar
+  // positivo acá, sin importar qué tan claro dijera "trigo" el producto
+  // (hallazgo real: barcode 041789001864, "harina de trigo" como primer
+  // ingrediente, seguía mostrando "Sin trigo"). product.gluten.hasGluten ya
+  // calcula esto bien (mismo patrón usado en app.js:2331) — se usa acá
+  // en vez de (o además de) el array de alergenos filtrado.
+  if (entry?.checkGluten && product.gluten?.hasGluten) return true;
+  if (!product.allergens || !Array.isArray(product.allergens)) return false;
   const namesToMatch = entry
     ? [normalizeAccents(entry.label), ...entry.match.map(normalizeAccents)]
     : [codeNorm];

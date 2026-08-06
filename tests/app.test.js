@@ -690,6 +690,47 @@ describe('computeVerdictReasons', () => {
     expect(reasons[0]).toMatchObject({ ok: true, severity: 'leve', type: 'allergen', title: 'Sin Cacahuate', detail: 'No detectamos tu alergia' })
   })
 
+  it('alergia a trigo detectada via product.gluten.hasGluten aunque product.allergens no incluya "Trigo" (bug reportado: producto 041789001864, harina de trigo como primer ingrediente pero OFF solo taggeo en:gluten, no en:wheat)', () => {
+    // allergensList real de OFF para este producto NO incluye "Trigo" (solo
+    // trae en:gluten genérico) — y aunque lo incluyera, filteredAllergens
+    // igual lo saca vía isGlutenRelated (ver app.js:1423, filtro deliberado
+    // para no duplicar la seccion de gluten). product.gluten.hasGluten SI es
+    // true (ya lo calcula bien la logica de gluten existente, via
+    // hasGlutenAllergenTag/hasGlutenInIngredients).
+    const product = {
+      sellos: [], notRecommended: [],
+      allergens: ['Crustáceos', 'Leche (Lácteos)', 'Sésamo', 'Soya'],
+      gluten: { hasGluten: true, classification: 'declared', dataAvailable: true }
+    }
+    const prefs = { allergens: [{ code: 'trigo', severity: 'severe' }], dietary: [], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    const trigoReason = reasons.find(r => r.type === 'allergen' && r.title.includes('Trigo'))
+    expect(trigoReason).toBeTruthy()
+    expect(trigoReason.ok).toBe(false)
+    expect(trigoReason.title).toBe('Contiene Trigo')
+  })
+
+  it('sin alergia a trigo detectada cuando product.gluten.hasGluten es false', () => {
+    const product = {
+      sellos: [], notRecommended: [], allergens: [],
+      gluten: { hasGluten: false, classification: 'certified', dataAvailable: true }
+    }
+    const prefs = { allergens: [{ code: 'trigo', severity: 'severe' }], dietary: [], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    const trigoReason = reasons.find(r => r.type === 'allergen' && r.title.includes('Trigo'))
+    expect(trigoReason.ok).toBe(true)
+    expect(trigoReason.title).toBe('Sin Trigo')
+  })
+
+  it('alergia a trigo sin product.gluten definido: no revienta, cae al array de allergens (sin "Trigo" ahi = ok:true)', () => {
+    const product = { sellos: [], notRecommended: [], allergens: ['Cacahuate'] }
+    const prefs = { allergens: [{ code: 'trigo', severity: 'severe' }], dietary: [], healthConditions: [] }
+    const reasons = computeVerdictReasons(product, prefs)
+    const trigoReason = reasons.find(r => r.type === 'allergen' && r.title.includes('Trigo'))
+    expect(trigoReason.ok).toBe(true)
+    expect(trigoReason.title).toBe('Sin Trigo')
+  })
+
   it('labels the soja allergen as "Soya" in the reason title', () => {
     const product = { sellos: [], notRecommended: [], allergens: ['Soya'] }
     const prefs = { allergens: [{ code: 'soja', severity: 'mild' }], dietary: [], healthConditions: [] }
