@@ -835,6 +835,22 @@ describe('computeVerdictReasons', () => {
     expect(reasons[0]).toMatchObject({ ok: true, type: 'health', title: 'Celiaquía', detail: 'No encontramos alertas para esta condición' })
   })
 
+  it('fenilcetonuria detectada via notRecommended (antes no era seleccionable en preferences.html)', () => {
+    const product = { sellos: [], notRecommended: [{ grupo: 'Fenilcetonúricos', razon: 'Contiene aspartame (fenilalanina)', certain: true }] }
+    const prefs = { allergens: [], dietary: [], healthConditions: ['fenilc'] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: false, type: 'health', title: 'Fenilcetonuria', detail: 'Contiene aspartame (fenilalanina)' })
+  })
+
+  it('intolerancia a lactosa detectada via notRecommended (antes no era seleccionable en preferences.html)', () => {
+    const product = { sellos: [], notRecommended: [{ grupo: 'Intolerantes a lactosa', razon: 'Contiene leche o derivados lácteos', certain: true }] }
+    const prefs = { allergens: [], dietary: [], healthConditions: ['lactos'] }
+    const reasons = computeVerdictReasons(product, prefs)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toMatchObject({ ok: false, type: 'health', title: 'Intolerancia a lactosa', detail: 'Contiene leche o derivados lácteos' })
+  })
+
   it('orden: alérgeno grave conflicto, salud conflicto, dieta conflicto, alérgeno leve conflicto, luego ok:true, luego ok:null', () => {
     const product = {
       sellos: [], allergens: ['Cacahuate', 'Lácteos'],

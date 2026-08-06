@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildPreferenceSummary, ALLERGEN_LABELS } from '../preference-labels.js'
+import { buildPreferenceSummary, ALLERGEN_LABELS, HEALTH_LABELS } from '../preference-labels.js'
 
 describe('buildPreferenceSummary', () => {
   it('devuelve counts y chips vacíos cuando prefs es null', () => {
@@ -34,6 +34,15 @@ describe('buildPreferenceSummary', () => {
       { emoji: '⚠️', text: '2 alergias' },
       { emoji: '❤️', text: '2 condiciones' }
     ])
+  })
+
+  it('labels fenilc y lactos correctamente (antes no existian en HEALTH_LABELS, caian al fallback de codigo crudo)', () => {
+    expect(HEALTH_LABELS.fenilc.label).toBe('Fenilcetonuria')
+    expect(HEALTH_LABELS.lactos.label).toBe('Intolerancia a lactosa')
+    const result = buildPreferenceSummary({ dietary: [], allergens: [], healthConditions: ['fenilc', 'lactos'] })
+    const labels = result.chips.map(c => c.label)
+    expect(labels).toContain('Fenilcetonuria')
+    expect(labels).toContain('Intolerancia a lactosa')
   })
 
   it('omite categorías con 0 items de counts', () => {

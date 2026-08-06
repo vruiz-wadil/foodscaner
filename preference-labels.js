@@ -21,7 +21,9 @@ export const HEALTH_LABELS = {
   diabet: { emoji: '🩸', label: 'Diabetes' },
   celiac: { emoji: '🌾', label: 'Celiaquía' },
   hipert: { emoji: '❤️', label: 'Hipertensión' },
-  ninos: { emoji: '👶', label: 'Niños en casa' }
+  ninos: { emoji: '👶', label: 'Niños en casa' },
+  fenilc: { emoji: '🧬', label: 'Fenilcetonuria' },
+  lactos: { emoji: '🥛', label: 'Intolerancia a lactosa' }
 };
 
 export const ALLERGEN_LABELS = {

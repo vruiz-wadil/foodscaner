@@ -1727,7 +1727,7 @@ const DIETARY_LABELS = {
   nonGmo: 'Sin OGM', noAdditives: 'Sin aditivos', palmOilFree: 'Sin palma', fairTrade: 'C. justo'
 };
 
-const HEALTH_LABELS = { diabet: 'Diabetes', celiac: 'Celiaquía', hipert: 'Hipertensión', ninos: 'Niños en casa' };
+const HEALTH_LABELS = { diabet: 'Diabetes', celiac: 'Celiaquía', hipert: 'Hipertensión', ninos: 'Niños en casa', fenilc: 'Fenilcetonuria', lactos: 'Intolerancia a lactosa' };
 
 function allergenLabel(code) {
   const codeNorm = normalizeAccents(code);
