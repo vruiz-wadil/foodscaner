@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
   <title>Yomi - Identificador Nutricional de Alimentos</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/assets/icons/favicon-32x32.png" sizes="32x32" type="image/png">
@@ -210,8 +210,28 @@
         <div id="result-success" class="result-state">
 
           <!-- 0. VEREDICTO -->
-          <div id="verdict-banner" class="verdict-banner" role="status"></div>
-          <p class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>
+          <div id="verdict-banner" class="verdict-banner" role="status">
+            <span class="verdict-main">
+              <span id="verdict-icon" class="verdict-icon" aria-hidden="true"></span>
+              <span id="verdict-text"></span>
+            </span>
+            <button type="button" id="btn-share-result" class="verdict-share-btn" aria-label="Compartir resultado">
+              <svg class="share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Compartir
+            </button>
+          </div>
+          <div id="verdict-reasons" class="reason-card hidden">
+            <h3 id="verdict-reasons-title"></h3>
+            <p id="verdict-reasons-summary" class="reason-summary"></p>
+            <ul id="verdict-reasons-list" tabindex="0" aria-labelledby="verdict-reasons-title"></ul>
+          </div>
+          <p id="verdict-disclaimer" class="verdict-disclaimer">Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.</p>
           <p id="report-ack" class="report-ack hidden" role="status">Reportaste un problema con este producto anteriormente — gracias por ayudarnos a mejorarlo.</p>
 
           <!-- 1. IDENTIDAD DEL PRODUCTO -->
@@ -229,7 +249,7 @@
           <!-- 2. ENCAJE CON MI DIETA -->
           <div id="dietary-section" class="dietary-section hidden">
             <h4 class="dietary-title">Tipo de Dieta</h4>
-            <p class="dietary-hint" id="dietary-hint">Toca un ícono para ver el detalle de cada clasificación.</p>
+            <p class="dietary-hint" id="dietary-hint">👉 Toca cualquier cuadro de color para saber qué significa</p>
             <div id="dietary-grid" class="dietary-icon-grid"></div>
             <div id="dietary-detail-panel" class="dietary-detail-panel hidden" aria-live="polite"></div>
             <div class="allergen-legend dietary-legend">
@@ -519,11 +539,11 @@
       </div>
       <span class="nav-label">Escanear</span>
     </button>
-    <button class="nav-item nav-disabled" aria-label="Análisis (próximamente)" aria-disabled="true" tabindex="-1">
+    <button class="nav-item" id="nav-history" aria-label="Análisis">
       <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
       <span class="nav-label">Análisis</span>
     </button>
-    <button class="nav-item nav-disabled" aria-label="Perfil (próximamente)" aria-disabled="true" tabindex="-1">
+    <button class="nav-item" id="nav-profile" aria-label="Perfil">
       <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
       <span class="nav-label">Perfil</span>
     </button>
@@ -653,6 +673,11 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="app.js?v=74" defer></script>
+  <script src="analytics.js"></script>
+  <script src="share.js?v=2"></script>
+  <script src="app.js?v=75" defer></script>
+  <script src="nav.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="authClient.js"></script>
 </body>
 </html>

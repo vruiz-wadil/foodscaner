@@ -183,7 +183,7 @@ body {
 .about-text {
   font-size: 13px;
   color: var(--ink-3);
-  margin: 0;
+  margin: 0 0 10px;
   line-height: 1.5;
 }
 
@@ -216,6 +216,21 @@ body {
 
 @media (min-width: 520px) {
   .products-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+
+/* Mobile: "¿Qué es Yomi?" arriba del botón de escanear. Rango exacto
+   complementario al breakpoint desktop de abajo (min-width 768 AND
+   min-height 600) — así nunca compiten por especificidad. */
+@media (max-width: 767.98px), (max-height: 599.98px) {
+  .app-main:has(.home-left) { display: flex; flex-direction: column; }
+  .home-left, .home-right { display: contents; }
+  .home-left .home-scan-frame { order: 1; }
+  .home-left .section-heading { order: 2; }
+  #home-upsell-banner         { order: 3; }
+  .home-right .section-about  { order: 4; }
+  .home-left .section-scan    { order: 5; }
+  .home-right .section-recent { order: 6; }
+  .home-right .section-social { order: 7; }
 }
 
 @media (min-width: 768px) and (min-height: 600px) {
@@ -270,6 +285,11 @@ body {
   font-size: 13px;
   color: var(--ink-muted);
 }
+
+/* hallazgo UX #8: home.css no tenía una regla genérica .hidden (solo las
+   scopeadas de abajo) — index.html no carga styles.css (que sí trae una),
+   así que #home-upsell-banner.classList.add('hidden') no ocultaba nada. */
+.hidden { display: none !important; }
 
 .products-empty.hidden { display: none; }
 
@@ -466,3 +486,406 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ── Content pages (auth, preferences, account, historial) ───────── */
+/* Estas pantallas solo usaban home.css/styles.css como si ya trajeran
+   estilos de formulario — no existían (el resto de la app no tiene forms
+   de texto, solo escáner/selects). Sin esto se veían como HTML sin marca. */
+.app-header { justify-content: space-between; }
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--ink);
+  margin: 0;
+}
+
+.content-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 0 20px 16px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.form-input {
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--card);
+  width: 100%;
+  transition: var(--transition);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+.btn-google {
+  background: #fff;
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.btn-google:hover {
+  background: var(--surface);
+}
+
+.account-email { font-weight: 600; color: var(--ink); margin: 0; }
+.account-preference-summary-line, .account-empty { font-size: 0.85rem; color: var(--ink-3); margin: 0; }
+
+/* Filas de "Mis datos" en Mi cuenta — reemplaza el bloque de 4 forms
+   apilados con 4 botones "Guardar" simultáneos (hallazgo UX). Nombre y
+   teléfono (cuando el login es por correo) se editan inline aquí mismo;
+   correo, teléfono-por-SMS y contraseña abren el modal genérico (reusa
+   .modal/.modal-content ya definidos en styles.css para los modales de
+   OCR/nutrición/reporte). */
+.account-data-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.account-data-row:first-child { border-top: none; padding-top: 0; }
+
+.account-data-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.account-data-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-3); }
+.account-data-value {
+  font-size: 0.95rem;
+  color: var(--ink);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-data-row-editing { gap: 8px; }
+.account-data-row-editing .form-input { flex: 1; margin: 0; }
+
+.row-icon-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.account-password-row { justify-content: flex-start; padding-top: 14px; }
+.account-link-btn { color: var(--ink); font-weight: 600; text-decoration: underline; cursor: pointer; background: none; border: none; padding: 0; font-size: 0.9rem; }
+
+/* auth/preferences/account/history reusan .app-main pero NO son la pantalla
+   Home de 2 columnas — sin este reset, la media query de arriba (pensada
+   solo para .home-left/.home-right) partía su contenido en un grid de
+   380px+resto en desktop, sea cual sea su estructura real (hallazgo visual).
+   Se aplica en TODOS los anchos, no solo desktop (hallazgo UX #4): el bug
+   real es que .app-main hereda overflow-y:auto + altura fija de la regla
+   base y nunca muestra affordance de scroll — el botón Guardar/Borrar queda
+   enterrado en una región con scroll interno invisible. Estas 4 pantallas de
+   solo-contenido deben scrollear con el documento normal, como cualquier
+   página web común, no como el layout de Home. */
+.app-main.content-page {
+  display: block;
+  overflow-y: visible;
+  height: auto;
+  /* width:100% es necesario, no decorativo: .app-shell es flex-direction:
+     column y este margin:0 auto pone auto en el eje cruzado (horizontal).
+     Con eje cruzado auto-margin, el spec de flexbox IGNORA align-items:
+     stretch — sin width, la caja se encoge a fit-content (~373px en
+     desktop) en vez de llenar hasta el max-width (hallazgo en vivo: "mi
+     cuenta sale angosto"). Confirmado con Playwright: width:100% arregla
+     exacto a 640px. */
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  /* .bottom-nav es position:fixed (styles.css) pinneado al fondo del
+     viewport — patrón correcto para estas páginas con scroll de documento,
+     pero sin esto el nav queda flotando ENCIMA del contenido final (ej. el
+     checkbox de consentimiento/botón Guardar quedaban parcialmente tapados,
+     hallazgo visual tras agregar el nav en estas 4 páginas). */
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+/* El padding-bottom de arriba solo garantiza que el botón quede libre en el
+   scroll MÁXIMO real — pero el rango de scroll en estas páginas es chico
+   (a veces <150px), así que un scroll "natural" que se detiene apenas el
+   botón se ve (scrollIntoView, tab de teclado, swipe corto) lo deja tapado
+   la mayor parte del recorrido. scroll-margin-bottom hace que cualquier
+   scroll-to-reveal nativo respete el mismo espacio reservado para el nav
+   fijo (hallazgo: "el botón de guardar preferencias se tapa con el footer"). */
+.content-page .btn {
+  scroll-margin-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+/* .app-shell normalmente fija height:100dvh + overflow:hidden (necesario
+   para el layout scroll-in-a-box de Home) — eso es lo que en realidad
+   atrapaba el scroll en estas páginas, incluso después de liberar
+   .app-main. Se libera también aquí para que el documento completo pueda
+   crecer y scrollear con normalidad. */
+.app-shell:has(> .app-main.content-page) {
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+/* html,body{height:100%} de arriba deja fijos a html Y body en la altura
+   del viewport — eso por sí solo ya vuelve a atrapar el scroll dentro de
+   body (que gana overflow-y:auto por la regla de interacción de la spec de
+   CSS con el overflow-x:hidden de styles.css), sin que llegue a
+   document.scrollingElement. Se libera también aquí, comprobado con
+   Playwright: sin esto, document.documentElement.scrollHeight se queda
+   pegado al alto del viewport aunque el contenido real sea más alto. */
+html:has(.app-main.content-page),
+body:has(.app-main.content-page) {
+  height: auto;
+}
+
+/* ── Reskin de páginas de cuenta (auth/preferences/account/history) ──────
+   Reusa vocabulario visual existente: un panel único (.content-card, ya
+   definido arriba) envuelve todo el contenido; adentro, filas sin card
+   propia (.row-card, divisor sutil) en vez de cards flotando sueltas. El
+   estado "elegido" persistente sobre los tiles de scan.html (.dietary-
+   grid-item/.allergen-grid-item, definidos en styles.css) es .chosen —
+   DISTINTO de .selected (ahí es "detalle expandido momentáneamente", no se
+   usa en estas páginas nuevas, sin conflicto). */
+.row-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.row-card:first-child { border-top: none; padding-top: 0; }
+
+.row-card-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.history-thumb, .history-thumb-placeholder {
+  width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
+  object-fit: cover; background: #f0f0f0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* El nombre del producto ocupa el espacio disponible para que el botón de
+   compartir quede alineado al borde derecho de la row-card (hallazgo:
+   sin flex:1 aquí, .share-btn queda pegado al texto en vez de al borde). */
+.history-item-name { flex: 1; margin: 0; }
+.share-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--ink, #0d3d35);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.icon-wrap {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(126,189,172,0.2);
+}
+
+.hero-card-dark {
+  background: var(--ink);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.hero-card-dark .icon-wrap { background: rgba(75,197,171,0.2); }
+.hero-card-dark .account-name { color: #fff; margin: 0; font-weight: 700; font-size: 0.95rem; }
+.hero-card-dark .account-email { color: rgba(255,255,255,0.7); margin: 0; font-weight: 500; font-size: 0.78rem; }
+
+.stat-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.stat-tile {
+  flex: 1;
+  text-align: center;
+  background: #f4faf8;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 6px;
+}
+.stat-tile .stat-num { font-size: 20px; font-weight: 800; color: var(--ink); }
+.stat-tile .stat-label { font-size: 10px; color: var(--ink-3); }
+
+.account-preference-row { flex-direction: column; align-items: stretch; gap: 8px; }
+.account-preference-row > .btn { align-self: flex-start; }
+.account-preference-summary { flex: 1; min-width: 0; }
+.account-preference-summary-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.account-preference-group { margin-top: 8px; }
+.account-preference-group-label { font-size: 0.72rem; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+.account-preference-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.account-preference-chip { display: inline-flex; align-items: center; gap: 4px; background: #f3f3f3; border-radius: 999px; padding: 4px 10px; font-size: 0.8rem; }
+.account-preference-toggle { flex-shrink: 0; border: none; cursor: pointer; background: #f3f3f3; color: var(--ink); font-weight: 600; font-size: 0.8rem; border-radius: 999px; padding: 4px 12px; }
+.account-preference-toggle:hover { background: #e6e6e6; }
+.account-preference-chip.severity-mild { background: var(--amber-light); color: #8a5a00; border: 1px solid var(--amber-border); }
+.account-preference-chip.severity-severe { background: var(--chile-light); color: var(--chile); border: 1px solid var(--chile-border); }
+
+/* Tiles de dietas/condiciones/alergias en preferences.html — scopeado a
+   #preferences-form por dos razones: (1) especificidad, para ganarle a la
+   base .dietary-grid-item/.allergen-grid-item de styles.css (misma
+   especificidad de 1 clase, pero styles.css carga DESPUÉS de home.css en
+   estas páginas y ganaba); (2) aunque scan.html no carga home.css hoy, deja
+   esto imposible de filtrar por accidente ahí (siempre trae db-yes/db-no/
+   ai-yes/ai-no/unknown, nunca la clase base sola). */
+#preferences-form .dietary-grid-item,
+#preferences-form .allergen-grid-item {
+  background: #eeeeee;
+  border-color: #cccccc;
+}
+#preferences-form .dietary-grid-item .label,
+#preferences-form .allergen-grid-item .label { color: #666666; }
+
+/* Elegido: naranja por default — dietas/condiciones no tienen severidad, un
+   solo tono de "elegido" alcanza. Alergias lo sobreescribe por severidad
+   abajo (mismo naranja para Aviso, rojo para Estricto). Escopeado a
+   #preferences-form (igual que la regla gris de arriba): un selector con ID
+   siempre pesa más que cualquier cantidad de clases, así que la regla gris
+   sin escopear con ID le ganaba a este .chosen de puro-clases aunque tuviera
+   más clases — el tile se quedaba en gris con solo el outline oscuro
+   encima, sin relleno de color. */
+#preferences-form .dietary-grid-item.chosen,
+#preferences-form .allergen-grid-item.chosen {
+  background: var(--accent);
+  border-color: var(--accent);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+#preferences-form .dietary-grid-item.chosen .label,
+#preferences-form .allergen-grid-item.chosen .label { color: #fff; }
+
+/* Alergia elegida con severidad "Estricto" — rojo en vez del naranja de
+   "Aviso". .severity-mild/.severity-severe se sincronizan en preferences-ui.js
+   junto con el botón .active del severity-toggle correspondiente. */
+#preferences-form .allergen-grid-item.chosen.severity-severe {
+  background: var(--chile);
+  border-color: var(--chile);
+}
+
+.severity-toggle { display: flex; gap: 4px; margin: -4px 0 14px; }
+.severity-toggle button {
+  flex: 1;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.severity-toggle button.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+/* #allergen-tiles: flex-wrap de .allergen-item (tile + su propio
+   severity-toggle envueltos juntos), escopeado a esta página (styles.css
+   define .allergen-icon-grid como grid, compartido con scan.html; no
+   tocamos esa regla). Ronda 2 de fix UX: la barra de severidad interleaved
+   (commit 04556fb) ya era clara pero rompía el grid de 4 columnas cada vez
+   que se elegía un alergeno. Ahora el toggle vive DENTRO del wrapper de su
+   propio tile — el wrapper crece de alto al elegirse, la fila nunca se
+   rompe. */
+#preferences-form #allergen-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#preferences-form .allergen-item {
+  flex: 0 0 calc(25% - 6px);
+  display: flex;
+  flex-direction: column;
+}
+#preferences-form .allergen-grid-item {
+  width: 100%;
+}
+#preferences-form .severity-toggle {
+  margin: 4px 0 0;
+}
+
+@media (max-width: 500px) {
+  #preferences-form .allergen-item { flex: 0 0 calc(33.333% - 6px); }
+}
+
+/* Toast reusable (toast.js) — flotante, se oculta sola, sin marcado en cada
+   página (el elemento lo crea showToast() en el DOM). */
+#app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(20px);
+  background: #0d5c37;
+  color: #eafaf3;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+}
+#app-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Bloque "Suscripción" en Mi cuenta (solo membershipStatus:'active') —
+   estilo Netflix: ver si se renovará/cuándo vence, cancelar (conserva
+   acceso hasta el vencimiento) o reactivar, e historial de pagos. */
+.account-subscription-block {
+  padding: 0;
+}
+.account-subscription-status { font-size: 0.88rem; color: var(--ink-2); margin: 4px 0 8px; }
+
+.account-payment-history { padding: 10px 0 4px; }
+.account-payment-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.account-payment-row:first-child { border-top: none; }
+
+/* .link-button vivía solo en el <style> inline de auth.html — cualquier otro
+   botón con esta clase (ej. #btn-skip-preferences en preferences.html) se
+   renderizaba sin ningún estilo, botón de navegador puro (hallazgo UX). */
+.link-button { background: none; border: none; color: var(--ink); text-decoration: underline; font-size: 0.85rem; padding: 8px 0; cursor: pointer; }

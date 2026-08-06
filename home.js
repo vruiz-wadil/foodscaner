@@ -77,11 +77,31 @@ function escHtml(s) {
 // Navigate to scanner
 function goScan() { window.location.href = 'scan.html?scan=1'; }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Evita que un usuario a medio onboarding llegue a index.html navegando
+// directo por URL (ej. cerró la pestaña de onboarding-membership.html y
+// volvió a abrir la app) — lo manda de vuelta al paso que le falta.
+function redirectTargetForIncompleteOnboarding(profile) {
+  if (!profile) return null;
+  if (!profile.profile || !profile.profile.completedAt) return 'onboarding-profile.html';
+  return null;
+}
+
+function greetingSubtitle(profile) {
+  const displayName = profile && ((profile.profile && profile.profile.displayName) || profile.displayName || '');
+  return displayName ? `Hola ${displayName}, escanea y lo sabrás en segundos.` : null;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
   renderGrid();
 
   document.getElementById('btn-scan').addEventListener('click', goScan);
   document.getElementById('nav-scan').addEventListener('click', goScan);
+  document.getElementById('nav-profile').addEventListener('click', () => {
+    window.location.href = 'account.html';
+  });
+  document.getElementById('nav-history').addEventListener('click', () => {
+    window.location.href = 'history.html';
+  });
 
   // Product card click → scan that barcode
   document.getElementById('products-grid').addEventListener('click', e => {
@@ -98,4 +118,17 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     window.location.href = 'scan.html?barcode=' + encodeURIComponent(card.dataset.barcode);
   });
+
+  // await explícito (mismo motivo que preferences-ui.js, Task 15): no depender
+  // de que el auto-sync de authClient.js ya haya resuelto para este frame.
+  const profile = window.authClient ? await window.authClient.syncUserProfile() : null;
+
+  const greeting = greetingSubtitle(profile);
+  if (greeting) {
+    const headingSub = document.querySelector('.heading-sub');
+    if (headingSub) headingSub.textContent = greeting;
+  }
+
+  const redirectTarget = redirectTargetForIncompleteOnboarding(profile);
+  if (redirectTarget) window.location.href = redirectTarget;
 });

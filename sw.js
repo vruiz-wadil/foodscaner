@@ -48,6 +48,13 @@ self.addEventListener('fetch', (e) => {
   const { request } = e;
   const url = new URL(request.url);
 
+  // Cross-origin (Google reCAPTCHA/App Check, Firebase, fonts, etc.): let
+  // the browser handle these directly. Intercepting them here risked a
+  // first-time-fetch-fails -> caches.match() finds nothing -> respondWith()
+  // resolves to undefined, which the browser rejects outright (seen with
+  // recaptcha/api.js the moment App Check started loading it on every page).
+  if (url.origin !== self.location.origin) return;
+
   // API calls: network-first
   if (url.pathname.startsWith('/api/')) {
     e.respondWith(

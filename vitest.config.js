@@ -5,6 +5,6 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.js'],
-    exclude: ['**/node_modules/**', '**/.worktrees/**'],
+    exclude: ['**/node_modules/**', '**/.worktrees/**', 'tests/e2e/**'],
   },
 })

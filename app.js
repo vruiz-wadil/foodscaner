@@ -77,6 +77,20 @@ const rejectedProductCategory = document.getElementById("rejected-product-catego
 let currentBarcodeQuery = "";
 let currentDataSources = "";
 
+// Localización de terminología: "soja" es el término usado en España, pero
+// en México (audiencia de la app) el término común es "soya" — mismo
+// ingrediente, sinónimo regional. No toca el código interno del alérgeno
+// (sigue siendo 'soja' como key/id en todo el codebase) ni los arrays de
+// detección (que ya reconocen ambos términos como sinónimos).
+function normalizeSoyTerm(text) {
+  if (!text) return text;
+  return text.replace(/\bsoja\b/gi, (match) => {
+    if (match === 'SOJA') return 'SOYA';
+    if (match === 'Soja') return 'Soya';
+    return 'soya';
+  });
+}
+
 const COMMON_ALLERGENS = [
   { emoji: "🥛", label: "Lácteos", match: ["leche", "lácteos", "lactosa", "milk", "dairy"] },
   { emoji: "🥜", label: "Cacahuate", match: ["cacahuate", "cacahuete", "maní", "peanut"] },
@@ -85,7 +99,7 @@ const COMMON_ALLERGENS = [
   { emoji: "🥚", label: "Huevo", match: ["huevo", "huevos", "egg"] },
   { emoji: "🐟", label: "Pescado", match: ["pescado", "fish"] },
   { emoji: "🦐", label: "Mariscos", match: ["crustáceo", "crustacean", "molusco", "mollusc", "mariscos"] },
-  { emoji: "🫘", label: "Soja", match: ["soja", "soya", "soy", "soybean"] }
+  { emoji: "🫘", label: "Soya", match: ["soja", "soya", "soy", "soybean"] }
 ];
 
 // Allergen chips convey status by color alone (detected/traces/safe/ai-suggested) —
@@ -185,6 +199,11 @@ function getHistory() {
   try { return JSON.parse(localStorage.getItem("yomi_history")) || []; } catch { return []; }
 }
 
+// Reexpuesto globalmente para que history-ui.js (Task 20, otro scope — script
+// separado en history.html) reutilice el mismo historial local en vez de
+// duplicar la lógica de lectura/parseo de localStorage.
+window.getLocalHistory = getHistory;
+
 // Tracks barcodes this device reported a problem on, so a later re-scan can
 // acknowledge it. Deliberately doesn't claim the issue was fixed — we have no
 // reliable signal for that — just that we remembered the report.
@@ -223,7 +242,7 @@ function renderHistory() {
   `).join("");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   // Disclaimer gate — show on first visit, persist acceptance in localStorage
   const DISCLAIMER_KEY = 'yomi_disclaimer_accepted';
   const dm = document.getElementById('disclaimer-modal');
@@ -241,7 +260,15 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   const params = new URLSearchParams(location.search);
   const bc = params.get('barcode');
-  if (bc) analyzeBarcode(bc.trim());
+  if (bc) {
+    // Llegando desde el historial (scan.html?barcode=X) el DOMContentLoaded
+    // de este script dispara analyzeBarcode antes de que authClient termine
+    // de sincronizar el perfil (fetch async en otro <script type=module>),
+    // por lo que getCachedProfile() regresaba null y el veredicto salia sin
+    // personalizar. Se espera el sync explicitamente, igual que home.js.
+    if (window.authClient) await window.authClient.syncUserProfile();
+    analyzeBarcode(bc.trim());
+  }
   else if (params.get('scan')) {
     if (!dm || localStorage.getItem(DISCLAIMER_KEY)) {
       toggleCamera();
@@ -266,10 +293,14 @@ function resetToScan() {
 
 function setupEventListeners() {
   // Toggle camera scanner
-  btnToggleCamera.addEventListener("click", toggleCamera);
+  // Guarded (like the other optional elements below): app.js also loads on
+  // history.html (Task 20, window.getLocalHistory reuse) which has no
+  // scanner DOM, so these lookups return null there.
+  if (btnToggleCamera) btnToggleCamera.addEventListener("click", toggleCamera);
 
   // New scan button (single-column layout)
-  document.getElementById("btn-new-scan").addEventListener("click", resetToScan);
+  const btnNewScan = document.getElementById("btn-new-scan");
+  if (btnNewScan) btnNewScan.addEventListener("click", resetToScan);
 
   // New scan button (desktop sidebar)
   const btnNewScanSidebar = document.getElementById("btn-new-scan-sidebar");
@@ -293,10 +324,10 @@ function setupEventListeners() {
   renderHistory();
 
   // Camera selection change
-  cameraSelect.addEventListener("change", restartCameraWithSelectedDevice);
+  if (cameraSelect) cameraSelect.addEventListener("change", restartCameraWithSelectedDevice);
 
   // Manual barcode submission
-  barcodeForm.addEventListener("submit", (e) => {
+  if (barcodeForm) barcodeForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const barcode = barcodeInput.value.trim();
     if (barcode) {
@@ -510,6 +541,20 @@ function decodeZbar(imageData) {
   }
 }
 
+// hallazgo de debugging: enumerateDevices() llamado antes de tener permiso
+// de cámara regresa deviceId vacío/inválido en Firefox (y en algunos casos
+// de Edge/Chromium) — pedir la cámara con deviceId:{exact} contra un id así
+// nunca puede satisfacerse (OverconstrainedError inmediato, sin llegar
+// siquiera a mostrar el prompt de permiso). Si no hay un cameraId real,
+// se pide la cámara trasera genérica en su lugar — eso sí dispara el
+// prompt, y cameraId real seguirá funcionando igual que antes (Chrome).
+function buildCameraConstraints(cameraId) {
+  const base = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  return cameraId
+    ? { deviceId: { exact: cameraId }, ...base }
+    : { facingMode: { ideal: 'environment' }, ...base };
+}
+
 async function startScanningNative(cameraId) {
   if (!('BarcodeDetector' in window) && !(window.zbarWasm && typeof window.zbarWasm.scanImageData === 'function')) {
     renderError("Escáner no disponible todavía", "El escáner aún no está listo (puede tardar unos segundos en cargar). Ingresa el código de barras manualmente más abajo, o espera unos segundos y vuelve a intentar.");
@@ -519,7 +564,7 @@ async function startScanningNative(cameraId) {
   window._zbarFailed = false;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: cameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: buildCameraConstraints(cameraId)
     });
     nativeScanStream = stream;
     const track = stream.getVideoTracks()[0];
@@ -617,6 +662,7 @@ async function startScanningNative(cameraId) {
     invalidAttempts = 0;
     scanTimeoutId = setInterval(() => {
       if (!isScanning) { clearInterval(scanTimeoutId); return; }
+      const scanHintEl = document.getElementById('scan-coaching');
       const elapsed = Date.now() - scanStartTime;
       if (elapsed > 15000 && scanHintEl) {
         scanHintEl.textContent = '¿No funciona? Ingresa el código manualmente ↑';
@@ -791,9 +837,8 @@ function showState(stateElement) {
     if (manualInput) manualInput.classList.remove("hidden");
     if (resultsPanel) resultsPanel.classList.add("hidden");
   } else {
-    if (!isDesktop) controlPanel.classList.add("hidden");
-    // Rejected/not-found has no sidebar retry action, so keep the manual search reachable on desktop
-    if (isDesktop && manualInput) manualInput.classList.toggle("hidden", stateElement !== resultRejected);
+    if (!isDesktop) controlPanel.classList.toggle("hidden", stateElement !== resultRejected);
+    if (manualInput) manualInput.classList.toggle("hidden", stateElement !== resultRejected);
     if (resultsPanel) resultsPanel.classList.remove("hidden");
     const target = stateElement.closest(".results-panel") || stateElement;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1010,6 +1055,11 @@ function renderDietaryBadges(product) {
       badge.textContent = "🤖";
       btn.appendChild(badge);
     }
+    const tapBadge = document.createElement("span");
+    tapBadge.className = "tap-badge";
+    tapBadge.textContent = "👆";
+    tapBadge.setAttribute("aria-hidden", "true");
+    btn.appendChild(tapBadge);
     btn.addEventListener("click", () => {
       if (selectedBtn === btn) {
         // toggle off
@@ -1247,7 +1297,7 @@ function parseApiProduct(product) {
     "en:eggs": "Huevos",
     "en:peanuts": "Cacahuates (Maní)",
     "en:nuts": "Frutos de cáscara (Nueces)",
-    "en:soybeans": "Soja",
+    "en:soybeans": "Soya",
     "en:mustard": "Mostaza",
     "en:molluscs": "Moluscos",
     "en:fish": "Pescado",
@@ -1439,6 +1489,14 @@ function parseApiProduct(product) {
     }
   }
 
+  // Sin gluten (hallazgo: dietary nunca tenía la key glutenFree, así que la
+  // preferencia "glutenFree" del usuario siempre caía en "Sin datos" en la
+  // tarjeta de diagnóstico personalizado, sin importar que hasGluten ya
+  // estuviera calculado correctamente unas líneas arriba).
+  dietary.glutenFree = glutenDataAvailable ? !hasGluten : null;
+  dietary.glutenFreeSource = glutenDataAvailable ? 'db' : null;
+  dietary.glutenFreeDetail = glutenDetails;
+
   // Mexican warning seals (NOM-051 Fase 2)
   const sellos = [];
   const hasNutritionData = kcal > 0 || sugars !== null || saturatedFat !== null || sodium !== null;
@@ -1528,6 +1586,15 @@ function parseApiProduct(product) {
     notRecommended.push({ icon: "🥛", grupo: "Intolerantes a lactosa", razon: "Contiene leche o derivados lácteos", certain: true });
   }
 
+  // Gluten → celíacos (hallazgo: no existía ningún push determinístico acá,
+  // solo el AI-suggested podía agregar un item "Celiacos" de forma no
+  // confiable — computeVerdictReasons's healthRows para healthConditions:
+  // ['celiac'] SIEMPRE mostraba "safe" aunque hasGluten ya estuviera
+  // calculado correctamente, porque solo lee de notRecommended).
+  if (hasGluten) {
+    notRecommended.push({ icon: "🌾", grupo: "Celiacos", razon: "Contiene gluten/trigo", certain: true });
+  }
+
   // Nutriscore
   const nutriscore = product.nutriscore_grade || product.nutrition_grades || "-";
 
@@ -1592,17 +1659,165 @@ function hasNoRealData(product) {
   return !!(product.isFromFallback && !product._enrichedFrom && !product.ingredientsText && !product._from_nutrition_ocr);
 }
 
-// Derive a top-line SANO/REGULAR/EVITAR verdict from data already computed
-// by parseApiProduct (NOM-051 sellos + notRecommended groups) — no new data needed.
+// Normalizador de grupos de salud — misma lógica que el normalizador inline
+// usado al mergear notRecommended de IA (ver línea ~2094): colapsa variantes
+// de texto ("Diabéticos", "Diabetes") a una clave estable ("diabet") para
+// poder compararla 1:1 contra userPreferences.healthConditions.
+function grupoClaveVerdict(s) {
+  const n = String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (n.includes('diabet')) return 'diabet';
+  if (n.includes('hipert')) return 'hipert';
+  if (n.includes('lact')) return 'lactos';
+  if (n.includes('fenilc')) return 'fenilc';
+  if (n.includes('celiac') || n.includes('celiaq')) return 'celiac';
+  if (n.includes('gluten')) return 'gluten';
+  if (n.includes('nino') || n.includes('ninos') || n.includes('menor')) return 'ninos';
+  return n;
+}
+
+// Normaliza acentos igual que grupoClaveVerdict — el code de preferencias
+// ("lacteos") no lleva acento pero COMMON_ALLERGENS sí ("lácteos"), y sin
+// esto la alergia a lácteos (la más común) nunca se detectaba.
+function normalizeAccents(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// True cuando product.allergens (labels detectados, ej. "Lácteos", "Cacahuate")
+// incluye el alérgeno identificado por `code` (ej. "leche", "cacahuate") —
+// usa COMMON_ALLERGENS para traducir entre el code canónico de userPreferences
+// y el label que ya usa el pipeline de parseApiProduct.
+function isAllergenDetected(product, code) {
+  const codeNorm = normalizeAccents(code);
+  const entry = COMMON_ALLERGENS.find(ca =>
+    ca.match.some(m => normalizeAccents(m) === codeNorm) || normalizeAccents(ca.label) === codeNorm
+  );
+  // Trigo (checkGluten:true) es un caso especial: product.allergens filtra
+  // deliberadamente las entradas relacionadas a gluten (ver isGlutenRelated,
+  // app.js:1423) para no duplicarlas con la sección de gluten dedicada —
+  // eso significaba que una alergia a trigo/celiaquía NUNCA podía dar
+  // positivo acá, sin importar qué tan claro dijera "trigo" el producto
+  // (hallazgo real: barcode 041789001864, "harina de trigo" como primer
+  // ingrediente, seguía mostrando "Sin trigo"). product.gluten.hasGluten ya
+  // calcula esto bien (mismo patrón usado en app.js:2331) — se usa acá
+  // en vez de (o además de) el array de alergenos filtrado.
+  if (entry?.checkGluten && product.gluten?.hasGluten) return true;
+  if (!product.allergens || !Array.isArray(product.allergens)) return false;
+  const namesToMatch = entry
+    ? [normalizeAccents(entry.label), ...entry.match.map(normalizeAccents)]
+    : [codeNorm];
+  return product.allergens.some(a => namesToMatch.includes(normalizeAccents(a)));
+}
+
+// Verdict base SANO/REGULAR/EVITAR — misma lógica de siempre (NOM-051 sellos +
+// notRecommended groups), sin conocimiento de preferencias de usuario.
 // Never returns 'sano' when there's no real data to base that on — absence of
 // seals/risk flags on an empty fallback record is not evidence of safety.
-function computeVerdict(product) {
+function computeBaseVerdict(product) {
   if (hasNoRealData(product)) return 'regular';
   const sellos = (product.sellos || []).length;
   const critical = (product.notRecommended || []).some(n => n.certain !== false);
   if (sellos >= 3 || (critical && sellos >= 2)) return 'evitar';
   if (sellos >= 1 || critical) return 'regular';
   return 'sano';
+}
+
+const DIETARY_LABELS = {
+  vegan: 'Vegano', vegetarian: 'Vegetariano', keto: 'Keto', glutenFree: 'Sin gluten',
+  caseinFree: 'Sin caseína', organic: 'Orgánico', kosher: 'Kosher', halal: 'Halal',
+  nonGmo: 'Sin OGM', noAdditives: 'Sin aditivos', palmOilFree: 'Sin palma', fairTrade: 'C. justo'
+};
+
+const HEALTH_LABELS = { diabet: 'Diabetes', celiac: 'Celiaquía', hipert: 'Hipertensión', ninos: 'Niños en casa', fenilc: 'Fenilcetonuria', lactos: 'Intolerancia a lactosa' };
+
+function allergenLabel(code) {
+  const codeNorm = normalizeAccents(code);
+  const entry = COMMON_ALLERGENS.find(ca =>
+    ca.match.some(m => normalizeAccents(m) === codeNorm) || normalizeAccents(ca.label) === codeNorm
+  );
+  return entry ? entry.label : code;
+}
+
+function allergenEmoji(code) {
+  const codeNorm = normalizeAccents(code);
+  const entry = COMMON_ALLERGENS.find(ca =>
+    ca.match.some(m => normalizeAccents(m) === codeNorm) || normalizeAccents(ca.label) === codeNorm
+  );
+  return entry ? entry.emoji : '🍽️';
+}
+
+// Filas de diagnóstico personalizado: una por cada restricción configurada
+// por el usuario, con el estado ok/conflicto/sin-dato y el texto para
+// mostrar en la UI. computeVerdict deriva el veredicto de esta misma lista
+// (una sola fuente de verdad para el matching perfil-vs-producto).
+function computeVerdictReasons(product, userPreferences) {
+  if (!userPreferences) return [];
+
+  const allergens = userPreferences.allergens || [];
+  const dietary = userPreferences.dietary || [];
+  const healthConditions = userPreferences.healthConditions || [];
+
+  const allergenRows = allergens.filter(Boolean).map(a => {
+    const detected = isAllergenDetected(product, a.code);
+    const label = allergenLabel(a.code);
+    const severity = a.severity === 'severe' ? 'grave' : (a.severity === 'mild' ? 'leve' : null);
+    return detected
+      ? { ok: false, severity, icon: allergenEmoji(a.code), type: 'allergen', title: `Contiene ${label}`, detail: `Registraste alergia ${severity} a ${label}` }
+      : { ok: true, severity, icon: allergenEmoji(a.code), type: 'allergen', title: `Sin ${label}`, detail: 'No detectamos tu alergia' };
+  });
+
+  const dietaryRows = dietary.map(key => {
+    const label = DIETARY_LABELS[key] || key;
+    const value = product.dietary ? product.dietary[key] : undefined;
+    if (value === false) return { ok: false, severity: null, icon: '🍽️', type: 'dietary', title: `No es ${label}`, detail: 'El producto no cumple esta preferencia' };
+    if (value === true) return { ok: true, severity: null, icon: '🍽️', type: 'dietary', title: `Es ${label}`, detail: 'Cumple esta preferencia' };
+    return { ok: null, severity: null, icon: '🍽️', type: 'dietary', title: `Sin datos: ${label}`, detail: 'No tenemos información sobre esta preferencia para este producto' };
+  });
+
+  const healthRows = healthConditions.map(cond => {
+    const label = HEALTH_LABELS[cond] || cond;
+    const match = (product.notRecommended || []).find(n => n.certain === true && grupoClaveVerdict(n.grupo) === cond);
+    return match
+      ? { ok: false, severity: null, icon: '⚕️', type: 'health', title: label, detail: String(match.razon || '').slice(0, 140) }
+      : { ok: true, severity: null, icon: '⚕️', type: 'health', title: label, detail: 'No encontramos alertas para esta condición' };
+  });
+
+  const isConflict = r => r.ok === false;
+  const severeAllergenConflict = allergenRows.filter(r => isConflict(r) && r.severity === 'grave');
+  const healthConflict = healthRows.filter(isConflict);
+  const dietConflict = dietaryRows.filter(isConflict);
+  const mildAllergenConflict = allergenRows.filter(r => isConflict(r) && r.severity === 'leve');
+  // Alérgeno con severity ausente/no reconocida (severity:null) que sí se detectó
+  // en el producto: no cae en la regla "grave" ni "leve", pero sigue siendo un
+  // conflicto y debe mostrarse en la tarjeta de diagnóstico igual.
+  const otherAllergenConflict = allergenRows.filter(r => isConflict(r) && r.severity !== 'grave' && r.severity !== 'leve');
+  const okRows = [...allergenRows, ...dietaryRows, ...healthRows].filter(r => r.ok === true);
+  const unknownRows = dietaryRows.filter(r => r.ok === null);
+
+  return [...severeAllergenConflict, ...healthConflict, ...dietConflict, ...mildAllergenConflict, ...otherAllergenConflict, ...okRows, ...unknownRows];
+}
+
+// Deriva el verdict SANO/REGULAR/EVITAR. `userPreferences` es opcional — si es
+// null/undefined (usuario free o no logueado), el comportamiento es idéntico
+// al de computeBaseVerdict (retrocompatible). Cuando se pasa, aplica 5 reglas
+// de precedencia en orden — la primera que aplique gana:
+//   1. Alérgeno severity:"severe" detectado en el producto → evitar.
+//   2. healthCondition que matchea un grupo certain:true en notRecommended → evitar.
+//   3. Dieta declarada explícitamente violada (product.dietary[key] === false) → evitar.
+//   4. Alérgeno severity:"mild" detectado → tope "regular" (no sube a "sano").
+//   5. Sin conflictos → verdict base normal.
+function computeVerdict(product, userPreferences) {
+  const base = computeBaseVerdict(product);
+  if (!userPreferences) return base;
+
+  const reasons = computeVerdictReasons(product, userPreferences);
+  const isConflict = r => r.ok === false;
+
+  if (reasons.some(r => isConflict(r) && r.severity === 'grave')) return 'evitar';
+  if (reasons.some(r => isConflict(r) && r.type === 'health')) return 'evitar';
+  if (reasons.some(r => isConflict(r) && r.type === 'dietary')) return 'evitar';
+  if (base === 'sano' && reasons.some(r => isConflict(r) && r.severity === 'leve')) return 'regular';
+
+  return base;
 }
 
 function renderNotRecommended(product) {
@@ -1624,6 +1839,270 @@ function renderNotRecommended(product) {
   cardNotRec.classList.remove("hidden");
 }
 
+// Preferencias del usuario logueado+premium para personalizar computeVerdict.
+// null si: no está logueado (window.authClient no existe o no hay perfil
+// cacheado todavía), si membershipStatus !== 'active', o si es active pero aún no configuró
+// preferences (requiere consentimiento expreso — ver spec de privacidad).
+function getUserPreferencesForVerdict() {
+  if (typeof window === 'undefined' || !window.authClient || typeof window.authClient.getCachedProfile !== 'function') {
+    return null;
+  }
+  const profile = window.authClient.getCachedProfile();
+  if (!profile || profile.membershipStatus !== 'active' || !profile.preferences) return null;
+  return profile.preferences;
+}
+
+// Disclaimer médico (hallazgo de revisión legal): un veredicto personalizado
+// por condiciones de salud (diabetes/celiaquía/etc.) puede leerse como consejo
+// médico automatizado. Antes vivía en un <p> aparte junto al disclaimer base
+// (hallazgo UX: los 2 textos eran redundantes, ambos decían "no sustituye el
+// consejo de un profesional") — ahora se agrega como una frase más al MISMO
+// disclaimer, solo cuando la personalización se aplicó de verdad.
+const BASE_VERDICT_DISCLAIMER = 'Estimación automatizada con IA, con fines informativos — no es un diagnóstico ni sustituye el consejo de un profesional de salud.';
+
+function renderPersonalizedDisclaimer(userPreferences) {
+  const el = document.getElementById('verdict-disclaimer');
+  if (!el) return;
+  el.textContent = userPreferences
+    ? `${BASE_VERDICT_DISCLAIMER} Este resultado considera tus preferencias guardadas.`
+    : BASE_VERDICT_DISCLAIMER;
+}
+
+function escReasons(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function reasonStateGlyph(ok) {
+  if (ok === true) return '✅';
+  if (ok === false) return '❌';
+  return '❔';
+}
+
+function reasonRowClass(ok) {
+  if (ok === true) return 'reason-row--ok';
+  if (ok === false) return 'reason-row--warn';
+  return 'reason-row--unknown';
+}
+
+// Pinta/oculta la tarjeta de diagnóstico personalizado bajo el banner de
+// veredicto. Con userPreferences null hay dos casos: si el usuario ES un
+// miembro activo (solo que aún no configuró preferences), la tarjeta se
+// oculta sin removerla del DOM, igual que con computeVerdictReasons vacío;
+// si no es miembro activo (free, no logueado, expirado, pendiente...), se
+// muestra el teaser de upsell en su lugar. Ocultar sin remover del DOM deja
+// el layout estable antes de que corra la animación verdict-reveal del
+// banner (evita un salto de layout simultáneo).
+function renderPersonalizedReasons(product, userPreferences) {
+  const card = document.getElementById('verdict-reasons');
+  if (!card) return;
+
+  if (!userPreferences) {
+    const profile = (typeof window !== 'undefined' && window.authClient && typeof window.authClient.getCachedProfile === 'function')
+      ? window.authClient.getCachedProfile()
+      : null;
+    const isActiveMember = !!profile && profile.membershipStatus === 'active';
+
+    if (isActiveMember || hasNoRealData(product)) {
+      clearTeaserState(card);
+      card.classList.add('hidden');
+      return;
+    }
+    if (typeof window.track === 'function') {
+      window.track('Paywall Hit', { context: 'personalized-reasons' });
+    }
+    renderTeaserReasons(card);
+    return;
+  }
+
+  const reasons = computeVerdictReasons(product, userPreferences);
+  if (!reasons.length) {
+    clearTeaserState(card);
+    card.classList.add('hidden');
+    return;
+  }
+
+  clearTeaserState(card);
+
+  const conflictCount = reasons.filter(r => r.ok === false).length;
+  const hasConflict = conflictCount > 0;
+  const titleEl = document.getElementById('verdict-reasons-title');
+  if (titleEl) titleEl.textContent = hasConflict ? 'Tu perfil vs. este producto' : 'Cumple con tu perfil';
+
+  const summaryEl = document.getElementById('verdict-reasons-summary');
+  if (summaryEl) {
+    summaryEl.textContent = hasConflict
+      ? `${conflictCount} de ${reasons.length} restricciones en conflicto`
+      : `Revisamos ${reasons.length} restricciones de tu perfil`;
+  }
+
+  const list = document.getElementById('verdict-reasons-list');
+  if (list) {
+    list.innerHTML = reasons.map(r => `
+      <li class="reason-row ${reasonRowClass(r.ok)}">
+        <span class="reason-icon">${escReasons(r.icon)}</span>
+        <span class="reason-state" aria-hidden="true">${reasonStateGlyph(r.ok)}</span>
+        <span class="reason-text"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
+        ${r.ok === false && r.severity === 'grave' ? '<span class="reason-severity">grave</span>' : ''}
+      </li>
+    `).join('');
+  }
+
+  card.classList.remove('hidden');
+  card.classList.remove('verdict-reasons-reveal');
+  void card.offsetWidth;
+  card.classList.add('verdict-reasons-reveal');
+}
+
+// Limpia cualquier resto visual/accesible dejado por el teaser (clase,
+// CTA de suscripción, y label sr-only "Vista previa bloqueada...") antes de
+// pintar un estado distinto (oculto o reasons reales). Sin esto, un lector
+// de pantalla puede anunciar el mensaje de teaser junto a un análisis real.
+function clearTeaserState(card) {
+  card.classList.remove('reason-card--teaser');
+  const existingCta = card.querySelector('.btn-teaser-cta');
+  if (existingCta) existingCta.remove();
+  card.querySelector('.sr-only')?.remove();
+  card.querySelector('.teaser-price-line')?.remove();
+}
+
+// Pinta la variante "teaser" de la tarjeta de diagnóstico para usuarios sin
+// preferencias configuradas (free, no logueados, o premium sin setup) — filas
+// genéricas con blur en vez de datos reales del producto, más un CTA a
+// onboarding-membership.html. No hay reasons reales que mostrar (no hay
+// preferencias contra qué evaluar), así que el contenido es fijo, no derivado
+// de computeVerdictReasons.
+function renderTeaserReasons(card) {
+  card.classList.add('reason-card--teaser');
+
+  const titleEl = document.getElementById('verdict-reasons-title');
+  if (titleEl) titleEl.textContent = 'Desbloquea tu análisis personalizado';
+
+  const summaryEl = document.getElementById('verdict-reasons-summary');
+  if (summaryEl) summaryEl.textContent = 'Alergias, dietas y condiciones de salud — verificado contra tu perfil';
+
+  const listEl = document.getElementById('verdict-reasons-list');
+  if (listEl && !listEl.previousElementSibling?.classList.contains('sr-only')) {
+    const srLabel = document.createElement('p');
+    srLabel.className = 'sr-only';
+    srLabel.textContent = 'Vista previa bloqueada — suscríbete para ver tu análisis real.';
+    listEl.parentNode.insertBefore(srLabel, listEl);
+  }
+
+  const teaserRows = [
+    { icon: '🥜', title: 'Alergias', detail: 'Verificación automática' },
+    { icon: '🍽️', title: 'Dieta', detail: 'Compatibilidad con tu estilo de alimentación' },
+    { icon: '⚕️', title: 'Condiciones de salud', detail: 'Alertas relevantes para ti' }
+  ];
+
+  const list = document.getElementById('verdict-reasons-list');
+  if (list) {
+    list.innerHTML = teaserRows.map(r => `
+      <li class="reason-row reason-row--teaser">
+        <span class="reason-icon" aria-hidden="true">${escReasons(r.icon)}</span>
+        <span class="reason-text" aria-hidden="true"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
+      </li>
+    `).join('');
+  }
+
+  const existingCta = card.querySelector('.btn-teaser-cta');
+  if (existingCta) existingCta.remove();
+  const cta = document.createElement('a');
+  // Sin sesión, ir directo a onboarding-membership.html deja al usuario
+  // varado: confirmMembershipPayment() manda Authorization: Bearer null,
+  // el backend responde 401 y el error que ve es "No se pudo iniciar el
+  // pago" sin ninguna pista de que el problema es que nunca inició sesión.
+  // Usuarios logueados (aunque no hayan completado perfil/preferencias)
+  // sí pueden pagar — requireUser es el único gate del endpoint.
+  const isLoggedIn = typeof window !== 'undefined' && window.authClient
+    && typeof window.authClient.getCachedProfile === 'function'
+    && !!window.authClient.getCachedProfile();
+  cta.href = isLoggedIn ? 'onboarding-membership.html' : 'premium-offer.html';
+  cta.className = 'btn btn-primary btn-teaser-cta';
+  cta.textContent = 'Ver mi análisis';
+
+  // Precio visible ANTES de que el usuario haga click en el CTA — sin esto,
+  // alguien sin sesión no se entera de que hay un costo hasta llegar a
+  // onboarding-membership.html, al final de un funnel de 4 pantallas
+  // (auth → perfil → preferencias → membresía). Se agrega arriba del CTA.
+  const existingPriceLine = card.querySelector('.teaser-price-line');
+  if (existingPriceLine) existingPriceLine.remove();
+  const priceLine = document.createElement('p');
+  priceLine.className = 'teaser-price-line';
+  priceLine.textContent = '$29.90 MXN/mes — cancela cuando quieras';
+  card.appendChild(priceLine);
+
+  card.appendChild(cta);
+
+  card.classList.remove('hidden');
+  card.classList.remove('verdict-reasons-reveal');
+  void card.offsetWidth;
+  card.classList.add('verdict-reasons-reveal');
+}
+
+// Registra el escaneo en el historial en la nube — solo usuarios premium
+// (free se queda con su historial local de 5, sin cambios). Fire-and-forget:
+// un fallo de red no debe bloquear ni ensuciar el render del resultado.
+async function logScanToCloudHistory(barcode, productName, verdict, image) {
+  if (typeof window === 'undefined' || !window.authClient) return;
+  const profile = window.authClient.getCachedProfile();
+  if (!profile || profile.membershipStatus !== 'active') return;
+
+  try {
+    const token = await window.authClient.getIdToken();
+    const body = { barcode, productName, verdict };
+    if (image) body.image = image;
+    await fetch('/api/me/history', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e) {
+    console.warn('[history] no se pudo registrar el escaneo en la nube:', e.message);
+  }
+}
+
+// Incrementa el contador de escaneos totales — a diferencia de
+// logScanToCloudHistory (premium-only), corre para CUALQUIER usuario
+// logueado: el stat "Escaneos" de account.html debe reflejar el uso real
+// del usuario sin importar su membershipStatus. Fire-and-forget, mismo motivo que la
+// función anterior.
+async function incrementScanCounter() {
+  if (typeof window === 'undefined' || !window.authClient) return;
+  try {
+    const token = await window.authClient.getIdToken();
+    await fetch('/api/me/scan', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch (e) {
+    console.warn('[usage] no se pudo incrementar el contador de escaneos:', e.message);
+  }
+}
+
+// Fetch real de OCR de ingredientes — extraído de initOcrHandlers() (whole-branch
+// review: el fetch inline nunca mandaba Authorization, así que el gate de
+// membershipStatus del backend nunca se ejercitaba para usuarios logueados).
+// Mismo patrón de token que logScanToCloudHistory/incrementScanCounter.
+async function processOcrImage(imageData) {
+  const headers = { "Content-Type": "application/json" };
+  if (typeof window !== 'undefined' && window.authClient) {
+    const token = await window.authClient.getIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch("/api/ocr/process", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ imageData })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const err = new Error(data.error || "Error al procesar");
+    err.code = data.error;
+    throw err;
+  }
+  return data;
+}
+
 // Render dynamic results onto success screen
 function renderProductData(product, barcode) {
   if (!product.isFood) {
@@ -1637,14 +2116,27 @@ function renderProductData(product, barcode) {
   const reportAck = document.getElementById('report-ack');
   if (reportAck) reportAck.classList.toggle('hidden', !hasReportedBarcode(barcode));
 
-  const verdict = computeVerdict(product);
+  const userPreferences = getUserPreferencesForVerdict();
+  const verdict = computeVerdict(product, userPreferences);
+  if (typeof window.track === 'function') {
+    window.track('Scan Completado', { verdict });
+  }
+  renderPersonalizedDisclaimer(userPreferences);
+  renderPersonalizedReasons(product, userPreferences);
+  logScanToCloudHistory(barcode, product.name, verdict, product.image);
+  incrementScanCounter();
   const verdictBanner = document.getElementById('verdict-banner');
   if (verdictBanner) {
-    const verdictText = hasNoRealData(product)
-      ? '⚠ Sin datos suficientes para evaluar'
-      : { sano: '✓ Puedes comerlo', regular: '⚠ Con moderación', evitar: '✗ Mejor evítalo' }[verdict];
+    const noData = hasNoRealData(product);
+    const verdictIcon = noData ? '⚠' : { sano: '✓', regular: '⚠', evitar: '✗' }[verdict];
+    const verdictText = noData
+      ? 'Sin datos suficientes para evaluar'
+      : { sano: 'Puedes comerlo', regular: 'Con moderación', evitar: 'Mejor evítalo' }[verdict];
     verdictBanner.className = 'verdict-banner verdict-' + verdict;
-    verdictBanner.textContent = verdictText;
+    const verdictIconEl = document.getElementById('verdict-icon');
+    if (verdictIconEl) verdictIconEl.textContent = verdictIcon;
+    const verdictTextEl = document.getElementById('verdict-text');
+    if (verdictTextEl) verdictTextEl.textContent = verdictText;
     // Celebratory entrance only for the "you can eat this" verdict — REGULAR/EVITAR
     // stay static so a warning never reads as an animated/gamified moment.
     if (verdict === 'sano' && !hasNoRealData(product)) {
@@ -1652,6 +2144,10 @@ function renderProductData(product, barcode) {
       void verdictBanner.offsetWidth; // force reflow so the animation restarts on repeat scans
       verdictBanner.classList.add('verdict-reveal');
     }
+  }
+  const btnShareResult = document.getElementById('btn-share-result');
+  if (btnShareResult) {
+    btnShareResult.onclick = () => window.shareResult({ name: product.name, verdict, barcode }, btnShareResult);
   }
   cardAllergens.classList.add("hidden");
   analysisGrid.classList.add("hidden");
@@ -1706,7 +2202,7 @@ function renderProductData(product, barcode) {
   const ocrRequestSection = document.getElementById("ocr-request-section");
   if (ingredientsSection && ingredientsTextEl) {
     if (product.ingredientsText && product.ingredientsText.trim()) {
-      ingredientsTextEl.textContent = product.ingredientsText;
+      ingredientsTextEl.textContent = normalizeSoyTerm(product.ingredientsText);
       ingredientsSection.classList.remove("hidden");
       if (ocrRequestSection) ocrRequestSection.classList.add("hidden");
       // Show grid for ingredients
@@ -2627,14 +3123,7 @@ function initOcrHandlers() {
             const imageData = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
             console.log('[OCR Vision] Sending image', canvas.width, 'x', canvas.height);
 
-            const response = await fetch("/api/ocr/process", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ imageData })
-            });
-
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || "Error al procesar");
+            const data = await processOcrImage(imageData);
 
             const textArea = document.getElementById("ocr-result");
             if (textArea) textArea.value = data.cleanedText || "";
@@ -2646,7 +3135,10 @@ function initOcrHandlers() {
             document.getElementById("ocr-step-2").classList.add("hidden");
             const step1 = document.getElementById("ocr-step-1");
             step1.classList.remove("hidden");
-            showModalStepError(step1, "Error al procesar imagen: " + (err?.message || err));
+            const message = (err?.code === 'membership_required' || err?.code === 'membership_expired')
+              ? "Necesitas una membresía activa para escanear ingredientes. Ve a Mi cuenta para activarla."
+              : "Error al procesar imagen: " + (err?.message || err);
+            showModalStepError(step1, message);
           }
         };
         img.src = imgUrl;

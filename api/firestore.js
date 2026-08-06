@@ -5,21 +5,29 @@ let _token = null;
 let _tokenExpiry = 0;
 let _projectId = null;
 
-async function getAccessToken() {
-  if (_token && Date.now() < _tokenExpiry) return _token;
+// dotenvx deja \" para comillas y \+LF para saltos de línea del PEM en el
+// blob JSON de la service account — se des-escapa antes de parsear. Se usa
+// tanto para el OAuth2 de Firestore (abajo) como para firmar Firebase custom
+// tokens (api/phoneAuth.js) — MISMA credencial, un solo lugar que mantener.
+function getServiceAccount() {
   const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (!key) return null;
+  const raw = key.includes('\\"')
+    ? key.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22')
+    : key;
+  return JSON.parse(raw);
+}
+
+async function getAccessToken() {
+  if (_token && Date.now() < _tokenExpiry) return _token;
   try {
-    // dotenvx leaves \" for quotes and \+LF for PEM line breaks
-    const raw = key.includes('\\"')
-      ? key.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22')
-      : key;
-    const sa = JSON.parse(raw);
+    const sa = getServiceAccount();
+    if (!sa) return null;
     _projectId = sa.project_id;
     const jwtHeader = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);
     const claim = JSON.stringify({
-      iss: sa.client_email, scope: 'https://www.googleapis.com/auth/datastore',
+      iss: sa.client_email, scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit',
       aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
     });
     const jwtPayload = Buffer.from(claim).toString('base64url');
@@ -54,8 +62,8 @@ const BASE = 'https://firestore.googleapis.com/v1';
 function getProjectId() {
   if (_projectId) return _projectId;
   try {
-    const k = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (k) { const raw = k.includes('\\"') ? k.replace(/\x5c\x0a/g, '\x5c\x6e').replace(/\x5c\x22/g, '\x22') : k; _projectId = JSON.parse(raw).project_id; }
+    const sa = getServiceAccount();
+    if (sa) _projectId = sa.project_id;
   } catch {}
   return _projectId || 'foodscaner-cache-v2';
 }
@@ -409,10 +417,415 @@ async function fireDeleteDoc(col, id) {
   return resp.ok;
 }
 
+// --- Field conversion helpers: objeto JS <-> tipos nativos de Firestore ---
+// A diferencia de fireSetCache/fireSetOcrData (blob _data.stringValue), users/{uid} usa
+// campos nativos tipados para permitir updateMask.fieldPaths granular (ver PUT /preferences).
+function toFirestoreValue(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'string') return { stringValue: v };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(toFirestoreValue) } };
+  if (typeof v === 'object') return { mapValue: { fields: toFirestoreFields(v) } };
+  throw new Error(`Tipo no soportado para Firestore: ${typeof v}`);
+}
+
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (const [k, v] of Object.entries(obj)) fields[k] = toFirestoreValue(v);
+  return fields;
+}
+
+function fromFirestoreValue(v) {
+  if (!v) return null;
+  if ('nullValue' in v) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return parseInt(v.integerValue, 10);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromFirestoreValue);
+  if ('mapValue' in v) return fromFirestoreFields(v.mapValue.fields || {});
+  return null;
+}
+
+function fromFirestoreFields(fields) {
+  const obj = {};
+  for (const [k, v] of Object.entries(fields || {})) obj[k] = fromFirestoreValue(v);
+  return obj;
+}
+
+// --- users/{uid}: perfil de cuenta, campos nativos (no blob _data) ---
+async function fireGetUser(uid) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const resp = await fetch(docPath('users', uid), {
+      headers: { Authorization: 'Bearer ' + token },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (resp.status === 404) return null;
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return fromFirestoreFields(data.fields || {});
+  } catch (e) {
+    console.warn('[Firestore] getUser error, uid:', uid, e.message);
+    return null;
+  }
+}
+
+async function deleteFirebaseAuthUser(uid) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No access token');
+  const resp = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/projects/${getProjectId()}/accounts:delete`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ localId: uid }),
+      signal: AbortSignal.timeout(5000)
+    }
+  );
+  if (!resp.ok) throw new Error(`Identity Toolkit delete error (status ${resp.status})`);
+}
+
+async function fireUpsertUser(uid, data) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const nowIso = new Date().toISOString();
+  const today = nowIso.slice(0, 10);
+
+  const existingResp = await fetch(docPath('users', uid), {
+    headers: { Authorization: 'Bearer ' + token },
+    signal: AbortSignal.timeout(5000)
+  });
+
+  if (existingResp.status === 404) {
+    const fields = toFirestoreFields({
+      email: data.email || null,
+      phoneNumber: data.phoneNumber || null,
+      emailVerified: !!data.emailVerified,
+      displayName: data.displayName || null,
+      photoURL: data.photoURL || null,
+      providers: data.providers || [],
+      createdAt: nowIso,
+      lastLoginAt: nowIso,
+      profile: { displayName: null, phone: null, email: null, completedAt: null },
+      membershipStatus: 'pending',
+      membershipExpiresAt: null,
+      lastPaymentAt: null,
+      autoRenew: false,
+      paymentHistory: [],
+      termsAcceptedAt: data.termsAccepted ? nowIso : null,
+      termsVersion: data.termsAccepted ? (data.termsVersion || 'v1') : null,
+      ageConfirmedAt: data.ageConfirmed ? nowIso : null,
+      billing: {
+        stripeCustomerId: null, subscriptionId: null,
+        subscriptionStatus: null, currentPeriodEnd: null,
+        isFounderPricing: false, billingCycle: null
+      },
+      usage: { date: today, cacheRefreshCount: 0, totalScans: 0 }
+    });
+    const resp = await fetch(docPath('users', uid), {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!resp.ok) throw new Error(`Firestore create user failed: ${resp.status}`);
+    return { created: true };
+  }
+
+  if (!existingResp.ok) throw new Error(`Firestore get user failed: ${existingResp.status}`);
+
+  const mask = '?updateMask.fieldPaths=lastLoginAt&updateMask.fieldPaths=providers';
+  const fields = toFirestoreFields({ lastLoginAt: nowIso, providers: data.providers || [] });
+  const resp = await fetch(docPath('users', uid) + mask, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore update user failed: ${resp.status}`);
+  return { created: false };
+}
+
+async function firePatchUserFields(uid, fieldPaths, data) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const mask = fieldPaths.map(fp => `updateMask.fieldPaths=${encodeURIComponent(fp)}`).join('&');
+  const fields = toFirestoreFields(data);
+  const resp = await fetch(docPath('users', uid) + '?' + mask, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore patch user fields failed: ${resp.status}`);
+  return true;
+}
+
+async function fireGetUserRaw(uid) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(docPath('users', uid), {
+    headers: { Authorization: 'Bearer ' + token },
+    signal: AbortSignal.timeout(5000)
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`Firestore get user failed: ${resp.status}`);
+  const data = await resp.json();
+  return { fields: fromFirestoreFields(data.fields || {}), updateTime: data.updateTime };
+}
+
+async function firePatchUserFieldsWithPrecondition(uid, fieldPaths, data, updateTime) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  // hallazgo (reproducido en vivo contra Firestore real): currentDocument.updateTime
+  // es un QUERY PARAM de la API REST, no un campo del body — mandarlo en el body
+  // causaba 400 "Unknown name currentDocument at 'document': Cannot find field",
+  // rompiendo todo caller de esta función (fireIncrementUsageCounter,
+  // fireRecordMembershipPayment) sin que los tests (fetch mockeado) lo detectaran.
+  const mask = fieldPaths.map(fp => `updateMask.fieldPaths=${encodeURIComponent(fp)}`).join('&');
+  const precondition = `currentDocument.updateTime=${encodeURIComponent(updateTime)}`;
+  const fields = toFirestoreFields(data);
+  return fetch(docPath('users', uid) + '?' + mask + '&' + precondition, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  });
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fireIncrementUsageCounter(uid, field) {
+  if (!['cacheRefreshCount', 'totalScans'].includes(field)) {
+    throw new Error('Campo de uso inválido: ' + field);
+  }
+  const today = new Date().toISOString().slice(0, 10); // UTC, a propósito (ver spec)
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const doc = await fireGetUserRaw(uid);
+    if (!doc) throw new Error('Usuario no encontrado: ' + uid);
+
+    const currentUsage = doc.fields.usage || { date: today, cacheRefreshCount: 0, totalScans: 0 };
+    const isNewDay = currentUsage.date !== today;
+    const newUsage = {
+      date: today,
+      cacheRefreshCount: isNewDay ? (field === 'cacheRefreshCount' ? 1 : 0) : (currentUsage.cacheRefreshCount || 0) + (field === 'cacheRefreshCount' ? 1 : 0),
+      // totalScans NUNCA se resetea por cambio de día (a diferencia del otro
+      // campo) — es un contador de por vida, no una cuota diaria.
+      totalScans: (currentUsage.totalScans || 0) + (field === 'totalScans' ? 1 : 0)
+    };
+
+    const resp = await firePatchUserFieldsWithPrecondition(uid, ['usage'], { usage: newUsage }, doc.updateTime);
+    if (resp.ok) return newUsage;
+    if (resp.status === 409) {
+      const backoffMs = 10 + Math.floor(Math.random() * 40); // 10-50ms
+      await sleep(backoffMs);
+      continue;
+    }
+    throw new Error(`Firestore increment usage failed: ${resp.status}`);
+  }
+  throw new Error('No se pudo incrementar usage tras reintentos por conflictos de concurrencia');
+}
+
+async function fireFulfillStripeSubscription({ uid, stripeCustomerId, subscriptionId, subscriptionStatus, currentPeriodEnd, cancelAtPeriodEnd, invoiceId, amount, currency }) {
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const doc = await fireGetUserRaw(uid);
+    if (!doc) throw new Error('Usuario no encontrado: ' + uid);
+
+    const existingHistory = doc.fields.paymentHistory || [];
+    if (existingHistory.some(p => p.stripeInvoiceId === invoiceId)) {
+      return {
+        membershipStatus: doc.fields.membershipStatus,
+        membershipExpiresAt: doc.fields.membershipExpiresAt,
+        alreadyFulfilled: true
+      };
+    }
+
+    const now = new Date().toISOString();
+    const paymentHistory = [...existingHistory, { date: now, amount, currency, method: 'stripe', stripeInvoiceId: invoiceId }];
+    const update = {
+      membershipStatus: 'active',
+      membershipExpiresAt: currentPeriodEnd,
+      lastPaymentAt: now,
+      autoRenew: !cancelAtPeriodEnd,
+      billing: { stripeCustomerId, subscriptionId, subscriptionStatus, currentPeriodEnd },
+      paymentHistory
+    };
+
+    const resp = await firePatchUserFieldsWithPrecondition(
+      uid,
+      [
+        'membershipStatus', 'membershipExpiresAt', 'lastPaymentAt', 'autoRenew', 'paymentHistory',
+        'billing.stripeCustomerId', 'billing.subscriptionId', 'billing.subscriptionStatus', 'billing.currentPeriodEnd'
+      ],
+      update,
+      doc.updateTime
+    );
+    if (resp.ok) return update;
+    if (resp.status === 409) {
+      const backoffMs = 10 + Math.floor(Math.random() * 40); // 10-50ms
+      await sleep(backoffMs);
+      continue;
+    }
+    throw new Error(`Firestore fulfill stripe subscription failed: ${resp.status}`);
+  }
+  throw new Error('No se pudo registrar el pago de Stripe tras reintentos por conflictos de concurrencia');
+}
+
+async function fireLogUserHistory(uid, entry) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const fields = toFirestoreFields(entry);
+  const resp = await fetch(`${docPath('users', uid)}/history`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore log history failed: ${resp.status}`);
+  const data = await resp.json();
+  const id = data.name.split('/').pop();
+  return { id };
+}
+
+async function fireDeleteUserHistoryEntry(uid, id) {
+  const token = await getAccessToken();
+  if (!token) return false;
+  const resp = await fetch(`${docPath('users', uid)}/history/${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(5000)
+  });
+  return resp.ok;
+}
+
+async function fireListUserHistory(uid, limit = 50) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'history' }],
+        orderBy: [{ field: { fieldPath: 'scannedAt' }, direction: 'DESCENDING' }],
+        limit
+      },
+      parent: `projects/${getProjectId()}/databases/(default)/documents/users/${encodeURIComponent(uid)}`
+    }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore list history failed: ${resp.status}`);
+  const rows = await resp.json();
+  return rows.filter(r => r.document).map(r => ({
+    id: r.document.name.split('/').pop(),
+    ...fromFirestoreFields(r.document.fields || {})
+  }));
+}
+
+// --- phoneIndex/{phone}: phone -> uid mapping ---
+async function fireGetPhoneIndex(phone) {
+  try {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const resp = await fetch(docPath('phoneIndex', phone), {
+      headers: { Authorization: 'Bearer ' + token },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (resp.status === 404) return null;
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return fromFirestoreFields(data.fields || {});
+  } catch (e) {
+    console.warn('[Firestore] getPhoneIndex error:', e.message);
+    return null;
+  }
+}
+
+async function fireSetPhoneIndex(phone, uid) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(docPath('phoneIndex', phone), {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: toFirestoreFields({ uid }) }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`Firestore set phone index failed: ${resp.status}`);
+}
+
+// --- users: búsqueda por email (match exacto, para el panel admin) ---
+async function findUserByEmail(email) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'users' }],
+        where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email } } },
+        limit: 1
+      }
+    }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`find user by email failed: ${resp.status}`);
+  const rows = await resp.json();
+  const row = rows.find(r => r.document);
+  if (!row) return null;
+  return row.document.name.split('/').pop();
+}
+
+// --- users: listado paginado, más reciente primero (para la tab Usuarios del panel admin) ---
+async function fireListUsers(pageToken) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No Firestore access token');
+  const PAGE_SIZE = 50;
+  const structuredQuery = {
+    from: [{ collectionId: 'users' }],
+    orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+    limit: PAGE_SIZE
+  };
+  if (pageToken) structuredQuery.startAt = { values: [{ stringValue: pageToken }], before: false };
+  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`list users failed: ${resp.status}`);
+  const rows = await resp.json();
+  const items = rows.filter(r => r.document).map(r => {
+    const uid = r.document.name.split('/').pop();
+    const f = fromFirestoreFields(r.document.fields || {});
+    return {
+      uid,
+      email: f.email || null,
+      phoneNumber: f.phoneNumber || null,
+      displayName: f.displayName || null,
+      membershipStatus: f.membershipStatus || null,
+      createdAt: f.createdAt || null
+    };
+  });
+  const nextPageToken = items.length === PAGE_SIZE ? items[items.length - 1].createdAt : null;
+  return { items, nextPageToken };
+}
+
 module.exports = {
-  getAccessToken,
+  getAccessToken, getServiceAccount,
   fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache,
   fireGetOcrData, fireSetOcrData,
   fireGetNutritionOcr, fireSetNutritionOcr,
-  fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS
+  fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS,
+  fireGetUser, deleteFirebaseAuthUser, fireUpsertUser, firePatchUserFields,
+  fireGetUserRaw, firePatchUserFieldsWithPrecondition, fireIncrementUsageCounter, fireFulfillStripeSubscription,
+  fireLogUserHistory, fireListUserHistory, fireDeleteUserHistoryEntry,
+  fireGetPhoneIndex, fireSetPhoneIndex, findUserByEmail, fireListUsers
 };

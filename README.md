@@ -707,6 +707,11 @@ Crea un archivo `.env` en la raíz del proyecto (`.env.example` trae una plantil
 # Firebase (Firestore para caché persistente — opcional, ver abajo)
 FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"...","private_key":"-----BEGIN RSA PRIVATE KEY-----\n...","client_email":"..."}'
 
+# Twilio Verify — envío/verificación de código SMS para login por teléfono
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_VERIFY_SERVICE_SID=VA...
+
 # Groq — único requerido: IA de texto (análisis) y visión (OCR)
 GROQ_API_KEY=gsk_...
 
@@ -726,7 +731,7 @@ ADMIN_TOKEN=elige-un-token-largo-y-aleatorio
 PORT=3000
 ```
 
-Solo `GROQ_API_KEY` es estrictamente requerida para levantar el servidor con funcionalidad completa de búsqueda/análisis. Sin Firebase la caché funciona solo en memoria (L1, se pierde al reiniciar). Sin `USDA_API_KEY` se omite esa fuente de datos. Sin `ADMIN_TOKEN` el panel de administración queda deshabilitado (`503`) en vez de abierto.
+Solo `GROQ_API_KEY` es estrictamente requerida para levantar el servidor con funcionalidad completa de búsqueda/análisis. Sin Firebase la caché funciona solo en memoria (L1, se pierde al reiniciar). Sin `USDA_API_KEY` se omite esa fuente de datos. Sin `ADMIN_TOKEN` el panel de administración queda deshabilitado (`503`) en vez de abierto. Sin las 3 variables de Twilio, el login por teléfono responde 502 (Twilio Verify no configurado) — el resto de la app (incluyendo email/Google) sigue funcionando normal. `FIREBASE_SERVICE_ACCOUNT_KEY` ahora también se usa para firmar el Firebase custom token del login por teléfono, además de para la caché de Firestore.
 
 ---
 

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Activa tu membresía</title>
+  <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2DBC9E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>
+    .hidden{display:none!important}
+    .consent-block { display: block; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; background: #fafafa; }
+    .membership-compare { width: 100%; border-collapse: collapse; margin: 8px 0; }
+    .membership-compare th, .membership-compare td { padding: 8px; text-align: center; border-bottom: 1px solid #eee; }
+    .membership-compare th:first-child, .membership-compare td:first-child { text-align: left; }
+    .membership-price { font-size: 1.25rem; font-weight: 700; text-align: center; margin: 8px 0 16px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+    </header>
+    <main class="app-main content-page">
+      <section class="section-heading">
+        <h1 class="heading-title">Activa tu membresía</h1>
+        <p class="heading-sub">Compara lo que obtienes gratis vs. con Yomi Premium.</p>
+      </section>
+      <div class="content-card">
+        <table class="membership-compare">
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              <th scope="col">Gratis</th>
+              <th scope="col">Premium</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Escaneo por código de barras</td>
+              <td aria-label="Incluido"><span aria-hidden="true">✓</span></td>
+              <td aria-label="Incluido"><span aria-hidden="true">✓</span></td>
+            </tr>
+            <tr>
+              <td>Veredicto básico</td>
+              <td aria-label="Incluido"><span aria-hidden="true">✓</span></td>
+              <td aria-label="Incluido"><span aria-hidden="true">✓</span></td>
+            </tr>
+            <tr>
+              <td>Análisis personalizado</td>
+              <td aria-label="No incluido"></td>
+              <td aria-label="Incluido"><span aria-hidden="true">✓</span></td>
+            </tr>
+            <tr>
+              <td>Escaneo de ingredientes por foto</td>
+              <td aria-label="No incluido"></td>
+              <td aria-label="Incluido"><span aria-hidden="true">✓</span></td>
+            </tr>
+            <tr>
+              <td>Historial en la nube</td>
+              <td aria-label="No incluido"></td>
+              <td aria-label="Incluido"><span aria-hidden="true">✓</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="membership-price">$29.90 MXN/mes</p>
+        <label class="consent-block">
+          <input type="checkbox" id="pay-checkbox">
+          Acepto pagar la membresía. Se te redirigirá a Stripe para completar el pago de forma segura.
+        </label>
+        <button type="button" id="btn-confirm-payment" class="btn btn-primary"><img src="assets/redesign/icon-stripe.svg" alt="" class="btn-icon">Suscribirme — $29.90/mes</button>
+        <button type="button" id="btn-skip-membership" class="btn btn-secondary">Seguir sin membresía</button>
+        <p id="membership-error" class="hidden" role="alert"></p>
+      </div>
+    </main>
+  </div>
+  <script src="analytics.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="onboarding-membership-ui.js"></script>
+</body>
+</html>

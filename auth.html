@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Iniciar sesión</title>
+  <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2DBC9E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- home.css NO define estilos de input/botón (viven en styles.css) — hallazgo
+       de revisión UX: sin este link el formulario se ve roto/sin marca. -->
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>
+    /* home.css solo scopea .hidden a selectores específicos — regla genérica
+       para #auth-error, necesaria para que se oculte correctamente (hallazgo UX). */
+    .hidden { display: none !important; }
+    .auth-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: #6b6b6b; font-size: 14px; }
+    .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
+    .password-field-wrap { position: relative; }
+    .btn-toggle-password { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 13px; }
+    .consent-block { display: block; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; background: #fafafa; }
+    #login-form .btn { margin-top: 10px; }
+    .btn-icon { width: 18px; height: 18px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+    </header>
+    <main class="app-main content-page">
+      <section class="section-heading">
+        <h1 class="heading-title" id="auth-heading-title">Inicia sesión</h1>
+        <p class="heading-sub">Guarda tu historial y personaliza tus resultados.</p>
+      </section>
+
+      <div class="content-card">
+        <div id="login-view">
+          <button type="button" id="btn-google" class="btn btn-google"><img src="assets/redesign/icon-google.svg" alt="" class="btn-icon">Continuar con Google</button>
+          <button type="button" id="btn-phone" class="btn btn-secondary"><img src="assets/redesign/icon-phone.svg" alt="" class="btn-icon">Continuar con teléfono</button>
+          <div class="auth-divider">o con tu correo</div>
+
+          <form id="login-form" novalidate>
+            <div class="form-field">
+              <label for="login-email">Correo electrónico</label>
+              <input id="login-email" class="form-input" type="email" required autocomplete="email" placeholder="tucorreo@ejemplo.com">
+            </div>
+
+            <div class="form-field">
+              <label for="login-password">Contraseña</label>
+              <div class="password-field-wrap">
+                <input id="login-password" class="form-input" type="password" required minlength="6" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+                <button type="button" id="btn-toggle-password" class="btn-toggle-password" aria-label="Mostrar contraseña">Ver</button>
+              </div>
+            </div>
+
+            <button type="button" id="btn-forgot-password" class="link-button">¿Olvidaste tu contraseña?</button>
+
+            <div class="form-field hidden" id="signup-password-confirm-field">
+              <label for="signup-password-confirm">Confirmar contraseña</label>
+              <input id="signup-password-confirm" class="form-input" type="password" minlength="6" autocomplete="new-password" placeholder="Repite tu contraseña">
+            </div>
+          </form>
+        </div>
+
+        <div id="phone-step" class="hidden">
+          <div class="form-field">
+            <label for="phone-country">País</label>
+            <select id="phone-country"></select>
+          </div>
+          <div class="form-field">
+            <label for="phone-number">Número de teléfono</label>
+            <input id="phone-number" class="form-input" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="10 dígitos">
+          </div>
+          <button type="button" id="btn-send-code" class="btn btn-primary">Enviar código</button>
+          <button type="button" id="btn-phone-cancel" class="link-button">Cancelar</button>
+        </div>
+
+        <div id="phone-code-step" class="hidden">
+          <div class="form-field">
+            <label for="phone-code">Código de verificación</label>
+            <input id="phone-code" class="form-input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+          </div>
+          <button type="button" id="btn-verify-code" class="btn btn-primary">Verificar</button>
+          <button type="button" id="btn-resend-code" class="link-button">Reenviar código</button>
+          <button type="button" id="btn-phone-code-back" class="link-button">Cambiar número</button>
+        </div>
+
+        <div id="forgot-password-view" class="hidden">
+          <div class="form-field">
+            <label for="forgot-password-email">Correo electrónico</label>
+            <input id="forgot-password-email" class="form-input" type="email" placeholder="tucorreo@ejemplo.com">
+          </div>
+          <button type="button" id="btn-send-reset" class="btn btn-primary">Enviar enlace</button>
+          <button type="button" id="btn-forgot-password-back" class="link-button">Volver a iniciar sesión</button>
+          <p id="forgot-password-success" class="hidden" role="status"></p>
+        </div>
+
+        <!-- Compartido entre signup por correo (2do clic de #btn-signup) y
+             signup por teléfono (#btn-phone-consent-confirm) — mismo gate legal,
+             sin duplicar markup. Ver setView() en auth-ui.js. -->
+        <div id="signup-only" class="hidden">
+          <label class="consent-block">
+            <input type="checkbox" id="terms-checkbox">
+            Acepto los <a href="/terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a>
+            y el <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de Privacidad</a>.
+          </label>
+          <label class="consent-block">
+            <input type="checkbox" id="age-checkbox">
+            Confirmo que soy mayor de 18 años.
+          </label>
+          <button type="button" id="btn-phone-consent-confirm" class="btn btn-primary hidden">Confirmar y continuar</button>
+        </div>
+
+        <!-- Hermano de #login-view (no anidado en <form>) a propósito: durante
+             el consentimiento de teléfono, #login-view completo está oculto,
+             y estos botones no aplican a esa pantalla. btn-login usa form=
+             para seguir enviando #login-form nativamente pese a vivir fuera
+             de la etiqueta <form> (hallazgo UX: antes #signup-only aparecía
+             DESPUÉS de este bloque de botones — el botón de confirmar se veía
+             antes que los checkboxes de Términos). -->
+        <div id="login-actions">
+          <button type="submit" form="login-form" id="btn-login" class="btn btn-primary">Iniciar sesión</button>
+          <button type="button" id="btn-back-to-login" class="link-button hidden">¿Ya tienes cuenta? Inicia sesión</button>
+          <button type="button" id="btn-signup" class="btn btn-secondary">Crear cuenta nueva</button>
+        </div>
+
+        <p id="auth-error" class="hidden" role="alert"></p>
+      </div>
+    </main>
+
+    <!-- Iniciar sesión no es un destino primario del nav, así que ningún
+         item se marca activo aquí (mismo patrón que preferences.html). -->
+    <nav class="bottom-nav">
+      <button class="nav-item" aria-label="Inicio">
+        <img src="assets/redesign/icon-home.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Inicio</span>
+      </button>
+      <button class="nav-item" id="nav-scan" aria-label="Escanear">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 4H8a4 4 0 0 0-4 4v1M9 20H8a4 4 0 0 1-4-4v-1M15 4h1a4 4 0 0 1 4 4v1M15 20h1a4 4 0 0 0 4-4v-1"/>
+        </svg>
+        <span class="nav-label nav-label-muted">Escanear</span>
+      </button>
+      <button class="nav-item" id="nav-history" aria-label="Análisis">
+        <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Análisis</span>
+      </button>
+      <button class="nav-item" id="nav-profile" aria-label="Perfil">
+        <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Perfil</span>
+      </button>
+    </nav>
+  </div>
+  <script src="analytics.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="auth-ui.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

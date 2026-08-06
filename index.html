@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
   <title>Yomi — ¿Puedo comerlo?</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/assets/icons/favicon-32x32.png" sizes="32x32" type="image/png">
@@ -52,6 +52,8 @@
       </div>
 
       <div class="home-right">
+        <div id="home-upsell-banner" class="about-card hidden"></div>
+
         <!-- About card -->
         <section class="section-about">
           <div class="about-card">
@@ -102,18 +104,21 @@
         </svg>
         <span class="nav-label nav-label-muted">Escanear</span>
       </button>
-      <button class="nav-item nav-disabled" aria-label="Análisis (próximamente)" aria-disabled="true" tabindex="-1">
+      <button class="nav-item" id="nav-history" aria-label="Análisis">
         <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
         <span class="nav-label nav-label-muted">Análisis</span>
       </button>
-      <button class="nav-item nav-disabled" aria-label="Perfil (próximamente)" aria-disabled="true" tabindex="-1">
+      <button class="nav-item" id="nav-profile" aria-label="Perfil">
         <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
         <span class="nav-label nav-label-muted">Perfil</span>
       </button>
     </nav>
 
   </div>
+  <script src="analytics.js"></script>
   <script src="home.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="authClient.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');

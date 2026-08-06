@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <title>Yomi — Mis preferencias</title>
+  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
+  <style>
+    .hidden { display: none !important; }
+    /* Jerarquía visual distinta al resto del form (hallazgo UX) — el
+       consentimiento de datos de salud no debe pesar igual que un checkbox
+       de dieta, o se skimea sin leerse. */
+    .consent-block { display: block; border: 1px solid #c8ddd6; border-radius: 8px; padding: 14px; margin: 16px 0; background: #f4faf8; }
+    .medical-disclaimer { font-size: 13px; color: #6b6b6b; margin: 8px 0 16px; }
+    fieldset { border: none; padding: 0; margin: 0 0 20px; }
+    legend { font-family: var(--font-display); font-size: 0.9rem; font-weight: 600; color: var(--ink); padding: 0; margin-bottom: 8px; }
+    /* Re-agregado tras hallazgo de revisión (commit 52d57a1 lo quitó por
+       completo). Desde Task 7, Alergias también se convirtió a
+       <button class="allergen-grid-item">, así que el único <label> que
+       queda dentro de #preferences-form es el del consent-block — esta
+       regla sigue aplicando ahí. */
+    #preferences-form label { display: block; font-size: 0.85rem; color: var(--ink-2); padding: 4px 0; }
+    #preferences-form .btn { margin-top: 10px; }
+    #dietary-tiles, #health-tiles { margin-bottom: 4px; }
+    #btn-delete-preferences { margin: 4px 20px 0; width: calc(100% - 40px); }
+    /* hallazgo UX #5: el 403 de free-plan en Guardar era invisible — sin
+       estilos, #preferences-error/#consent-error solo eran texto plano que
+       se perdía en la página. Tratamiento de error visible, consistente
+       entre ambos. */
+    #preferences-error, #consent-error {
+      background: #fdecec;
+      border: 1px solid #e79a9a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 12px 0 0;
+      color: #8a1f1f;
+      font-size: 0.85rem;
+    }
+    #preferences-success {
+      background: #eafaf3;
+      border: 1px solid #9edcc1;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 12px 20px 0;
+      color: #0d5c37;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+      <h1 class="page-title">Mis preferencias</h1>
+    </header>
+    <main class="app-main content-page">
+      <div class="content-card">
+      <p class="medical-disclaimer">
+        Este resultado es una guía informativa basada en tus preferencias y no
+        sustituye el consejo de un profesional de la salud. Ante cualquier
+        duda médica, consulta a tu médico.
+      </p>
+      <form id="preferences-form">
+        <fieldset>
+          <!-- Mismas 12 opciones que ALLOWED_DIETARY en api/index.js, y los
+               mismos emoji que ya usa scan.html en renderDietaryBadges
+               (app.js) para las mismas 12 etiquetas — paridad total con el
+               resultado de escaneo (hallazgo: faltaban 8 de las 12). -->
+          <legend>Dietas</legend>
+          <div class="dietary-icon-grid" id="dietary-tiles">
+            <button type="button" class="dietary-grid-item" data-dietary="vegan" aria-pressed="false"><span class="emoji">🌱</span><span class="label">Vegano</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="vegetarian" aria-pressed="false"><span class="emoji">🥦</span><span class="label">Vegetariano</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="keto" aria-pressed="false"><span class="emoji">🥑</span><span class="label">Keto</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="glutenFree" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Sin gluten</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="caseinFree" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Sin caseína</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="organic" aria-pressed="false"><span class="emoji">🌿</span><span class="label">Orgánico</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="kosher" aria-pressed="false"><span class="emoji">🏷️</span><span class="label">Kosher</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="halal" aria-pressed="false"><span class="emoji">📛</span><span class="label">Halal</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="nonGmo" aria-pressed="false"><span class="emoji">🧬</span><span class="label">Sin OGM</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="noAdditives" aria-pressed="false"><span class="emoji">🧪</span><span class="label">Sin aditivos</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="palmOilFree" aria-pressed="false"><span class="emoji">🌴</span><span class="label">Sin palma</span></button>
+            <button type="button" class="dietary-grid-item" data-dietary="fairTrade" aria-pressed="false"><span class="emoji">🤝</span><span class="label">C. justo</span></button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <!-- Mismos 8 alergenos que ALLOWED_ALLERGEN_CODES en api/index.js
+               y COMMON_ALLERGENS en app.js (hallazgo: faltaban 6 de los 8). -->
+          <legend>Alergias</legend>
+          <!-- hallazgo UX: con 2 alergenos los 8 toggles apilados al final
+               del grid eran tolerables (a lo mucho 1 visible). Con 8 alergenos
+               en grid de 4 columnas, elegir 2 no-adyacentes (ej. Cacahuate y
+               Trigo) mostraba 2 barras Aviso/Estricto idénticas apiladas
+               abajo del grid ENTERO, sin nada que dijera cuál es cuál —
+               confuso. Fix (agente UI Designer): togglea junto a su propio
+               tile (no al final), con el nombre del alergeno visible en la
+               barra. -->
+          <div class="allergen-icon-grid" id="allergen-tiles">
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-cacahuate" data-allergen="cacahuate" aria-pressed="false"><span class="emoji">🥜</span><span class="label">Cacahuate</span></button>
+              <div class="severity-toggle hidden" id="severity-cacahuate" role="radiogroup" aria-label="Severidad para Cacahuate">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-lacteos" data-allergen="lacteos" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Lácteos</span></button>
+              <div class="severity-toggle hidden" id="severity-lacteos" role="radiogroup" aria-label="Severidad para Lácteos">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-nueces" data-allergen="nueces" aria-pressed="false"><span class="emoji">🌰</span><span class="label">Nueces</span></button>
+              <div class="severity-toggle hidden" id="severity-nueces" role="radiogroup" aria-label="Severidad para Nueces">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-trigo" data-allergen="trigo" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Trigo</span></button>
+              <div class="severity-toggle hidden" id="severity-trigo" role="radiogroup" aria-label="Severidad para Trigo">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-huevo" data-allergen="huevo" aria-pressed="false"><span class="emoji">🥚</span><span class="label">Huevo</span></button>
+              <div class="severity-toggle hidden" id="severity-huevo" role="radiogroup" aria-label="Severidad para Huevo">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-pescado" data-allergen="pescado" aria-pressed="false"><span class="emoji">🐟</span><span class="label">Pescado</span></button>
+              <div class="severity-toggle hidden" id="severity-pescado" role="radiogroup" aria-label="Severidad para Pescado">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-mariscos" data-allergen="mariscos" aria-pressed="false"><span class="emoji">🦐</span><span class="label">Mariscos</span></button>
+              <div class="severity-toggle hidden" id="severity-mariscos" role="radiogroup" aria-label="Severidad para Mariscos">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+            <div class="allergen-item">
+              <button type="button" class="allergen-grid-item" id="allergen-soja" data-allergen="soja" aria-pressed="false"><span class="emoji">🫘</span><span class="label">Soya</span></button>
+              <div class="severity-toggle hidden" id="severity-soja" role="radiogroup" aria-label="Severidad para Soya">
+                <button type="button" data-severity="mild" role="radio" aria-checked="false">Aviso</button>
+                <button type="button" data-severity="severe" role="radio" aria-checked="false">Estricto</button>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Condiciones de salud</legend>
+          <div class="dietary-icon-grid" id="health-tiles">
+            <button type="button" class="dietary-grid-item" data-health="diabet" aria-pressed="false"><span class="emoji">🩸</span><span class="label">Diabetes</span></button>
+            <button type="button" class="dietary-grid-item" data-health="celiac" aria-pressed="false"><span class="emoji">🌾</span><span class="label">Celiaquía</span></button>
+            <button type="button" class="dietary-grid-item" data-health="hipert" aria-pressed="false"><span class="emoji">❤️</span><span class="label">Hipertensión</span></button>
+            <button type="button" class="dietary-grid-item" data-health="ninos" aria-pressed="false"><span class="emoji">👶</span><span class="label">Niños en casa</span></button>
+            <button type="button" class="dietary-grid-item" data-health="fenilc" aria-pressed="false"><span class="emoji">🧬</span><span class="label">Fenilcetonuria</span></button>
+            <button type="button" class="dietary-grid-item" data-health="lactos" aria-pressed="false"><span class="emoji">🥛</span><span class="label">Intolerancia a lactosa</span></button>
+          </div>
+        </fieldset>
+        <div class="consent-block">
+          <label>
+            <input type="checkbox" id="consent-checkbox" required>
+            Doy mi consentimiento expreso para que Yomi guarde y use estos datos de salud
+            únicamente para personalizar mis resultados de escaneo, según el
+            <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de Privacidad</a>.
+          </label>
+          <p id="consent-error" class="hidden" role="alert"></p>
+        </div>
+        <button type="submit" id="btn-save-preferences" class="btn btn-primary">Guardar</button>
+        <button type="button" id="btn-skip-preferences" class="link-button hidden">Ahora no</button>
+        <p id="preferences-error" class="hidden" role="alert"></p>
+      </form>
+      </div>
+      <button id="btn-delete-preferences" class="btn btn-secondary">Borrar mis preferencias</button>
+      <p id="preferences-success" class="hidden" role="status"></p>
+    </main>
+
+    <!-- Bottom nav (hallazgo UX #7: sin esto no había forma de volver a Home).
+         Preferencias no es un destino primario del nav, así que ningún item
+         se marca activo aquí. -->
+    <nav class="bottom-nav">
+      <button class="nav-item" aria-label="Inicio">
+        <img src="assets/redesign/icon-home.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Inicio</span>
+      </button>
+      <button class="nav-item" id="nav-scan" aria-label="Escanear">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 4H8a4 4 0 0 0-4 4v1M9 20H8a4 4 0 0 1-4-4v-1M15 4h1a4 4 0 0 1 4 4v1M15 20h1a4 4 0 0 0 4-4v-1"/>
+        </svg>
+        <span class="nav-label nav-label-muted">Escanear</span>
+      </button>
+      <button class="nav-item" id="nav-history" aria-label="Análisis">
+        <img src="assets/redesign/icon-analysis.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Análisis</span>
+      </button>
+      <button class="nav-item" id="nav-profile" aria-label="Perfil">
+        <img src="assets/redesign/icon-profile.svg" alt="" class="nav-icon">
+        <span class="nav-label nav-label-muted">Perfil</span>
+      </button>
+    </nav>
+  </div>
+  <script src="analytics.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="authClient.js"></script>
+  <script type="module" src="preferences-ui.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

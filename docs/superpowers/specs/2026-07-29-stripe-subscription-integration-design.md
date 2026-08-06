@@ -1,0 +1,84 @@
+# Integración real de Stripe para membresía — Diseño
+
+## Problema
+
+El flujo de membresía (`docs/superpowers/specs/2026-07-24-subscription-management-design.md`) ya está implementado en producción, pero el "pago" es simulado: `payMembershipHandler` escribe `membershipStatus: 'active'` directo en Firestore vía `fireRecordMembershipPayment(uid)`, sin cobrar nada (`amount: 0`, `method: 'simulado'`). `cancelMembershipHandler`/`reactivateMembershipHandler` solo togglean el campo local `autoRenew`, sin ninguna pasarela real detrás. El campo `autoRenew` se dejó preparado a propósito para este momento.
+
+Se necesita reemplazar la simulación por Stripe real: cobro recurrente mensual de **$29.90 MXN**, vía Stripe Checkout hospedado (sin construir formulario de tarjeta propio).
+
+## Diseño
+
+### Provisión (Vercel Marketplace) — YA HECHO
+
+- Integración nativa instalada: `vercel integration add stripe --no-claim` → provisionó un recurso sandbox de test (`stripe-champagne-yacht`), conectado al proyecto `foodscaner`. Sigue sin reclamar (`vercel integration resource claim stripe-champagne-yacht` pendiente) — modo test, no cobra dinero real hasta que se reclame y se vincule la cuenta Stripe de negocio real (RFC, banco). No bloquea desarrollo/pruebas.
+- Env vars ya en Vercel (development/preview/production) y en `.env.local`: `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+- `STRIPE_PRICE_ID` ya creado y en Vercel (los 3 entornos): `price_1TygtOAK7bO3f1402Kc1nUoW` — Product "Membresia Yomi", Price recurrente $29.90 MXN/mes (modo test).
+- **Pendiente** (requiere la ruta `/api/webhooks/stripe` ya desplegada, se hace en el plan de implementación): crear webhook endpoint en Stripe Dashboard apuntando a la URL desplegada y agregar `STRIPE_WEBHOOK_SECRET` a Vercel. Un endpoint/secret por entorno que se pruebe (mínimo producción `www.yomi.mx`; opcionalmente el preview de Vercel).
+
+### Modelo de datos (Firestore, doc `users/{uid}`)
+
+`fireUpsertUser` ya reserva desde antes un mapa `billing: { stripeCustomerId, subscriptionId, subscriptionStatus, currentPeriodEnd, isFounderPricing, billingCycle }` (todo `null`/`false` por default) — nadie lo lee ni lo escribe todavía. Este diseño lo usa en vez de inventar campos nuevos: `billing.stripeCustomerId`, `billing.subscriptionId`, `billing.subscriptionStatus` (espejo del `status` de Stripe: `active`, `past_due`, `canceled`, etc.) y `billing.currentPeriodEnd` (ISO, espejo de `subscription.current_period_end`). `isFounderPricing`/`billingCycle` no se tocan (no hay tiers todavía).
+
+`paymentHistory` (top-level, ya existe) deja de tener entradas fijas `{amount: 0, method: 'simulado'}`; cada entrada real queda `{ date: ISO, amount: 29.90, currency: 'mxn', method: 'stripe', stripeInvoiceId: string }`. El `stripeInvoiceId` sirve de clave de idempotencia: antes de agregar una entrada, el helper de fulfillment revisa si ya existe una con ese id (el webhook de Stripe puede reintentar la misma entrega).
+
+`autoRenew` mantiene su nombre y semántica (¿se auto-cobrará el próximo periodo?), pero ahora es un espejo de `cancel_at_period_end` en Stripe en vez de un booleano puramente local — se sincroniza vía webhook cada vez que cambia en Stripe.
+
+### Backend — checkout
+
+`POST /api/me/membership/pay` (misma ruta que hoy, usada tanto para el pago inicial de onboarding como para "Renovar membresía" en cuentas pending/expired) cambia de comportamiento:
+1. Si el usuario no tiene `billing.stripeCustomerId`, crea un Customer en Stripe (`email`, `metadata.firebaseUid: uid`) y lo guarda.
+2. Crea una Checkout Session: `mode: 'subscription'`, `line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }]`, `customer: billing.stripeCustomerId`, `client_reference_id: uid`, `success_url: '<origin>/account.html?stripe=success&session_id={CHECKOUT_SESSION_ID}'`, `cancel_url: '<origin>/account.html?stripe=cancel'`.
+3. Responde `{ ok: true, checkoutUrl }` (ya no `{ membershipStatus, membershipExpiresAt }` — esos solo se saben después de que el usuario paga en Stripe).
+
+No hay más escritura directa a `membershipStatus` en este handler — eso ahora solo lo hace el fulfillment (ver abajo), disparado por webhook o por la verificación de retorno.
+
+### Backend — fulfillment idempotente
+
+Nuevo helper `fireFulfillStripeSubscription({ uid, subscription, invoice })` en `api/firestore.js`, reemplaza el uso de `fireRecordMembershipPayment` para el caso real (ese helper simulado se elimina, ya no tiene consumidores). Dado un `stripeInvoiceId`:
+1. Si ya existe en `paymentHistory` → no-op (idempotente, para reintentos de webhook).
+2. Si no, en una sola escritura con precondición (mismo patrón retry-on-409 que ya usa `fireIncrementUsageCounter`): fija `membershipStatus: 'active'`, `membershipExpiresAt` (= `subscription.current_period_end` convertido a ISO), `lastPaymentAt`, `billing.stripeCustomerId`, `billing.subscriptionId`, `billing.subscriptionStatus` (= `subscription.status`), `billing.currentPeriodEnd` (= mismo valor que `membershipExpiresAt`), `autoRenew: !subscription.cancel_at_period_end`, y agrega la entrada a `paymentHistory`. Como `billing` es un mapa, la escritura reemplaza el mapa completo (lee el mapa actual y solo sobreescribe estas 4 llaves, preservando `isFounderPricing`/`billingCycle`).
+
+Este helper se llama desde dos lugares (ambos deben poder ejecutarlo con seguridad, de ahí la idempotencia):
+
+- **`GET /api/me/membership/checkout-result?session_id=`** (nuevo, requireUser): al volver de Stripe, para que la UI no tenga que esperar al webhook. Recupera la Checkout Session (`stripe.checkout.sessions.retrieve(session_id, { expand: ['subscription', 'invoice'] })`), valida que `client_reference_id === req.user.uid` y `payment_status === 'paid'`, y llama al fulfillment. Responde el estado de membresía actualizado.
+- **`POST /api/webhooks/stripe`** (nuevo, sin auth, monta `express.raw({ type: 'application/json' })` en esta ruta específica, registrado **antes** del `express.json()` global de la línea 43 para no perder el body crudo). Verifica firma con `STRIPE_WEBHOOK_SECRET` vía `stripe.webhooks.constructEvent`. Maneja:
+  - `checkout.session.completed` → fulfillment (cubre el caso en que el usuario cierra la pestaña antes de volver a `success_url`).
+  - `invoice.paid` (renovaciones mensuales automáticas, sin que el usuario haga nada) → fulfillment con la nueva `stripeInvoiceId`.
+  - `customer.subscription.updated` → sincroniza `autoRenew` desde `cancel_at_period_end` (cubre cancelar/reactivar hecho fuera de nuestra UI, y confirma lo que hicimos nosotros).
+  - `customer.subscription.deleted` → `autoRenew: false` (la expiración real de acceso la sigue decidiendo, como hoy, el chequeo perezoso de `membershipExpiresAt` en `requireActiveMembership` — este webhook no fuerza `membershipStatus: 'expired'`).
+  - Cualquier otro evento → 200 sin acción (Stripe reintenga si no hay 200).
+
+### Backend — cancelar / reactivar
+
+`POST /api/me/membership/cancel` y `POST /api/me/membership/reactivate` mantienen sus rutas y sus respuestas de error (`409 not_active` si `membershipStatus !== 'active'`, `404 user_not_found`). Cambia la implementación: antes de tocar Firestore, llaman `stripe.subscriptions.update(billing.subscriptionId, { cancel_at_period_end: true|false })`. Si el usuario no tiene `billing.subscriptionId` (cuenta activa de antes de esta migración, nunca pasó por Stripe real), el patch de Firestore ocurre igual que hoy (solo local) — no hay nada que sincronizar con Stripe todavía.
+
+### Frontend — dos call sites de `/api/me/membership/pay`
+
+`account-ui.js` (renovación de cuentas pending/expired) y `onboarding-membership-ui.js` (pago inicial obligatorio tras registro) llaman ambos hoy este endpoint asumiendo éxito síncrono. Con Stripe real ninguno de los dos puede seguir asumiendo eso — el pago ocurre en la página de Stripe, fuera de nuestro control. Además, `onboarding-membership-ui.js` hoy hace `PUT /api/me/preferences` (protegido por `requireActiveMembership`) inmediatamente después del pago simulado — con Stripe real esa membresía todavía NO está activa en ese momento (el usuario ni siquiera ha ido a pagar), así que ese PUT fallaría con 403 si se deja donde está.
+
+**`account-ui.js`**:
+- Botón "Renovar membresía" (`handleRenewMembership`): ya no actualiza el hub directo — recibe `{ checkoutUrl }` y hace `window.location.href = checkoutUrl`.
+- Al cargar `account.html` (`initAccountPage`), nueva función `handleStripeReturn()` revisa `URLSearchParams` ANTES de `syncUserProfile()`:
+  - `stripe=success&session_id=...` → llama `GET /api/me/membership/checkout-result`; si responde ok (membresía ya activa), y hay `yomi_pending_preferences` en `sessionStorage` (dejado ahí por el flujo de onboarding), lo manda por `PUT /api/me/preferences` y lo limpia — **esto es lo que antes hacía `onboarding-membership-ui.js` justo después del pago simulado, movido aquí porque ahora requiere membresía ya activa**. Toast de confirmación.
+  - `stripe=cancel` → toast "Pago cancelado".
+  - En ambos casos, limpia los params de la URL con `history.replaceState`.
+- `account.html` pasa a ser la página de aterrizaje compartida tras Stripe tanto para renovación como para el pago inicial de onboarding (antes el onboarding redirigía directo a `index.html`; ahora el usuario ve primero su cuenta ya activa en `account.html`, cambio de UX menor y deliberado — evita tener que propagar "de qué flujo vengo" a través del round-trip de Stripe).
+- Bloque "Suscripción" (auto-renovar/cancelar/historial) y modal de cancelar: sin cambios de UI — mismos endpoints, misma forma de respuesta (`{ ok, autoRenew }`).
+
+**`onboarding-membership-ui.js`** (`confirmMembershipPayment`): se simplifica — ya no hace el `PUT /api/me/preferences` ni el `syncUserProfile()`/redirect a `index.html` inline. Solo valida el checkbox, llama `POST /api/me/membership/pay`, y redirige a `checkoutUrl`. El resto de la responsabilidad (flush de preferencias + sync) se movió a `handleStripeReturn()` en `account-ui.js`, como se describe arriba.
+
+## Qué NO cambia
+
+- Cuentas con `membershipStatus: 'active'` de antes de este cambio (sin `billing.stripeCustomerId`) conservan acceso hasta su `membershipExpiresAt` actual, sin migración forzada. Cuando expiren y usen "Renovar membresía", entran al flujo Stripe real por primera vez.
+- `requireActiveMembership` no cambia — sigue basándose solo en `membershipStatus`/`membershipExpiresAt`.
+- El bloque "Suscripción" y el modal de cancelar en `account-ui.js` no cambian de diseño visual, solo lo que hay detrás de los botones.
+- No se usa el Customer Portal de Stripe ni Elements embebido — todo pago pasa por Checkout hospedado.
+
+## Archivos afectados
+
+- `api/firestore.js`: nuevo helper `fireFulfillStripeSubscription` (usa el mapa `billing` ya reservado en `fireUpsertUser`, sin tocar sus defaults), elimina `fireRecordMembershipPayment` (simulado, sin más consumidores).
+- `api/index.js`: nueva inicialización del cliente Stripe (`STRIPE_SECRET_KEY`), `payMembershipHandler` reescrito (crea Checkout Session), nuevo `checkoutResultHandler` + ruta `GET /api/me/membership/checkout-result`, nuevo `stripeWebhookHandler` + ruta `POST /api/webhooks/stripe` (con `express.raw` montado antes del `express.json()` global), `cancelMembershipHandler`/`reactivateMembershipHandler` llaman Stripe antes de Firestore.
+- `account-ui.js`: botón renovar redirige a `checkoutUrl`, nueva `handleStripeReturn()` (maneja `?stripe=success|cancel`, incluye el flush de `yomi_pending_preferences` que antes vivía en onboarding).
+- `onboarding-membership-ui.js`: `confirmMembershipPayment` simplificado a validar checkbox + redirigir a `checkoutUrl`; se le quita el flush de preferencias y el redirect a `index.html`.
+- `api/stripeClient.js` (nuevo): wrapper delgado sobre la API REST de Stripe vía `fetch` — mismo patrón que `api/phoneAuth.js` con Twilio, sin agregar el SDK npm `stripe` (consistente con el resto del proyecto, que no usa SDKs de terceros). Incluye verificación manual de firma de webhook (HMAC-SHA256 sobre `t.payload`, con `crypto.timingSafeEqual` — mismo patrón ya usado para comparar tokens de sesión admin).
+- Env vars (Vercel): `STRIPE_SECRET_KEY`/`STRIPE_PRICE_ID` ya provisionadas (ver Provisión arriba); `STRIPE_WEBHOOK_SECRET` pendiente hasta desplegar `/api/webhooks/stripe`.

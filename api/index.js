@@ -4,9 +4,17 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS } = require('./firestore');
+const { getAccessToken, fireGetCache, fireSetCache, fireRemoveCache, fireGetAiCache, fireSetAiCache, fireGetOcrData, fireSetOcrData, fireGetNutritionOcr, fireSetNutritionOcr, fireListDocs, fireListAll, fireDeleteDoc, fireLogScan, fireMarkScanNotFound, fireMarkScanHasOcr, fireMarkScanHasNutrition, fireMarkScanConfidence, fireMarkScanSource, fireMarkScanSources, fireLogReport, ADMIN_COLLECTIONS, fireUpsertUser, fireGetUser, firePatchUserFields, fireIncrementUsageCounter, fireFulfillStripeSubscription, fireLogUserHistory, fireListUserHistory, fireDeleteUserHistoryEntry, fireGetPhoneIndex, fireSetPhoneIndex, fireGetUserRaw, findUserByEmail, fireListUsers, deleteFirebaseAuthUser } = require('./firestore');
+const { verifyFirebaseIdToken } = require('./auth');
+const { sendVerificationCode, checkVerificationCode, createFirebaseCustomToken, setPhoneNumberClaim, lookupAuthAccount, setUserDisabled } = require('./phoneAuth');
+const { generateActionLink } = require('./emailActions');
+const { sendMail } = require('./mailer');
 const { getGeoData } = require('./geo');
 const { computeStats } = require('./stats');
+const {
+  stripeCreateCustomer, stripeCreateCheckoutSession, stripeRetrieveCheckoutSession,
+  stripeRetrieveSubscription, stripeUpdateSubscription, constructStripeEvent, stripeCancelSubscriptionNow
+} = require('./stripeClient');
 
 function detectOS(ua = '') {
   ua = ua.toLowerCase();
@@ -31,15 +39,183 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org; object-src 'none'; frame-ancestors 'none'; base-uri 'self';");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';");
   next();
 });
 
 app.use(express.static(path.join(__dirname, '..')));
+
+async function fulfillSubscription(uid, subscriptionId) {
+  const subscription = await stripeRetrieveSubscription(subscriptionId);
+  const item = subscription.items?.data?.[0];
+  const price = item?.price;
+  // Desde la versión "basil" de la API, current_period_end ya no vive en el
+  // Subscription sino en cada subscription item. Si falta, fallamos ruidoso:
+  // una fecha de vigencia equivocada es peor que un error visible.
+  const currentPeriodEnd = item?.current_period_end;
+  if (!currentPeriodEnd) throw new Error('Stripe subscription missing current_period_end on item');
+  await fireFulfillStripeSubscription({
+    uid,
+    stripeCustomerId: subscription.customer,
+    subscriptionId: subscription.id,
+    subscriptionStatus: subscription.status,
+    currentPeriodEnd: new Date(currentPeriodEnd * 1000).toISOString(),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    invoiceId: subscription.latest_invoice,
+    amount: price ? price.unit_amount / 100 : 0,
+    currency: price ? price.currency : 'mxn'
+  });
+}
+
+async function stripeWebhookHandler(req, res) {
+  let event;
+  try {
+    event = constructStripeEvent(req.body, req.get('stripe-signature'), process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (e) {
+    console.warn('[POST /api/webhooks/stripe] firma inválida:', e.message);
+    return res.status(400).json({ error: 'invalid_signature' });
+  }
+
+  try {
+    const obj = event.data.object;
+    if (event.type === 'checkout.session.completed') {
+      if (obj.mode === 'subscription' && obj.client_reference_id && obj.subscription) {
+        await fulfillSubscription(obj.client_reference_id, obj.subscription);
+      }
+    } else if (event.type === 'invoice.paid') {
+      // Desde "basil", Invoice.subscription ya no existe al nivel raíz: vive en
+      // invoice.parent.subscription_details.subscription.
+      const invoiceSubscriptionId = obj.parent?.subscription_details?.subscription;
+      if (invoiceSubscriptionId) {
+        const subscription = await stripeRetrieveSubscription(invoiceSubscriptionId);
+        const uid = subscription.metadata && subscription.metadata.firebaseUid;
+        if (uid) await fulfillSubscription(uid, invoiceSubscriptionId);
+      }
+    } else if (event.type === 'invoice.payment_failed') {
+      const invoiceSubscriptionId = obj.parent?.subscription_details?.subscription;
+      if (invoiceSubscriptionId) {
+        const subscription = await stripeRetrieveSubscription(invoiceSubscriptionId);
+        const uid = subscription.metadata && subscription.metadata.firebaseUid;
+        if (uid) {
+          const user = await fireGetUser(uid);
+          if (user && user.email) {
+            // subscription.next_payment_attempt ausente/null significa que Stripe
+            // ya agotó los reintentos automáticos — este email es el último aviso
+            // antes de que llegue customer.subscription.deleted y se corte el acceso.
+            const isLastAttempt = !subscription.next_payment_attempt;
+            const emailCopy = isLastAttempt
+              ? {
+                  subject: 'Última oportunidad: tu membresía Premium está por vencer',
+                  html: `<p>Ya intentamos varias veces cobrar tu membresía y no lo logramos. Este fue el último intento automático.</p><p>Si no actualizas tu método de pago, tu membresía vence y pierdes el análisis personalizado y el historial en la nube.</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
+                }
+              : {
+                  subject: 'No pudimos cobrar tu membresía — lo intentaremos de nuevo',
+                  html: `<p>Intentamos cobrar tu membresía Premium y no se pudo procesar.</p><p>Tranquilo, no tienes que hacer nada todavía — Stripe reintentará el cobro automáticamente en los próximos días.</p><p>Si tu tarjeta cambió o venció, actualízala ahora para evitar cualquier interrupción:</p><p><a href="${process.env.APP_BASE_URL || 'https://yomi.mx'}/account.html">Actualizar método de pago</a></p>`
+                };
+            try {
+              await sendMail({ to: user.email, subject: emailCopy.subject, html: emailCopy.html });
+            } catch (mailErr) {
+              console.warn('[POST /api/webhooks/stripe] error procesando', event.type, ':', mailErr.message);
+            }
+          }
+        }
+      }
+    } else if (event.type === 'customer.subscription.updated') {
+      const uid = obj.metadata && obj.metadata.firebaseUid;
+      if (uid) await firePatchUserFields(uid, ['autoRenew'], { autoRenew: !obj.cancel_at_period_end });
+    } else if (event.type === 'customer.subscription.deleted') {
+      const uid = obj.metadata && obj.metadata.firebaseUid;
+      if (uid) {
+        await firePatchUserFields(uid, ['autoRenew', 'membershipStatus'], {
+          autoRenew: false,
+          membershipStatus: 'expired'
+        });
+      }
+    }
+    res.json({ received: true });
+  } catch (e) {
+    console.warn('[POST /api/webhooks/stripe] error procesando', event.type, ':', e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+// La firma del webhook se verifica sobre el body crudo — esta ruta se registra
+// ANTES del express.json() global de abajo. Si json() corriera primero ya
+// habría parseado/consumido el body y stripeWebhookHandler nunca podría
+// verificar la firma contra los bytes exactos que Stripe firmó.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json({ limit: '5mb' }));
 
 const limiter = rateLimit({ windowMs: 60000, max: 60, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
 app.use('/api/', limiter);
+
+const expensiveLimiter = rateLimit({ windowMs: 60000, max: 20, message: { error: "Demasiadas solicitudes. Intenta de nuevo en 1 minuto." } });
+
+// --- Auth Middleware (Firebase ID token, verificación manual sin firebase-admin) ---
+async function requireUser(req, res, next) {
+  try {
+    const authHeader = req.get('authorization') || req.get('Authorization') || '';
+    const match = /^Bearer\s+(.+)$/i.exec(authHeader);
+    if (!match) return res.status(401).json({ error: 'unauthorized' });
+
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) return res.status(503).json({ error: 'auth_not_configured' });
+
+    const { uid, email, emailVerified, phoneNumber } = await verifyFirebaseIdToken(match[1], projectId);
+    req.user = { uid, email, emailVerified, phoneNumber };
+    next();
+  } catch (e) {
+    // Fail-closed: cualquier error (token inválido, expirado, certs de Google
+    // inalcanzables) resulta en 401, nunca en dejar pasar la petición.
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+}
+
+// A diferencia de requireUser, NUNCA bloquea — usuarios sin sesión pasan con
+// req.user = null (comportamiento actual de /api/ocr/process sin cambios).
+// Solo cuando SÍ hay un token válido se adjunta req.user, incluyendo emailVerified
+// (necesario para la mitigación de bypass de cuota vía cuentas gratis ilimitadas).
+async function optionalUser(req, res, next) {
+  const authHeader = req.get('authorization') || req.get('Authorization') || '';
+  const match = /^Bearer\s+(.+)$/i.exec(authHeader);
+  if (!match) { req.user = null; return next(); }
+  try {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) { req.user = null; return next(); }
+    const { uid, email, emailVerified, phoneNumber } = await verifyFirebaseIdToken(match[1], projectId);
+    req.user = { uid, email, emailVerified, phoneNumber };
+  } catch {
+    req.user = null;
+  }
+  next();
+}
+
+// Gate del "producto pagado" (OCR de ingredientes, preferencias, historial nube)
+// — se monta DESPUÉS de requireUser, nunca solo. Chequeo perezoso de
+// expiración: sin cron, la primera petición autenticada tras vencer la
+// membresía es la que la marca 'expired' en Firestore.
+async function requireActiveMembership(req, res, next) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    if (user.membershipStatus === 'active') {
+      const expired = user.membershipExpiresAt && new Date(user.membershipExpiresAt) < new Date();
+      if (expired) {
+        await firePatchUserFields(req.user.uid, ['membershipStatus'], { membershipStatus: 'expired' });
+        return res.status(402).json({ error: 'membership_expired' });
+      }
+      req.membershipUser = user;
+      return next();
+    }
+
+    return res.status(402).json({ error: user.membershipStatus === 'expired' ? 'membership_expired' : 'membership_required' });
+  } catch (e) {
+    console.warn('[requireActiveMembership] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
 
 // --- Queue for Groq to avoid rate limiting ---
 let groqQueue = [];
@@ -196,7 +372,7 @@ async function callGroq(prompt, model = 'openai/gpt-oss-120b', max_tokens = 3000
   return { content: data.choices?.[0]?.message?.content || "", model: "Groq: " + model };
 }
 
-async function callGroqVision(imageBase64, prompt, model = 'meta-llama/llama-4-scout-17b-16e-instruct', max_tokens = 500) {
+async function callGroqVision(imageBase64, prompt, model = 'qwen/qwen3.6-27b', max_tokens = 2000) {
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -207,7 +383,7 @@ async function callGroqVision(imageBase64, prompt, model = 'meta-llama/llama-4-s
         { type: 'text', text: prompt }
       ]}]
     }),
-    signal: AbortSignal.timeout(8000)
+    signal: AbortSignal.timeout(10000)
   });
   if (response.status === 429) throw new Error("Límite de velocidad excedido en Groq.");
   if (!response.ok) {
@@ -216,7 +392,46 @@ async function callGroqVision(imageBase64, prompt, model = 'meta-llama/llama-4-s
     throw new Error(`Groq vision error: ${response.status}`);
   }
   const data = await response.json();
-  return { content: data.choices?.[0]?.message?.content || "" };
+  const raw = data.choices?.[0]?.message?.content || "";
+  // qwen3.6-27b es un modelo de razonamiento — envuelve la respuesta real en
+  // <think>...</think>; se descarta ese bloque antes de usar el contenido.
+  const content = raw.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+  return { content };
+}
+
+// Groq primero (más rápido); si falla (rate limit, modelo caído, etc.) cae a
+// Gemini — ver docs/superpowers/specs para el historial de por qué Groq
+// vision estuvo fuera de servicio y luego volvió con otro modelo.
+async function callVisionLLM(imageBase64, prompt) {
+  try {
+    return await callGroqVision(imageBase64, prompt);
+  } catch (e) {
+    console.warn('[Vision LLM] Groq falló, cae a Gemini:', e.message);
+    return await callGeminiVision(imageBase64, prompt);
+  }
+}
+
+async function callGeminiVision(imageBase64, prompt, mimeType = 'image/jpeg') {
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [
+        { inlineData: { mimeType, data: imageBase64 } },
+        { text: prompt }
+      ]}],
+      generationConfig: { temperature: 0.1 }
+    }),
+    signal: AbortSignal.timeout(8000)
+  });
+  if (response.status === 429) throw new Error("Límite de velocidad excedido en Gemini.");
+  if (!response.ok) {
+    const errBody = await response.text();
+    console.error('[Gemini Vision] Error body:', errBody.substring(0, 500));
+    throw new Error(`Gemini vision error: ${response.status}`);
+  }
+  const data = await response.json();
+  return { content: data.candidates?.[0]?.content?.parts?.[0]?.text || "" };
 }
 
 async function callOpenRouter(prompt) {
@@ -904,7 +1119,18 @@ app.get('/api/product/:barcode', async (req, res) => {
   }
 });
 
-app.post('/api/ai-query', async (req, res) => {
+// Localización de terminología: ver comentario equivalente en app.js.
+// Copia independiente — backend y frontend no comparten módulos hoy.
+function normalizeSoyTerm(text) {
+  if (!text) return text;
+  return text.replace(/\bsoja\b/gi, (match) => {
+    if (match === 'SOJA') return 'SOYA';
+    if (match === 'Soja') return 'Soya';
+    return 'soya';
+  });
+}
+
+app.post('/api/ai-query', expensiveLimiter, async (req, res) => {
   const { name, brand, ingredients, allergens, sugars, carbohydrates, fiber, isBeverage, dietary, scanLogId } = req.body;
   if (!name) return res.status(400).json({ error: "Nombre del producto requerido" });
 
@@ -925,6 +1151,16 @@ app.post('/api/ai-query', async (req, res) => {
   const cached = await getAiCacheEntry(cacheKey);
   if (cached) {
     cached._model = modelLabel;
+    // Entradas cacheadas antes de la normalización soja→soya (release del
+    // 2026-08-05) pueden seguir diciendo "soja" hasta por 24h — se
+    // renormaliza también en el cache-hit, no solo en la respuesta fresca.
+    if (Array.isArray(cached.notRecommended)) {
+      cached.notRecommended = cached.notRecommended.map(nr => ({
+        ...nr,
+        grupo: normalizeSoyTerm(nr.grupo),
+        razon: normalizeSoyTerm(nr.razon)
+      }));
+    }
     if (scanLogId && cached.confidence) fireMarkScanConfidence(scanLogId, cached.confidence, cached.notes);
     return res.json(cached);
   }
@@ -965,6 +1201,7 @@ REGLAS:
 - Dietary: analiza contra ingredientes. vegan=sin origen animal, halal=sin cerdo/alcohol, nonGmo=sin OGM, noAdditives=sin aditivos, palmOilFree=sin aceite palma, fairTrade=solo si nombre/marca lo indica, caseinFree=sin leche ni derivados (caseína/caseinato/suero/whey/queso/crema/yogur/nata). "Sin lactosa"/deslactosado NO es libre de caseína
 - DietaryDetails: explica cada campo mencionando ingredientes concretos que justifiquen la decisión
 - notRecommended: incluir SOLO grupos no aptos (con ingrediente problemático). Si ninguno, array vacío. NUNCA incluir grupos que "no aplican"
+- Terminología: usa "soya" (no "soja") en toda respuesta — términos mexicanos
 - DUDAS → confidence "baja" y explica en notes
 - No inventes ingredientes`;
 
@@ -985,7 +1222,7 @@ REGLAS:
       }
     }
     catch (e) {
-      return res.json({ error: "Análisis IA no disponible: " + e.message + " Los datos de la base de datos ya están visibles." });
+      return res.json({ error: "Análisis IA no disponible. Los datos de la base de datos ya están visibles." });
     }
 
     if (!content) return res.json({ error: "Análisis IA no disponible temporalmente. Los datos de la base de datos ya están visibles." });
@@ -1000,9 +1237,14 @@ REGLAS:
           const r = (nr.razon || '').toLowerCase();
           return !(r.includes('no aplica') || r.includes('no contiene'));
         });
+        parsed.notRecommended = parsed.notRecommended.map(nr => ({
+          ...nr,
+          grupo: normalizeSoyTerm(nr.grupo),
+          razon: normalizeSoyTerm(nr.razon)
+        }));
       }
     } catch {
-      return res.status(502).json({ error: "No se pudo parsear la respuesta JSON", raw: content });
+      return res.status(502).json({ error: "No se pudo analizar el producto. Intenta de nuevo." });
     }
 
     // No se espera (fire-and-forget): esta respuesta compite contra el timeout
@@ -1017,13 +1259,13 @@ REGLAS:
   }
 });
 
-app.delete('/api/cache/:barcode', async (req, res) => {
+app.delete('/api/cache/:barcode', requireAdmin, async (req, res) => {
   await removeCacheEntry(req.params.barcode);
   res.json({ ok: true, message: "Caché eliminado para " + req.params.barcode });
 });
 
 // Refresh cache: force re-fetch and re-analyze
-app.post('/api/cache/refresh/:barcode', async (req, res) => {
+app.post('/api/cache/refresh/:barcode', requireAdmin, async (req, res) => {
   const { barcode } = req.params;
 
   try {
@@ -1056,7 +1298,8 @@ app.post('/api/products/nutrition', async (req, res) => {
 });
 
 // Process ingredients from image using vision LLM (no Tesseract)
-app.post('/api/ocr/process', async (req, res) => {
+// Process ingredients from image using vision LLM (no Tesseract)
+async function ocrProcessHandler(req, res) {
   try {
     const { imageData } = req.body;
     if (!imageData) return res.status(400).json({ error: 'Missing imageData' });
@@ -1064,22 +1307,27 @@ app.post('/api/ocr/process', async (req, res) => {
     const prompt = `Extrae el texto de ingredientes de esta imagen de etiqueta alimentaria.
 Devuelve el texto tal como aparece, incluyendo ingredientes y cualquier declaración de alérgenos como "Contiene:", "Puede contener:", "Trazas de:" u otras advertencias similares.
 Corrige errores obvios de lectura pero no inventes texto ni omitas secciones.
-Si no puedes leer los ingredientes, responde con texto vacío.`;
+Si no puedes leer los ingredientes, responde con texto vacío.
+Responde con UNA SOLA transcripción — no repitas ni vuelvas a transcribir el mismo texto dos veces.`;
 
-    const result = await callGroqVision(imageData, prompt);
+    const result = await callVisionLLM(imageData, prompt);
     if (!result?.content) throw new Error("No response from vision LLM");
 
     const cleanedText = result.content.trim();
     console.log('[OCR Vision] Extracted:', cleanedText.substring(0, 100));
+
     res.json({ status: 'ok', cleanedText });
   } catch (error) {
     console.error('[OCR Vision] Error:', error);
     res.status(500).json({ error: 'Error al procesar OCR: ' + (error?.message || error) });
   }
-});
+}
+
+// optionalUser kept for now — req.user is unused since the freemium gate removal (see docs/superpowers/plans/2026-08-04-monetization-gate-audit.md Task 1), verifying it here is currently wasted work but removing the middleware is a separate decision.
+app.post('/api/ocr/process', expensiveLimiter, optionalUser, ocrProcessHandler);
 
 // Process nutrition from image using vision LLM (no Tesseract)
-app.post('/api/nutrition/process', async (req, res) => {
+app.post('/api/nutrition/process', expensiveLimiter, async (req, res) => {
   try {
     const { imageData } = req.body;
     if (!imageData) return res.status(400).json({ error: 'Missing imageData' });
@@ -1099,8 +1347,7 @@ Ejemplo: {"calorias": "150 kcal", "grasas": "2 g", "proteinas": "5 g", "sodio": 
 
 RESPUESTA (SOLO JSON):`;
 
-    console.log('[Nutrition Vision] Calling Groq vision...');
-    const result = await callGroqVision(imageData, prompt);
+    const result = await callVisionLLM(imageData, prompt);
 
     if (!result?.content) throw new Error("No response from vision LLM");
 
@@ -1125,7 +1372,7 @@ RESPUESTA (SOLO JSON):`;
 });
 
 // Delete OCR data from Firebase
-app.delete('/api/ocr/:barcode', async (req, res) => {
+app.delete('/api/ocr/:barcode', requireAdmin, async (req, res) => {
   try {
     const { barcode } = req.params;
     const token = await getAccessToken();
@@ -1148,7 +1395,7 @@ app.delete('/api/ocr/:barcode', async (req, res) => {
 });
 
 // Delete nutrition OCR data from Firebase
-app.delete('/api/nutrition/:barcode', async (req, res) => {
+app.delete('/api/nutrition/:barcode', requireAdmin, async (req, res) => {
   try {
     const { barcode } = req.params;
     const token = await getAccessToken();
@@ -1226,6 +1473,591 @@ app.post('/api/report', async (req, res) => {
   if (!ok) return res.status(500).json({ error: 'No se pudo guardar el reporte' });
   res.json({ ok: true });
 });
+
+// --- User Accounts API ---
+const MAX_DISPLAY_NAME_LEN = 100;
+
+// Hallazgo de revisión de seguridad: displayName/photoURL venían de req.body sin
+// límite ni validación — riesgo de XSS almacenado si una vista futura los
+// renderiza vía innerHTML, y de abuso de almacenamiento con strings arbitrarios.
+function sanitizeDisplayName(name) {
+  if (typeof name !== 'string') return null;
+  return name.slice(0, MAX_DISPLAY_NAME_LEN);
+}
+
+function sanitizePhotoURL(url) {
+  if (typeof url !== 'string' || !url.startsWith('https://')) return null;
+  return url.slice(0, 500);
+}
+
+async function authSyncHandler(req, res) {
+  try {
+    await fireUpsertUser(req.user.uid, {
+      email: req.user.email,
+      phoneNumber: req.user.phoneNumber,
+      providers: Array.isArray(req.body?.providers) ? req.body.providers : [],
+      displayName: sanitizeDisplayName(req.body?.displayName),
+      photoURL: sanitizePhotoURL(req.body?.photoURL),
+      // Solo relevantes en la creación (fireUpsertUser los ignora si el doc ya existe) —
+      // vienen del checkbox de Términos/edad en el signup (Task 11).
+      termsAccepted: req.body?.termsAccepted === true,
+      termsVersion: req.body?.termsVersion,
+      ageConfirmed: req.body?.ageConfirmed === true
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    // No bloquea el login: Firebase Auth ya autenticó del lado del cliente; el doc
+    // se reintenta en el próximo sync. Loguear SOLO el uid, nunca el doc (datos de salud).
+    console.warn('[auth/sync] Firestore error, uid:', req.user?.uid, e.message);
+    res.json({ ok: true, warning: 'sync_deferred' });
+  }
+}
+
+const E164_RE = /^\+[1-9]\d{6,14}$/;
+
+// Twilio 4xx (número inválido, código incorrecto/expirado, límite de
+// intentos) es culpa del usuario -> mapeamos a un 4xx propio. Cualquier otra
+// cosa (5xx de Twilio, timeout, sin .status) es una falla nuestra/de Twilio
+// -> 502, nunca confundido con el 4xx de "te equivocaste".
+function isClientFaultTwilioError(e) {
+  return typeof e.status === 'number' && e.status < 500;
+}
+
+async function phoneSendHandler(req, res) {
+  const phone = req.body?.phone;
+  if (typeof phone !== 'string' || !E164_RE.test(phone)) {
+    return res.status(400).json({ error: 'invalid_phone' });
+  }
+  try {
+    const status = await sendVerificationCode(phone);
+    res.json({ status });
+  } catch (e) {
+    if (isClientFaultTwilioError(e)) return res.status(400).json({ error: 'invalid_phone' });
+    console.warn('[auth/phone/send] Twilio error:', e.message);
+    res.status(502).json({ error: 'send_failed' });
+  }
+}
+
+app.post('/api/auth/phone/send', phoneSendHandler);
+
+async function phoneVerifyHandler(req, res) {
+  const { phone, code } = req.body || {};
+  // Mismo E164_RE que phoneSendHandler (hallazgo de seguridad: sin esto, un
+  // mismo teléfono real podía verificarse con un formato y mintear el custom
+  // token con OTRO formato de la misma variable `phone`, generando un uid
+  // distinto — rompiendo la garantía de "mismo teléfono siempre mapea al
+  // mismo uid" de la que depende toda esta arquitectura).
+  if (typeof phone !== 'string' || !E164_RE.test(phone) || typeof code !== 'string') {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+
+  let status;
+  try {
+    status = await checkVerificationCode(phone, code);
+  } catch (e) {
+    if (isClientFaultTwilioError(e)) return res.status(401).json({ error: 'invalid_code' });
+    console.warn('[auth/phone/verify] Twilio error:', e.message);
+    return res.status(502).json({ error: 'verify_failed' });
+  }
+  if (status !== 'approved') return res.status(401).json({ error: 'invalid_code' });
+
+  // Resuelve el uid estable de este teléfono: índice existente -> ese uid
+  // (usuario recurrente); si no hay índice, doc legado 'phone:'+phone -> lo
+  // adopta como uid permanente y rellena el índice (backfill perezoso, cero
+  // migración de datos); si no existe ninguno -> uid nuevo random. Firestore
+  // ambiguo/inaccesible en cualquier paso -> trata como usuario nuevo
+  // (fail-safe, MISMO criterio que ya usaba esta función — nunca bloquea la
+  // respuesta por un problema transitorio de Firestore).
+  let uid, isNewUser;
+  try {
+    const indexed = await fireGetPhoneIndex(phone);
+    if (indexed && indexed.uid) {
+      uid = indexed.uid;
+      isNewUser = false;
+    } else {
+      const legacyUid = 'phone:' + phone;
+      const legacyUser = await fireGetUser(legacyUid);
+      if (legacyUser) {
+        uid = legacyUid;
+        isNewUser = false;
+      } else {
+        uid = crypto.randomUUID();
+        isNewUser = true;
+      }
+      // Backfill del índice — si esta escritura falla, seguimos con el uid YA
+      // resuelto (no perdemos la identidad de un usuario real por un problema
+      // transitorio de escritura); se reintenta solo en el próximo login. A
+      // diferencia de una falla de LECTURA (catch de abajo), aquí ya sabemos
+      // quién es el usuario — perder el índice es recuperable, perder su uid no.
+      try {
+        await fireSetPhoneIndex(phone, uid);
+      } catch (e) {
+        console.warn('[auth/phone/verify] phone index backfill write failed (retried next login):', e.message);
+      }
+    }
+  } catch (e) {
+    console.warn('[auth/phone/verify] phone index resolution failed, defaulting to new-user random uid:', e.message);
+    uid = crypto.randomUUID();
+    isNewUser = true;
+  }
+
+  try {
+    const customToken = createFirebaseCustomToken(uid, { phone_number: phone });
+    res.json({ customToken, isNewUser });
+  } catch (e) {
+    // Distinto del catch de arriba a propósito: firmar el token es lo único
+    // de lo que no hay forma de "fallar hacia adelante" — sin token no hay
+    // sesión. Diseño pide 500 dedicado aquí, nunca el mismo 502 que un
+    // problema de Twilio (para que on-call no confunda "Twilio caído" con
+    // "nuestra service account está mal configurada").
+    console.warn('[auth/phone/verify] custom token signing error:', e.message);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+app.post('/api/auth/phone/verify', phoneVerifyHandler);
+
+app.post('/api/auth/sync', requireUser, authSyncHandler);
+
+async function getMeHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    const { preferences, ...rest } = user;
+    const body = { uid: req.user.uid, ...rest, email: req.user.email, phoneNumber: req.user.phoneNumber };
+    if (user.membershipStatus === 'active' && preferences) body.preferences = preferences;
+    res.json(body);
+  } catch (e) {
+    console.warn('[GET /api/me] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.get('/api/me', requireUser, getMeHandler);
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function putProfileHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    const { displayName, phone, email } = req.body || {};
+    const fieldPaths = [];
+    const profile = { ...(user.profile || {}) };
+
+    if (displayName !== undefined) {
+      const clean = typeof displayName === 'string' ? displayName.trim().slice(0, 100) : '';
+      if (!clean) return res.status(400).json({ error: 'invalid_display_name' });
+      profile.displayName = clean;
+      fieldPaths.push('profile.displayName');
+    }
+    if (phone !== undefined) {
+      if (typeof phone !== 'string' || !E164_RE.test(phone)) return res.status(400).json({ error: 'invalid_phone' });
+      profile.phone = phone;
+      fieldPaths.push('profile.phone');
+    }
+    if (email !== undefined) {
+      const clean = typeof email === 'string' ? email.trim().slice(0, 200) : '';
+      if (!EMAIL_RE.test(clean)) return res.status(400).json({ error: 'invalid_email' });
+      profile.email = clean;
+      fieldPaths.push('profile.email');
+    }
+    if (fieldPaths.length === 0) return res.status(400).json({ error: 'no_fields' });
+
+    const hasAll = !!(profile.displayName || user.displayName) && !!(profile.phone || user.phoneNumber) && !!(profile.email || user.email);
+    if (hasAll && !profile.completedAt) {
+      profile.completedAt = new Date().toISOString();
+      fieldPaths.push('profile.completedAt');
+    }
+
+    await firePatchUserFields(req.user.uid, fieldPaths, { profile });
+    res.json({ ok: true, profile });
+  } catch (e) {
+    console.warn('[PUT /api/me/profile] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.put('/api/me/profile', requireUser, putProfileHandler);
+
+async function passwordResetHandler(req, res) {
+  const email = req.body?.email;
+  if (typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'invalid_email' });
+  }
+  try {
+    // APP_BASE_URL permite apuntar el link a un alias de preview estable
+    // (ej. foodscaner-git-develop-...vercel.app) en vez de producción,
+    // sin tocar código — cae a yomi.mx si no está configurado.
+    const baseUrl = process.env.APP_BASE_URL || 'https://yomi.mx';
+    const oobLink = await generateActionLink(email, 'PASSWORD_RESET', `${baseUrl}/reset-password.html`);
+    await sendMail({
+      to: email,
+      subject: 'Restablece tu contraseña de Yomi',
+      html: `<p>Para restablecer tu contraseña, haz click en el siguiente enlace:</p><p><a href="${oobLink}">${oobLink}</a></p><p>Si no solicitaste esto, ignora este correo.</p>`
+    });
+  } catch (e) {
+    if (e.code === 'EMAIL_NOT_FOUND') {
+      // Intencional: mismo éxito genérico sin importar si la cuenta existe
+      // (protección contra enumeración de cuentas).
+      return res.json({ ok: true });
+    }
+    console.warn('[auth/password-reset] error:', e.message);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+  res.json({ ok: true });
+}
+
+app.post('/api/auth/password-reset', passwordResetHandler);
+
+async function verificationEmailHandler(req, res) {
+  try {
+    const baseUrl = process.env.APP_BASE_URL || 'https://yomi.mx';
+    const oobLink = await generateActionLink(req.user.email, 'VERIFY_EMAIL', `${baseUrl}/verify-email.html`);
+    await sendMail({
+      to: req.user.email,
+      subject: 'Verifica tu correo para Yomi',
+      html: `<p>Verifica tu correo haciendo click en el siguiente enlace:</p><p><a href="${oobLink}">${oobLink}</a></p>`
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[me/verification-email] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/verification-email', requireUser, verificationEmailHandler);
+
+async function payMembershipHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    // Evita que un usuario con suscripción viva arranque una segunda: Stripe
+    // crearía otra suscripción activa sobre el mismo Customer (doble cobro) y
+    // fireFulfillStripeSubscription sobrescribiría billing.subscriptionId.
+    if (user.membershipStatus === 'active' && user.billing && user.billing.subscriptionId) {
+      return res.status(409).json({ error: 'already_active' });
+    }
+
+    let stripeCustomerId = user.billing && user.billing.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await stripeCreateCustomer({ email: req.user.email, uid: req.user.uid });
+      stripeCustomerId = customer.id;
+      // Se persiste antes de crear la sesión de Checkout: si el usuario
+      // abandona el pago, el siguiente intento reutiliza este Customer en vez
+      // de crear uno duplicado en Stripe.
+      await firePatchUserFields(req.user.uid, ['billing.stripeCustomerId'], { billing: { stripeCustomerId } });
+    }
+
+    const baseUrl = process.env.APP_BASE_URL || 'https://yomi.mx';
+    const session = await stripeCreateCheckoutSession({
+      customerId: stripeCustomerId,
+      priceId: process.env.STRIPE_PRICE_ID,
+      uid: req.user.uid,
+      successUrl: `${baseUrl}/account.html?stripe=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/account.html?stripe=cancel`
+    });
+
+    res.json({ ok: true, checkoutUrl: session.url });
+  } catch (e) {
+    console.warn('[POST /api/me/membership/pay] error creando checkout, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/membership/pay', requireUser, payMembershipHandler);
+
+async function checkoutResultHandler(req, res) {
+  const sessionId = req.query.session_id;
+  if (typeof sessionId !== 'string' || !sessionId) return res.status(400).json({ error: 'invalid_request' });
+
+  try {
+    const session = await stripeRetrieveCheckoutSession(sessionId);
+    if (session.client_reference_id !== req.user.uid) return res.status(403).json({ error: 'forbidden' });
+    if (session.payment_status !== 'paid' || !session.subscription) {
+      return res.status(409).json({ error: 'payment_not_completed' });
+    }
+
+    await fulfillSubscription(req.user.uid, session.subscription);
+    const user = await fireGetUser(req.user.uid);
+    res.json({ ok: true, membershipStatus: user.membershipStatus, membershipExpiresAt: user.membershipExpiresAt });
+  } catch (e) {
+    console.warn('[GET /api/me/membership/checkout-result] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.get('/api/me/membership/checkout-result', requireUser, checkoutResultHandler);
+
+async function cancelMembershipHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (user.membershipStatus !== 'active') return res.status(409).json({ error: 'not_active' });
+
+    const subscriptionId = user.billing && user.billing.subscriptionId;
+    if (subscriptionId) {
+      await stripeUpdateSubscription(subscriptionId, { cancelAtPeriodEnd: true });
+    }
+    await firePatchUserFields(req.user.uid, ['autoRenew'], { autoRenew: false });
+    res.json({ ok: true, autoRenew: false });
+  } catch (e) {
+    console.warn('[POST /api/me/membership/cancel] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/membership/cancel', requireUser, cancelMembershipHandler);
+
+async function reactivateMembershipHandler(req, res) {
+  try {
+    const user = await fireGetUser(req.user.uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (user.membershipStatus !== 'active') return res.status(409).json({ error: 'not_active' });
+
+    const subscriptionId = user.billing && user.billing.subscriptionId;
+    if (subscriptionId) {
+      await stripeUpdateSubscription(subscriptionId, { cancelAtPeriodEnd: false });
+    }
+    await firePatchUserFields(req.user.uid, ['autoRenew'], { autoRenew: true });
+    res.json({ ok: true, autoRenew: true });
+  } catch (e) {
+    console.warn('[POST /api/me/membership/reactivate] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/membership/reactivate', requireUser, reactivateMembershipHandler);
+
+async function deleteUserAccount(uid) {
+  const user = await fireGetUser(uid);
+  if (!user) return { alreadyGone: true };
+
+  const subscriptionId = user.billing && user.billing.subscriptionId;
+  if (subscriptionId) {
+    try {
+      await stripeCancelSubscriptionNow(subscriptionId);
+    } catch (e) {
+      console.warn('[deleteUserAccount] Stripe cancel error, uid:', uid, e.message);
+    }
+  }
+
+  const history = await fireListUserHistory(uid, 1000);
+  for (const entry of history) {
+    await fireDeleteUserHistoryEntry(uid, entry.id).catch(e =>
+      console.warn('[deleteUserAccount] history delete error, uid:', uid, e.message));
+  }
+
+  if (user.phoneNumber) {
+    await fireDeleteDoc('phoneIndex', user.phoneNumber).catch(e =>
+      console.warn('[deleteUserAccount] phoneIndex delete error, uid:', uid, e.message));
+  }
+
+  const userDocDeleted = await fireDeleteDoc('users', uid);
+  if (!userDocDeleted) {
+    throw new Error('deleteUserAccount: failed to delete users/' + uid + ', aborting before Auth deletion');
+  }
+
+  // Docs legado 'phone:'+telefono (ver comentario en /auth/phone/verify) nunca
+  // tuvieron una cuenta real de Firebase Auth creada — el uid es puramente un
+  // id de documento de Firestore. Llamar a Identity Toolkit con ese string
+  // como localId falla con 400 (no es un uid válido).
+  if (!uid.startsWith('phone:')) {
+    await deleteFirebaseAuthUser(uid);
+  }
+
+  return { alreadyGone: false };
+}
+
+async function deleteAccountHandler(req, res) {
+  try {
+    await deleteUserAccount(req.user.uid);
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[DELETE /api/me/account] error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.delete('/api/me/account', requireUser, deleteAccountHandler);
+
+async function changePhoneHandler(req, res) {
+  const { phone, code } = req.body || {};
+  if (typeof phone !== 'string' || !E164_RE.test(phone) || typeof code !== 'string') {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+
+  let status;
+  try {
+    status = await checkVerificationCode(phone, code);
+  } catch (e) {
+    if (isClientFaultTwilioError(e)) return res.status(401).json({ error: 'invalid_code' });
+    console.warn('[me/phone/change] Twilio error:', e.message);
+    return res.status(502).json({ error: 'verify_failed' });
+  }
+  if (status !== 'approved') return res.status(401).json({ error: 'invalid_code' });
+
+  try {
+    const existingIndex = await fireGetPhoneIndex(phone);
+    if (existingIndex && existingIndex.uid && existingIndex.uid !== req.user.uid) {
+      return res.status(409).json({ error: 'phone_in_use' });
+    }
+  } catch (e) {
+    console.warn('[me/phone/change] phone index check failed, uid:', req.user.uid, e.message);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+
+  try {
+    if (req.user.phoneNumber && req.user.phoneNumber !== phone) {
+      await fireDeleteDoc('phoneIndex', req.user.phoneNumber).catch(e =>
+        console.warn('[me/phone/change] old phoneIndex cleanup failed (non-fatal), uid:', req.user.uid, e.message)
+      );
+    }
+    await fireSetPhoneIndex(phone, req.user.uid);
+    await setPhoneNumberClaim(req.user.uid, phone);
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[me/phone/change] error, uid:', req.user.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/phone/change', requireUser, changePhoneHandler);
+
+// Mismas claves que extractDietaryFromLabels en app.js, más glutenFree (spec de cuentas).
+const ALLOWED_DIETARY = ['vegan', 'vegetarian', 'keto', 'kosher', 'halal', 'organic', 'nonGmo', 'noAdditives', 'palmOilFree', 'fairTrade', 'caseinFree', 'glutenFree'];
+// Mismas claves que grupoClave() en app.js:2094.
+const ALLOWED_HEALTH_CONDITIONS = ['diabet', 'hipert', 'lactos', 'fenilc', 'celiac', 'gluten', 'ninos'];
+// Mismos labels canónicos que COMMON_ALLERGENS en app.js (normalizado a minúsculas sin acento).
+const ALLOWED_ALLERGEN_CODES = ['lacteos', 'cacahuate', 'nueces', 'trigo', 'huevo', 'pescado', 'mariscos', 'soja'];
+const ALLOWED_SEVERITY = ['severe', 'mild'];
+
+async function putPreferencesHandler(req, res) {
+  try {
+    const { dietary, allergens, healthConditions, consent, consentNoticeVersion } = req.body || {};
+    if (!Array.isArray(dietary) || !Array.isArray(allergens) || !Array.isArray(healthConditions)) {
+      return res.status(400).json({ error: 'invalid_preferences' });
+    }
+    // Hallazgo de revisión legal/seguridad: el checkbox de preferences-ui.js solo
+    // validaba en cliente — cualquier llamada directa al endpoint (curl/Postman)
+    // guardaba datos de salud sin haber pasado nunca por el consentimiento. El
+    // servidor ahora lo exige y guarda evidencia (consentGivenAt/versión del
+    // aviso) para poder demostrar consentimiento expreso ante una auditoría.
+    if (consent !== true) {
+      return res.status(400).json({ error: 'consent_required' });
+    }
+    if (!dietary.every(d => ALLOWED_DIETARY.includes(d))) {
+      return res.status(400).json({ error: 'invalid_dietary' });
+    }
+    if (!healthConditions.every(h => ALLOWED_HEALTH_CONDITIONS.includes(h))) {
+      return res.status(400).json({ error: 'invalid_health_conditions' });
+    }
+    if (!allergens.every(a => a && ALLOWED_ALLERGEN_CODES.includes(a.code) && ALLOWED_SEVERITY.includes(a.severity))) {
+      return res.status(400).json({ error: 'invalid_allergens' });
+    }
+
+    const preferences = {
+      dietary, allergens, healthConditions,
+      consentGivenAt: new Date().toISOString(),
+      consentNoticeVersion: consentNoticeVersion || 'v1',
+      updatedAt: new Date().toISOString()
+    };
+    // updateMask explícito y ANIDADO sobre estos campos — nunca se acepta el
+    // body crudo como estado nuevo del doc completo, así "plan"/"billing" nunca se pisan.
+    await firePatchUserFields(req.user.uid, [
+      'preferences.dietary', 'preferences.allergens', 'preferences.healthConditions',
+      'preferences.consentGivenAt', 'preferences.consentNoticeVersion', 'preferences.updatedAt'
+    ], { preferences });
+
+    res.json({ ok: true, preferences });
+  } catch (e) {
+    console.warn('[PUT /api/me/preferences] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.put('/api/me/preferences', requireUser, requireActiveMembership, putPreferencesHandler);
+
+async function deletePreferencesHandler(req, res) {
+  try {
+    // Borra el campo preferences completo (derechos ARCO sobre datos de salud),
+    // independiente de borrar la cuenta completa. Disponible sin importar el plan.
+    await firePatchUserFields(req.user.uid, ['preferences'], {});
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[DELETE /api/me/preferences] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.delete('/api/me/preferences', requireUser, requireActiveMembership, deletePreferencesHandler);
+
+// Mismos 3 valores que devuelve computeVerdict (Task 13) — validado como enum
+// (no string libre) para evitar guardar XSS almacenado que un futuro history.html
+// renderizaría sin escapar (hallazgo de revisión de seguridad).
+const ALLOWED_VERDICTS = ['sano', 'regular', 'evitar'];
+const MAX_BARCODE_LEN = 32;
+const MAX_PRODUCT_NAME_LEN = 200;
+const MAX_IMAGE_URL_LEN = 500;
+
+async function postHistoryHandler(req, res) {
+  try {
+    const { barcode, productName, verdict, image } = req.body || {};
+    if (!barcode || !productName || !verdict) return res.status(400).json({ error: 'invalid_history_entry' });
+    if (typeof barcode !== 'string' || barcode.length > MAX_BARCODE_LEN) {
+      return res.status(400).json({ error: 'invalid_barcode' });
+    }
+    if (typeof productName !== 'string' || productName.length > MAX_PRODUCT_NAME_LEN) {
+      return res.status(400).json({ error: 'invalid_product_name' });
+    }
+    if (!ALLOWED_VERDICTS.includes(verdict)) {
+      return res.status(400).json({ error: 'invalid_verdict' });
+    }
+
+    const entry = {
+      barcode, productName: productName.slice(0, MAX_PRODUCT_NAME_LEN), verdict, scannedAt: new Date().toISOString()
+    };
+    if (typeof image === 'string' && image.length > 0 && image.length <= MAX_IMAGE_URL_LEN && /^https:\/\//i.test(image)) {
+      entry.image = image;
+    }
+
+    const { id } = await fireLogUserHistory(req.user.uid, entry);
+    res.json({ ok: true, id });
+  } catch (e) {
+    console.warn('[POST /api/me/history] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function getHistoryHandler(req, res) {
+  try {
+    const history = await fireListUserHistory(req.user.uid, 50);
+    res.json({ history });
+  } catch (e) {
+    console.warn('[GET /api/me/history] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/history', requireUser, requireActiveMembership, postHistoryHandler);
+app.get('/api/me/history', requireUser, requireActiveMembership, getHistoryHandler);
+
+// Contador de escaneos totales — a diferencia de /api/me/history, SIN gate
+// premium: el stat "Escaneos" de account.html debe reflejar el total real
+// para cualquier plan, no solo premium.
+async function postScanHandler(req, res) {
+  try {
+    await fireIncrementUsageCounter(req.user.uid, 'totalScans');
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[POST /api/me/scan] Firestore error, uid:', req.user?.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.post('/api/me/scan', requireUser, postScanHandler);
 
 // --- Admin Panel API ---
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
@@ -1438,6 +2270,121 @@ app.delete('/api/admin/cache-all/:type/:key', requireAdmin, async (req, res) => 
   res.json({ status: 'deleted', type, key, layer });
 });
 
+async function buildUserDetail(uid) {
+  const userDoc = await fireGetUserRaw(uid);
+  if (!userDoc) return null;
+  const authAccount = await lookupAuthAccount(uid);
+  return { uid, profile: userDoc.fields, auth: authAccount };
+}
+
+async function searchUserHandler(req, res) {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'missing_query' });
+  try {
+    let uid;
+    if (q.includes('@')) {
+      uid = await findUserByEmail(q.toLowerCase());
+    } else {
+      const idx = await fireGetPhoneIndex(q);
+      uid = idx ? idx.uid : null;
+    }
+    if (!uid) return res.status(404).json({ error: 'not_found' });
+
+    const detail = await buildUserDetail(uid);
+    if (!detail) return res.status(404).json({ error: 'not_found' });
+    res.json(detail);
+  } catch (e) {
+    console.warn('[GET /api/admin/users/search] error, q:', req.query.q, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function getUserByUidHandler(req, res) {
+  const { uid } = req.params;
+  try {
+    const detail = await buildUserDetail(uid);
+    if (!detail) return res.status(404).json({ error: 'not_found' });
+    res.json(detail);
+  } catch (e) {
+    console.warn('[GET /api/admin/users/:uid] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function listUsersHandler(req, res) {
+  try {
+    const result = await fireListUsers(req.query.pageToken || null);
+    res.json(result);
+  } catch (e) {
+    console.warn('[GET /api/admin/users/list] error:', e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function patchUserMembershipHandler(req, res) {
+  const { uid } = req.params;
+  const { membershipStatus, membershipExpiresAt } = req.body || {};
+  if (!['pending', 'active', 'expired'].includes(membershipStatus)) {
+    return res.status(400).json({ error: 'invalid_membership_status' });
+  }
+  try {
+    await firePatchUserFields(uid, ['membershipStatus', 'membershipExpiresAt'], {
+      membershipStatus, membershipExpiresAt: membershipExpiresAt || null
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[PATCH /api/admin/users/:uid/membership] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function setUserDisabledHandler(req, res) {
+  const { uid } = req.params;
+  const { disabled } = req.body || {};
+  if (typeof disabled !== 'boolean') return res.status(400).json({ error: 'invalid_disabled' });
+  try {
+    await setUserDisabled(uid, disabled);
+    res.json({ ok: true, disabled });
+  } catch (e) {
+    console.warn('[POST /api/admin/users/:uid/disabled] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function adminCancelSubscriptionHandler(req, res) {
+  const { uid } = req.params;
+  try {
+    const user = await fireGetUser(uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    const subscriptionId = user.billing && user.billing.subscriptionId;
+    if (!subscriptionId) return res.status(409).json({ error: 'no_subscription' });
+    await stripeCancelSubscriptionNow(subscriptionId);
+    await firePatchUserFields(uid, ['autoRenew'], { autoRenew: false });
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[POST /api/admin/users/:uid/cancel-subscription] error, uid:', uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+async function adminDeleteAccountHandler(req, res) {
+  try {
+    await deleteUserAccount(req.params.uid);
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[DELETE /api/admin/users/:uid] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+app.get('/api/admin/users/search', requireAdmin, searchUserHandler);
+app.get('/api/admin/users/list', requireAdmin, listUsersHandler);
+app.patch('/api/admin/users/:uid/membership', requireAdmin, patchUserMembershipHandler);
+app.post('/api/admin/users/:uid/disabled', requireAdmin, setUserDisabledHandler);
+app.get('/api/admin/users/:uid', requireAdmin, getUserByUidHandler);
+app.post('/api/admin/users/:uid/cancel-subscription', requireAdmin, adminCancelSubscriptionHandler);
+app.delete('/api/admin/users/:uid', requireAdmin, adminDeleteAccountHandler);
+
 app.get('/api/admin/:collection', requireAdmin, validCol, async (req, res) => {
   const result = await fireListDocs(req.params.collection, req.query.pageToken || null);
   if (!result) return res.status(500).json({ error: 'Error al listar documentos' });
@@ -1467,6 +2414,38 @@ module.exports = app;
 module.exports.computeEnergyLevel = computeEnergyLevel;
 module.exports.detectGluten = detectGluten;
 module.exports.detectCasein = detectCasein;
+module.exports.requireUser = requireUser;
+module.exports.requireActiveMembership = requireActiveMembership;
+module.exports.authSyncHandler = authSyncHandler;
+module.exports.getMeHandler = getMeHandler;
+module.exports.putProfileHandler = putProfileHandler;
+module.exports.payMembershipHandler = payMembershipHandler;
+module.exports.checkoutResultHandler = checkoutResultHandler;
+module.exports.cancelMembershipHandler = cancelMembershipHandler;
+module.exports.reactivateMembershipHandler = reactivateMembershipHandler;
+module.exports.putPreferencesHandler = putPreferencesHandler;
+module.exports.deletePreferencesHandler = deletePreferencesHandler;
+module.exports.deleteUserAccount = deleteUserAccount;
+module.exports.deleteAccountHandler = deleteAccountHandler;
+module.exports.optionalUser = optionalUser;
+module.exports.expensiveLimiter = expensiveLimiter;
+module.exports.searchUserHandler = searchUserHandler;
+module.exports.patchUserMembershipHandler = patchUserMembershipHandler;
+module.exports.setUserDisabledHandler = setUserDisabledHandler;
+module.exports.getUserByUidHandler = getUserByUidHandler;
+module.exports.listUsersHandler = listUsersHandler;
+module.exports.adminCancelSubscriptionHandler = adminCancelSubscriptionHandler;
+module.exports.adminDeleteAccountHandler = adminDeleteAccountHandler;
+module.exports.ocrProcessHandler = ocrProcessHandler;
+module.exports.postHistoryHandler = postHistoryHandler;
+module.exports.getHistoryHandler = getHistoryHandler;
+module.exports.postScanHandler = postScanHandler;
+module.exports.phoneSendHandler = phoneSendHandler;
+module.exports.phoneVerifyHandler = phoneVerifyHandler;
+module.exports.changePhoneHandler = changePhoneHandler;
+module.exports.passwordResetHandler = passwordResetHandler;
+module.exports.verificationEmailHandler = verificationEmailHandler;
+module.exports.stripeWebhookHandler = stripeWebhookHandler;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;

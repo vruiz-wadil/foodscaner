@@ -1,0 +1,193 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import crypto from 'crypto'
+
+const { fireIncrementUsageCounter } = await import('../api/firestore.js')
+
+function buildFetchMock(userDocHandler) {
+  return vi.fn(async (url, options = {}) => {
+    if (url.includes('oauth2.googleapis.com/token')) {
+      return { ok: true, json: async () => ({ access_token: 'fake-token', expires_in: 3600 }) }
+    }
+    return userDocHandler(url, options)
+  })
+}
+
+function fakeServiceAccountKey() {
+  const { privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' }
+  })
+  return JSON.stringify({
+    project_id: 'foodscaner-test',
+    client_email: 'test@foodscaner-test.iam.gserviceaccount.com',
+    private_key: privateKey
+  })
+}
+
+describe('fireIncrementUsageCounter', () => {
+  const ORIGINAL_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+
+  beforeEach(() => {
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = fakeServiceAccountKey()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY = ORIGINAL_KEY
+  })
+
+  it('rejects an unknown field name', async () => {
+    await expect(fireIncrementUsageCounter('uid-1', 'ocrCount')).rejects.toThrow('Campo de uso inválido: ocrCount')
+  })
+
+  it('resets cacheRefreshCount to 0 before incrementing when usage.date is not today (UTC)', async () => {
+    let patchBody, patchUrl
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-14' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
+            } } } },
+            updateTime: '2026-07-14T23:00:00.000000Z'
+          })
+        }
+      }
+      patchUrl = url
+      patchBody = JSON.parse(options.body)
+      return { ok: true, status: 200 }
+    }))
+
+    const result = await fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')
+
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 1, totalScans: 20 })
+    // hallazgo: currentDocument.updateTime va como QUERY PARAM en la API REST
+    // de Firestore, no dentro del body — Firestore rechazaba con 400
+    // "Unknown name currentDocument at 'document'" cuando iba en el body.
+    expect(patchBody.currentDocument).toBeUndefined()
+    expect(patchUrl).toContain(`currentDocument.updateTime=${encodeURIComponent('2026-07-14T23:00:00.000000Z')}`)
+  })
+
+  it('increments the existing counter when usage.date is already today', async () => {
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '2' }, totalScans: { integerValue: '20' }
+            } } } },
+            updateTime: '2026-07-15T10:00:00.000000Z'
+          })
+        }
+      }
+      return { ok: true, status: 200 }
+    }))
+
+    const result = await fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')
+
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 3, totalScans: 20 })
+  })
+
+  it('retries with backoff on a 409 conflict and succeeds on the next attempt', async () => {
+    let patchAttempts = 0
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '0' }
+            } } } },
+            updateTime: '2026-07-15T10:00:00.000000Z'
+          })
+        }
+      }
+      patchAttempts++
+      if (patchAttempts === 1) return { ok: false, status: 409 }
+      return { ok: true, status: 200 }
+    }))
+    vi.useRealTimers()
+
+    const result = await fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')
+
+    expect(patchAttempts).toBe(2)
+    expect(result.cacheRefreshCount).toBe(1)
+  })
+
+  it('gives up after repeated 409 conflicts and throws', async () => {
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '0' }
+            } } } },
+            updateTime: '2026-07-15T10:00:00.000000Z'
+          })
+        }
+      }
+      return { ok: false, status: 409 }
+    }))
+    vi.useRealTimers()
+
+    await expect(fireIncrementUsageCounter('uid-1', 'cacheRefreshCount')).rejects.toThrow()
+  })
+
+  it('throws when the user document does not exist', async () => {
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) return { status: 404, ok: false }
+      return { ok: true, status: 200 }
+    }))
+
+    await expect(fireIncrementUsageCounter('uid-missing', 'totalScans')).rejects.toThrow()
+  })
+
+  it('incrementa totalScans sin resetearlo aunque usage.date no sea hoy (a diferencia de cacheRefreshCount, es de por vida)', async () => {
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-14' }, cacheRefreshCount: { integerValue: '1' }, totalScans: { integerValue: '20' }
+            } } } },
+            updateTime: '2026-07-14T23:00:00.000000Z'
+          })
+        }
+      }
+      return { ok: true, status: 200 }
+    }))
+
+    const result = await fireIncrementUsageCounter('uid-1', 'totalScans')
+
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 0, totalScans: 21 })
+  })
+
+  it('trata totalScans ausente como 0 (perfil creado antes de este campo)', async () => {
+    vi.stubGlobal('fetch', buildFetchMock(async (url, options) => {
+      if (!options.method) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({
+            fields: { usage: { mapValue: { fields: {
+              date: { stringValue: '2026-07-15' }, cacheRefreshCount: { integerValue: '0' }
+            } } } },
+            updateTime: '2026-07-15T10:00:00.000000Z'
+          })
+        }
+      }
+      return { ok: true, status: 200 }
+    }))
+
+    const result = await fireIncrementUsageCounter('uid-1', 'totalScans')
+
+    expect(result).toEqual({ date: '2026-07-15', cacheRefreshCount: 0, totalScans: 1 })
+  })
+})
