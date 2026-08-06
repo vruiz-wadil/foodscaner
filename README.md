@@ -19,18 +19,21 @@
 9. [Sellos NOM-051](#sellos-nom-051)
 10. [Riesgos para la salud](#riesgos-para-la-salud)
 11. [Veredicto SANO / REGULAR / EVITAR](#veredicto-sano--regular--evitar)
-12. [Frontend](#frontend)
-13. [PWA — instalable y funcionamiento offline](#pwa--instalable-y-funcionamiento-offline)
-14. [Reporte de problemas](#reporte-de-problemas)
-15. [Nudges de engagement (honestos, no gamificación)](#nudges-de-engagement-honestos-no-gamificación)
-16. [Panel de administración](#panel-de-administración)
-17. [Seguridad, accesibilidad y aspectos legales](#seguridad-accesibilidad-y-aspectos-legales)
-18. [Base de datos Firebase](#base-de-datos-firebase)
-19. [API — Endpoints](#api--endpoints)
-20. [Variables de entorno](#variables-de-entorno)
-21. [Instalación y desarrollo local](#instalación-y-desarrollo-local)
-22. [Pruebas (tests)](#pruebas-tests)
-23. [Despliegue en Vercel](#despliegue-en-vercel)
+12. [Cuentas y autenticación](#cuentas-y-autenticación)
+13. [Membresía Premium (Stripe)](#membresía-premium-stripe)
+14. [Preferencias personalizadas (alergias, dietas, condiciones)](#preferencias-personalizadas-alergias-dietas-condiciones)
+15. [Frontend](#frontend)
+16. [PWA — instalable y funcionamiento offline](#pwa--instalable-y-funcionamiento-offline)
+17. [Reporte de problemas](#reporte-de-problemas)
+18. [Nudges de engagement (honestos, no gamificación)](#nudges-de-engagement-honestos-no-gamificación)
+19. [Panel de administración](#panel-de-administración)
+20. [Seguridad, accesibilidad y aspectos legales](#seguridad-accesibilidad-y-aspectos-legales)
+21. [Base de datos Firebase](#base-de-datos-firebase)
+22. [API — Endpoints](#api--endpoints)
+23. [Variables de entorno](#variables-de-entorno)
+24. [Instalación y desarrollo local](#instalación-y-desarrollo-local)
+25. [Pruebas (tests)](#pruebas-tests)
+26. [Despliegue en Vercel](#despliegue-en-vercel)
 
 ---
 
@@ -42,6 +45,9 @@
 | **Frontend** | HTML + CSS + Vanilla JS (sin frameworks, sin build step) |
 | **PWA** | Service Worker (`sw.js`) + `manifest.json` — instalable, funciona offline |
 | **Base de datos** | Firebase Firestore (REST API + JWT RS256, sin SDK oficial ni gRPC) |
+| **Autenticación** | Firebase Auth (Identity Toolkit REST, sin `firebase-admin`) — email/password, Google, teléfono vía Twilio Verify |
+| **Pagos** | Stripe (Checkout + Billing Portal + webhooks) para la membresía Premium |
+| **App Check** | Firebase App Check con reCAPTCHA v3 (opcional — se omite en runtime si no está configurado) |
 | **IA — texto** | Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, y modelos adicionales como fallback desde el frontend) + OpenRouter (`openrouter/free`) + Gemini 2.5 Flash |
 | **IA — visión (OCR)** | Groq Vision (`meta-llama/llama-4-scout-17b-16e-instruct`) |
 | **Deploy** | Vercel (`vercel.json`: función Node para `/api/*`, estático para el resto) |
@@ -110,13 +116,18 @@
 ```
 food/
 ├── api/
-│   ├── index.js          # Express app: rutas /api/*, pipeline de búsqueda, IA, admin
-│   ├── firestore.js       # Cliente REST de Firestore (JWT RS256, sin SDK/gRPC)
-│   ├── geo.js              # Resolución de geolocalización por IP (ipquery.io)
-│   └── stats.js            # Cómputo de estadísticas del panel de admin
+│   ├── index.js          # Express app: rutas /api/*, pipeline de búsqueda, IA, membresía, admin
+│   ├── auth.js             # Handlers de cuenta: sync, perfil, password-reset, borrado de cuenta
+│   ├── phoneAuth.js          # Login por teléfono (Twilio Verify) + custom tokens de Firebase
+│   ├── emailActions.js         # Links de acción de Firebase Auth (verificación, reset) vía Identity Toolkit
+│   ├── mailer.js                 # Envío de correos transaccionales (verificación, dunning de pagos)
+│   ├── stripeClient.js             # Cliente REST de Stripe (Checkout, Billing Portal, sin SDK npm)
+│   ├── firestore.js                  # Cliente REST de Firestore (JWT RS256, sin SDK/gRPC)
+│   ├── geo.js                          # Resolución de geolocalización por IP (ipquery.io)
+│   └── stats.js                          # Cómputo de estadísticas del panel de admin
 ├── admin/
 │   ├── index.html           # UI del panel de administración
-│   └── admin.js               # Lógica del panel (login, tabs, cache viewer, reportes)
+│   └── admin.js               # Lógica del panel (login, tabs, cache viewer, gestión de usuarios)
 ├── vendor/                # Motores de escaneo auto-hospedados (offline-first)
 │   ├── barcode-detector.js    # Ponyfill ZXing-WASM de BarcodeDetector
 │   ├── zbar-wasm.mjs           # Wrapper JS de ZBar
@@ -124,9 +135,24 @@ food/
 │   └── zxing_reader.wasm          # Binario ZXing
 ├── assets/
 │   └── icons/               # Favicons/PWA icons (generados con sharp)
-├── tests/                  # Suite Vitest (backend + frontend)
+├── scripts/
+│   └── inject-firebase-config.js  # Inyecta config web de Firebase en build time (Vercel)
+├── tests/                  # Suite Vitest (backend + frontend, 55 archivos)
 ├── index.html              # Home: historial, accesos, enlaces sociales, registro del SW
 ├── scan.html                # Pantalla de escaneo (SW no se registra aquí, ver más abajo)
+├── auth.html / auth-ui.js     # Login / registro (email+password, Google, teléfono)
+├── account.html / account-ui.js # Perfil, membresía, cambio de teléfono, borrado de cuenta
+├── onboarding-profile.html      # Paso 1 post-signup: perfil + preferencias iniciales
+├── onboarding-membership.html     # Paso 2 post-signup: oferta de membresía personalizada
+├── premium-offer.html               # Pantalla de precio/beneficios antes del signup (usuarios anónimos)
+├── preferences.html / preferences-ui.js # Edición de alergias, dietas y condiciones de salud
+├── preference-labels.js               # Traducción código→{emoji,label} de preferencias (única fuente de verdad)
+├── verify-email.html / verify-email-ui.js # Confirmación de verificación de correo
+├── reset-password.html / reset-password-ui.js # Reseteo de contraseña vía link de acción
+├── firebase-init.js               # Init único del Firebase JS SDK (Auth + App Check)
+├── authClient.js                    # Helpers de sesión compartidos entre auth-ui/account-ui
+├── authErrors.js                      # Traducción de códigos de error de Firebase Auth
+├── analytics.js                         # Instrumentación de eventos (funnel de membresía, escaneos)
 ├── app.js                    # Lógica del escáner + render de resultados + IA + reportes
 ├── home.js                     # Lógica de la home (historial, nudge de activación)
 ├── styles.css / home.css         # Sistema de diseño "Etiqueta"
@@ -462,6 +488,98 @@ Sobre la pantalla de resultados, un banner destacado resume el análisis en un v
 
 ---
 
+## Cuentas y autenticación
+
+Yomi usa **Firebase Auth vía Identity Toolkit REST** — sin el SDK `firebase-admin` en el backend, solo llamadas HTTP autenticadas con un service account (`api/phoneAuth.js` expone `getAuthAccessToken()` / `getAuthServiceAccount()`, reutilizado también por `api/emailActions.js` para generar links de acción).
+
+### Métodos de inicio de sesión (`auth.html`)
+
+| Método | Cómo funciona |
+|---|---|
+| Email + contraseña | Firebase Auth JS SDK client-side (`firebase-init.js`) |
+| Google | `signInWithPopup` |
+| Teléfono | **Twilio Verify** (no el SMS nativo de Firebase) — `POST /api/auth/phone/send` envía el código, `POST /api/auth/phone/verify` lo valida y emite un **custom token de Firebase** firmado por el backend, que el cliente intercambia por una sesión real |
+
+Tras cualquier login/registro, el cliente llama a `POST /api/auth/sync` (con el ID token de Firebase como Bearer) para crear/actualizar el documento del usuario en Firestore.
+
+### Verificación de correo y reseteo de contraseña
+
+El envío nativo de correos de Firebase Auth está roto para este proyecto — en su lugar, `api/emailActions.js` genera los links de acción (`returnOobLink: true` contra Identity Toolkit) y `api/mailer.js` los envía con copy propio:
+
+- `POST /api/me/verification-email` (requiere sesión) — reenvía el correo de verificación.
+- `POST /api/auth/password-reset` (público) — envía el link de reseteo.
+- Ambos flujos aterrizan en `verify-email.html` / `reset-password.html`, que llaman a `applyActionCode` / `confirmPasswordReset` del SDK client-side.
+
+### Onboarding post-registro
+
+Un usuario nuevo pasa por dos pantallas obligatorias antes de llegar a la app:
+
+1. **`onboarding-profile.html`** — datos básicos + selección inicial de preferencias (alergias/dietas/condiciones).
+2. **`onboarding-membership.html`** — oferta de membresía Premium, con encabezado personalizado según las preferencias capturadas en el paso anterior (ej. si marcó "Celiaquía", el copy enfatiza la detección de gluten).
+
+Un usuario **anónimo** (sin sesión) que llega al teaser de veredicto en la pantalla de escaneo es dirigido en cambio a **`premium-offer.html`** — una pantalla de precio y beneficios sin gate de login, para dar transparencia de precio antes de pedir registro.
+
+### Borrado de cuenta
+
+`DELETE /api/me/account` elimina el documento de Firestore y, si el usuario tiene un método de auth que lo permite, también el registro en Firebase Auth (`deleteFirebaseAuthUser`). Los UID con prefijo `phone:` (usuarios que solo iniciaron sesión por teléfono antes de la migración a Twilio) se excluyen del borrado en Firebase Auth — ese prefijo no es un UID real de Identity Toolkit y el intento de borrado fallaría.
+
+---
+
+## Membresía Premium (Stripe)
+
+Las funciones core de personalización (preferencias, historial en la nube, veredicto completo tras el teaser) están detrás de una membresía de pago recurrente, cobrada con **Stripe Checkout** + **Billing Portal**. El cliente Stripe (`api/stripeClient.js`) es un wrapper delgado sobre la REST API — sin el SDK npm `stripe` — pinneado a `STRIPE_API_VERSION = '2026-06-24.dahlia'`.
+
+### Flujo de cobro
+
+```
+POST /api/me/membership/pay
+   → crea una Stripe Checkout Session (price fijo vía STRIPE_PRICE_ID)
+   → el usuario paga en la página hosteada de Stripe
+   → redirect a GET /api/me/membership/checkout-result?session_id=...
+      → valida que la sesión sea del usuario (client_reference_id)
+      → fulfillSubscription() marca membershipStatus:'active' en Firestore
+```
+
+### Webhook (`POST /api/webhooks/stripe`)
+
+Se registra **antes** del `express.json()` global (con `express.raw()`) porque la verificación de firma de Stripe necesita los bytes exactos del body, no el JSON ya parseado. Eventos manejados:
+
+| Evento | Efecto |
+|---|---|
+| `checkout.session.completed` | Activa la membresía (mismo camino que `checkout-result`, por si el usuario cierra la pestaña antes del redirect) |
+| `invoice.paid` | Confirma renovación exitosa |
+| `invoice.payment_failed` | Envía correo de aviso — copy distinto según sea el primer intento fallido o un reintento posterior de Stripe |
+| `customer.subscription.updated` | Sincroniza fecha de expiración / estado de auto-renovación |
+| `customer.subscription.deleted` | Marca `membershipStatus:'expired'` — solo cuando Stripe cancela de verdad la suscripción, no en cuanto el usuario pide cancelar (que solo desactiva `autoRenew` y deja correr el período ya pagado) |
+
+### Cancelación y reactivación
+
+`POST /api/me/membership/cancel` no cancela la suscripción inmediatamente — llama a Stripe con `cancelAtPeriodEnd: true`, así el usuario conserva acceso hasta el fin del período ya pagado. `POST /api/me/membership/reactivate` revierte ese flag mientras la suscripción siga activa.
+
+### Ambientes: Test vs Live
+
+Vercel mantiene credenciales de Stripe **separadas por ambiente**: `Production` usa las claves `sk_live_…` / `pk_live_…` / el price y webhook secret reales; `Preview` y `Development` se quedan en modo Test (`sk_test_…`), para que cualquier deploy de rama o PR nunca pueda generar un cargo real.
+
+---
+
+## Preferencias personalizadas (alergias, dietas, condiciones)
+
+Un usuario con membresía activa configura en `preferences.html` tres categorías de preferencias, persistidas en Firestore vía `PUT /api/me/preferences` y usadas para personalizar cada análisis de producto:
+
+| Categoría | Ejemplos | Efecto en el análisis |
+|---|---|---|
+| **Alergias** | Trigo, lácteos, cacahuate, mariscos... con severidad `mild` (aviso) / `severe` (estricto) | El veredicto marca el producto como no seguro si detecta el alérgeno, con distinto peso según severidad |
+| **Dietas** | Vegano, keto, sin gluten, halal... | Se compara contra `product.dietary` calculado por el pipeline de análisis |
+| **Condiciones de salud** | Diabetes, celiaquía, hipertensión, fenilcetonuria, intolerancia a lactosa, niños en casa | Dispara pushes deterministas a `notRecommended` cuando el producto contiene el ingrediente relevante (ej. gluten → aviso de celiaquía) |
+
+`preference-labels.js` es la única fuente de verdad para traducir estos códigos a `{emoji, label}` en cualquier pantalla fuera de `preferences.html` (resumen de perfil, chips de onboarding, etc.) — evita que cada pantalla mantenga su propio mapa y que se desincronicen.
+
+### Detección determinista vs IA
+
+Todas las señales de seguridad (alérgeno detectado, condición de salud afectada) se calculan **de forma determinista** a partir de `allergens_tags` / `ingredients_text`, nunca solo por inferencia de IA — la IA únicamente rellena campos que los datos estructurados dejan en `null`, nunca sobreescribe un veredicto ya calculado con certeza.
+
+---
+
 ## Frontend
 
 El frontend es Vanilla JS sin frameworks. Los archivos principales:
@@ -659,6 +777,28 @@ Todas las rutas bajo `/api/` pasan por un rate limit de 30 req/min por IP (`expr
 | `DELETE` | `/api/ocr/:barcode` | Elimina datos OCR de ingredientes de un barcode |
 | `DELETE` | `/api/nutrition/:barcode` | Elimina datos OCR de nutrición de un barcode |
 | `POST` | `/api/report` | Envía un reporte de problema (con validación server-side de imagen) |
+| `POST` | `/api/auth/phone/send` | Envía código de verificación SMS vía Twilio Verify |
+| `POST` | `/api/auth/phone/verify` | Valida el código y devuelve un custom token de Firebase |
+| `POST` | `/api/auth/password-reset` | Envía el link de reseteo de contraseña |
+| `POST` | `/api/webhooks/stripe` | Webhook de Stripe (verificación de firma sobre el body crudo) |
+
+### Requieren sesión (`requireUser` — Bearer del ID token de Firebase)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/auth/sync` | Crea/actualiza el documento del usuario tras login o registro |
+| `GET` | `/api/me` | Perfil del usuario, estado de membresía y preferencias |
+| `PUT` | `/api/me/profile` | Actualiza datos de perfil |
+| `POST` | `/api/me/verification-email` | Reenvía el correo de verificación |
+| `POST` | `/api/me/phone/change` | Cambia el teléfono asociado (re-verificación vía Twilio) |
+| `DELETE` | `/api/me/account` | Elimina la cuenta (Firestore + Firebase Auth) |
+| `POST` | `/api/me/membership/pay` | Crea la Stripe Checkout Session |
+| `GET` | `/api/me/membership/checkout-result` | Confirma el pago tras el redirect de Stripe |
+| `POST` | `/api/me/membership/cancel` | Cancela auto-renovación (conserva acceso hasta fin de período) |
+| `POST` | `/api/me/membership/reactivate` | Revierte una cancelación pendiente |
+| `PUT` / `DELETE` | `/api/me/preferences` | Guarda / borra alergias, dietas y condiciones de salud *(requiere membresía activa)* |
+| `GET` / `POST` | `/api/me/history` | Historial de escaneos en la nube *(requiere membresía activa)* |
+| `POST` | `/api/me/scan` | Registra un escaneo del usuario autenticado |
 
 ### Admin (requieren cookie de sesión `admin_session` o header `x-admin-token`, ver [Panel de administración](#panel-de-administración))
 
@@ -669,6 +809,10 @@ Todas las rutas bajo `/api/` pasan por un rate limit de 30 req/min por IP (`expr
 | `GET` | `/api/admin/stats` | Estadísticas de escaneo (cacheadas 5 min) |
 | `GET` | `/api/admin/cache-all` | Vista unificada de caché L1+L2 por barcode |
 | `DELETE` | `/api/admin/cache-all/:type/:key?layer=l1\|l2\|all` | Elimina una entrada de caché específica |
+| `GET` | `/api/admin/users/search` \| `/list` \| `/:uid` | Búsqueda y detalle de usuarios |
+| `POST` | `/api/admin/users/:uid/disabled` | Habilita/deshabilita una cuenta |
+| `POST` | `/api/admin/users/:uid/cancel-subscription` | Cancela la suscripción de Stripe de un usuario |
+| `DELETE` | `/api/admin/users/:uid` | Elimina la cuenta de un usuario |
 | `GET` | `/api/admin/:collection` | Lista documentos de una colección (`scan_logs`, `reports`, `products_ocr`, `products_nutrition`) |
 | `DELETE` | `/api/admin/:collection/:id` | Elimina un documento de una colección |
 
@@ -704,13 +848,35 @@ Todas las rutas bajo `/api/` pasan por un rate limit de 30 req/min por IP (`expr
 Crea un archivo `.env` en la raíz del proyecto (`.env.example` trae una plantilla mínima con `GROQ_API_KEY` y `USDA_API_KEY`):
 
 ```env
-# Firebase (Firestore para caché persistente — opcional, ver abajo)
-FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"...","private_key":"-----BEGIN RSA PRIVATE KEY-----\n...","client_email":"..."}'
+# Firebase Admin (Firestore + verificación de sesión + custom tokens/links de Auth)
+FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...","client_email":"..."}'
+# Usado por phoneAuth.js/emailActions.js para custom tokens y links de acción (mismo JSON que arriba)
+FIREBASE_SERVICE_ACCOUNT_KEY_DEV='{"type":"service_account", ...}'
+
+# Firebase — config pública del Web SDK (login client-side), inyectada en build time
+FIREBASE_PROJECT_ID=...
+FIREBASE_WEB_API_KEY=...
+FIREBASE_WEB_APP_ID=...
+FIREBASE_WEB_MESSAGING_SENDER_ID=...
+
+# Firebase App Check — opcional, protección anti-bot sobre las llamadas de Auth
+FIREBASE_RECAPTCHA_SITE_KEY=...
+FIREBASE_RECAPTCHA_SECRET_KEY=...
 
 # Twilio Verify — envío/verificación de código SMS para login por teléfono
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
 TWILIO_VERIFY_SERVICE_SID=VA...
+
+# Stripe — membresía Premium (Checkout + webhooks)
+STRIPE_SECRET_KEY=sk_live_... # sk_test_... en Preview/Development
+STRIPE_PRICE_ID=price_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+
+# URL base para links de correo (verificación, reseteo) — opcional, cae a https://yomi.mx
+APP_BASE_URL=https://yomi.mx
 
 # Groq — único requerido: IA de texto (análisis) y visión (OCR)
 GROQ_API_KEY=gsk_...
@@ -731,7 +897,10 @@ ADMIN_TOKEN=elige-un-token-largo-y-aleatorio
 PORT=3000
 ```
 
-Solo `GROQ_API_KEY` es estrictamente requerida para levantar el servidor con funcionalidad completa de búsqueda/análisis. Sin Firebase la caché funciona solo en memoria (L1, se pierde al reiniciar). Sin `USDA_API_KEY` se omite esa fuente de datos. Sin `ADMIN_TOKEN` el panel de administración queda deshabilitado (`503`) en vez de abierto. Sin las 3 variables de Twilio, el login por teléfono responde 502 (Twilio Verify no configurado) — el resto de la app (incluyendo email/Google) sigue funcionando normal. `FIREBASE_SERVICE_ACCOUNT_KEY` ahora también se usa para firmar el Firebase custom token del login por teléfono, además de para la caché de Firestore.
+Solo `GROQ_API_KEY` es estrictamente requerida para levantar el servidor con funcionalidad completa de búsqueda/análisis. Sin Firebase la caché funciona solo en memoria (L1, se pierde al reiniciar) y todas las rutas de sesión (`requireUser`) responden `503 auth_not_configured`. Sin las variables `FIREBASE_WEB_*` el build deja `firebase-init.js` con placeholders y el login client-side no inicializa. Sin `USDA_API_KEY` se omite esa fuente de datos. Sin `ADMIN_TOKEN` el panel de administración queda deshabilitado (`503`) en vez de abierto. Sin las 3 variables de Twilio, el login por teléfono responde 502 (Twilio Verify no configurado) — el resto de la app (incluyendo email/Google) sigue funcionando normal. Sin las variables de Stripe, `/api/me/membership/pay` falla — el resto de la app funciona pero sin poder cobrar la membresía. Sin `FIREBASE_RECAPTCHA_SITE_KEY` App Check se omite en runtime sin bloquear nada.
+
+> [!IMPORTANT]
+> En Vercel, `Production` debe usar credenciales **Live** de Stripe y el service account del proyecto **Firebase de producción**; `Preview` y `Development` deben quedarse en credenciales **Test** — nunca compartir la misma clave Stripe/Firebase entre ambientes, o un deploy de rama puede generar cargos reales o escribir en la base de datos equivocada.
 
 ---
 
@@ -761,14 +930,14 @@ Requiere **Node.js** (probado con Node 18+; `package.json` no fija un `engines.n
 
 ## Pruebas (tests)
 
-El proyecto usa [Vitest](https://vitest.dev/) con entorno `node` (`vitest.config.js`, setup en `tests/setup.js`). La suite vive en `tests/` y cubre tanto lógica de backend (`api.test.js`, `geo.test.js`, `stats.test.js`) como funciones de frontend extraídas para test (`app.test.js`):
+El proyecto usa [Vitest](https://vitest.dev/) con entorno `node` (`vitest.config.js`, setup en `tests/setup.js`). La suite vive en `tests/` (55 archivos) y cubre tanto lógica de backend (búsqueda de producto, auth, membresía/Stripe, admin) como funciones de frontend extraídas para test (escáner, onboarding, preferencias, componentes de cuenta):
 
 ```bash
 npm test            # ejecución única (vitest run)
 npm run test:watch  # modo watch
 ```
 
-En un checkout limpio esto corre **4 archivos de test, 71 tests**, todos deterministas (sin llamadas de red reales — los fetches externos se mockean).
+En un checkout limpio esto corre **más de 1300 tests**, todos deterministas (sin llamadas de red reales — los fetches externos y Stripe/Firebase se mockean).
 
 ---
 
@@ -779,7 +948,7 @@ npm i -g vercel
 vercel --prod
 ```
 
-Las variables de entorno (incluyendo `ADMIN_TOKEN` si quieres el panel de administración activo en producción) se configuran en Vercel → Settings → Environment Variables — no se leen de `.env` en producción.
+Las variables de entorno (incluyendo `ADMIN_TOKEN` si quieres el panel de administración activo en producción) se configuran en Vercel → Settings → Environment Variables, **por ambiente** (`Production` / `Preview` / `Development`) — no se leen de `.env` en producción. `Production` corre con el proyecto Firebase y las claves Stripe reales (Live); `Preview`/`Development` con un proyecto Firebase separado y Stripe en modo Test, para que cualquier deploy de rama sea seguro de probar.
 
 `vercel.json` define:
 - `builds`: `api/index.js` como función Node (`@vercel/node`); `admin/**`, `assets/**` y `vendor/**` como estático explícito (sin esto, los motores del escáner y los íconos devuelven 404 en producción).
