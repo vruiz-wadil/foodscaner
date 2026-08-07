@@ -11,7 +11,7 @@ vi.mock('../firebase-init.js', () => ({
   onAuthStateChanged
 }))
 
-let getIdToken, onAuthChange, syncUserProfile, getCachedProfile, setAutoSyncSuppressed
+let getIdToken, onAuthChange, onProfileChange, syncUserProfile, getCachedProfile, setAutoSyncSuppressed
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -22,6 +22,7 @@ beforeEach(async () => {
   const mod = await import('../authClient.js')
   getIdToken = mod.getIdToken
   onAuthChange = mod.onAuthChange
+  onProfileChange = mod.onProfileChange
   syncUserProfile = mod.syncUserProfile
   getCachedProfile = mod.getCachedProfile
   setAutoSyncSuppressed = mod.setAutoSyncSuppressed
@@ -105,12 +106,71 @@ describe('syncUserProfile', () => {
 })
 
 describe('window.authClient', () => {
-  it('exposes the five functions for non-module scripts', async () => {
+  it('exposes the six functions for non-module scripts', async () => {
     expect(window.authClient.getIdToken).toBe(getIdToken)
     expect(window.authClient.onAuthChange).toBe(onAuthChange)
+    expect(window.authClient.onProfileChange).toBe(onProfileChange)
     expect(window.authClient.syncUserProfile).toBe(syncUserProfile)
     expect(window.authClient.getCachedProfile).toBe(getCachedProfile)
     expect(window.authClient.setAutoSyncSuppressed).toBe(setAutoSyncSuppressed)
+  })
+})
+
+// ─── onProfileChange (Critical #2, revisión final 2026-08-06) ──────────────
+// onAuthChange's raw Firebase event fires before syncUserProfile() actually
+// resolves, so a subscriber relying on it + getCachedProfile() can observe
+// a stale null even for a Premium member. onProfileChange() must notify only
+// once the real answer (profile or confirmed null) is known, and must replay
+// that answer to subscribers that attach after resolution already happened.
+describe('onProfileChange', () => {
+  it('notifies subscribers with the resolved profile once syncUserProfile() succeeds', async () => {
+    mockAuth.currentUser = { getIdToken: vi.fn().mockResolvedValue('tok-1') }
+    global.fetch
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ membershipStatus: 'active' }) })
+
+    const cb = vi.fn()
+    onProfileChange(cb)
+    await syncUserProfile()
+
+    expect(cb).toHaveBeenCalledWith({ membershipStatus: 'active' })
+  })
+
+  it('notifies subscribers with null when syncUserProfile() resolves to "no session" (logout)', async () => {
+    mockAuth.currentUser = null
+    const cb = vi.fn()
+    onProfileChange(cb)
+    await syncUserProfile()
+
+    expect(cb).toHaveBeenCalledWith(null)
+  })
+
+  it('notifies subscribers with null when the internal auth-change callback sees no user, even though syncUserProfile() never runs', async () => {
+    const cb = vi.fn()
+    onProfileChange(cb)
+    const internalCallback = onAuthStateChanged.mock.calls[0][1]
+    await internalCallback(null)
+
+    expect(cb).toHaveBeenCalledWith(null)
+  })
+
+  it('replays the last known answer immediately to a subscriber that attaches after resolution already happened', async () => {
+    mockAuth.currentUser = { getIdToken: vi.fn().mockResolvedValue('tok-2') }
+    global.fetch
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ membershipStatus: 'active' }) })
+    await syncUserProfile()
+
+    const lateSubscriber = vi.fn()
+    onProfileChange(lateSubscriber)
+
+    expect(lateSubscriber).toHaveBeenCalledWith({ membershipStatus: 'active' })
+  })
+
+  it('does not call a subscriber before any resolution has happened', () => {
+    const cb = vi.fn()
+    onProfileChange(cb)
+    expect(cb).not.toHaveBeenCalled()
   })
 })
 

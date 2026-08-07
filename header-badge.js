@@ -1,4 +1,4 @@
-import { onAuthChange, getCachedProfile } from './authClient.js';
+import { onProfileChange } from './authClient.js';
 
 export function firstNameOf(profile) {
   const displayName = profile && profile.profile && profile.profile.displayName;
@@ -43,12 +43,15 @@ export function mountHeaderBadge() {
   const el = document.getElementById('header-badge');
   if (!el) return;
 
-  function update() {
-    renderBadge(el, getCachedProfile());
-  }
-
-  update();
-  onAuthChange(() => update());
+  // Do NOT render on mount from a synchronous "we don't know yet" state —
+  // the pill starts hidden in markup and stays that way until
+  // onProfileChange delivers a DEFINITIVE answer (a resolved profile, or a
+  // confirmed "no session"). This avoids flashing the CTA state to every
+  // logged-in user before their real (possibly Premium) profile arrives
+  // (Important #4, review 2026-08-06). onProfileChange() also replays the
+  // last known answer immediately if it already resolved before this call
+  // (e.g. account.html/preferences.html, which sync eagerly).
+  onProfileChange((profile) => renderBadge(el, profile));
 }
 
 if (typeof document !== 'undefined') {

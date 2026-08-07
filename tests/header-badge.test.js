@@ -3,9 +3,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const onAuthChange = vi.fn()
-const getCachedProfile = vi.fn()
-vi.mock('../authClient.js', () => ({ onAuthChange, getCachedProfile }))
+const onProfileChange = vi.fn()
+vi.mock('../authClient.js', () => ({ onProfileChange }))
 
 let firstNameOf, computeBadgeState, mountHeaderBadge
 
@@ -55,29 +54,57 @@ describe('computeBadgeState', () => {
 })
 
 describe('mountHeaderBadge', () => {
-  it('renders the CTA state immediately from the cached profile and un-hides the pill', () => {
-    getCachedProfile.mockReturnValue(null)
+  it('stays hidden and un-rendered on mount, before any definitive profile state arrives', () => {
+    // Regression guard for Critical #2 / Important #4: mounting must NOT
+    // render a guessed state synchronously — only subscribe.
     mountHeaderBadge()
+    // header-badge.js also auto-mounts on import (module bottom), so this
+    // may be called more than once — what matters is it subscribed and did
+    // not render a guessed state.
+    expect(onProfileChange).toHaveBeenCalled()
+    const el = document.getElementById('header-badge')
+    expect(el.className).toBe('header-badge hidden')
+  })
+
+  it('renders the CTA state once onProfileChange delivers a confirmed "no session" (null)', () => {
+    mountHeaderBadge()
+    const callback = onProfileChange.mock.calls[0][0]
+    callback(null)
     const el = document.getElementById('header-badge')
     expect(el.className).toBe('header-badge cta')
     expect(el.getAttribute('href')).toBe('premium-offer.html')
     expect(el.textContent).toContain('Hazte Premium')
   })
 
-  it('re-renders when authClient fires an auth change', () => {
-    getCachedProfile.mockReturnValueOnce(null).mockReturnValueOnce({ membershipStatus: 'active', profile: { displayName: 'Luis' } })
+  it('renders the Premium state once onProfileChange delivers the resolved profile', () => {
+    // This is the exact scenario Critical #2 broke: the profile becomes
+    // available asynchronously, after the raw Firebase auth event already
+    // fired. mountHeaderBadge must re-render when that happens.
     mountHeaderBadge()
-    const callback = onAuthChange.mock.calls[0][0]
-    callback()
+    const callback = onProfileChange.mock.calls[0][0]
+    callback({ membershipStatus: 'active', profile: { displayName: 'Luis' } })
     const el = document.getElementById('header-badge')
     expect(el.className).toBe('header-badge premium')
     expect(el.getAttribute('href')).toBe('account.html')
     expect(el.textContent).toContain('Luis')
   })
 
-  it('escapes HTML in a malicious displayName instead of injecting it', () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'active', profile: { displayName: '<img src=x onerror=alert(1)>' } })
+  it('renders immediately from a replayed profile when onProfileChange already resolved before mount', () => {
+    // authClient.onProfileChange() replays the last known answer to late
+    // subscribers (e.g. account.html/preferences.html, which sync eagerly
+    // before header-badge.js mounts). Simulate that replay behavior here.
+    onProfileChange.mockImplementation((cb) => {
+      cb({ membershipStatus: 'active', profile: { displayName: 'Luis' } })
+    })
     mountHeaderBadge()
+    const el = document.getElementById('header-badge')
+    expect(el.className).toBe('header-badge premium')
+  })
+
+  it('escapes HTML in a malicious displayName instead of injecting it', () => {
+    mountHeaderBadge()
+    const callback = onProfileChange.mock.calls[0][0]
+    callback({ membershipStatus: 'active', profile: { displayName: '<img src=x onerror=alert(1)>' } })
     const el = document.getElementById('header-badge')
     expect(el.querySelector('img')).toBeNull()
     expect(el.innerHTML).toContain('&lt;img')
