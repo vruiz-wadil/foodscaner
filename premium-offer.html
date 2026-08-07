@@ -19,8 +19,20 @@
     .membership-compare th:first-child, .membership-compare td:first-child { text-align: left; }
     .membership-price { font-size: 1.25rem; font-weight: 700; text-align: center; margin: 8px 0 16px; }
   </style>
+  <style>body { visibility: hidden; }</style>
 </head>
 <body>
+  <script type="module">
+    import { firebaseAuth } from './firebase-init.js';
+    import { shouldRedirectToAccount } from './premium-offer-guard.js';
+
+    await firebaseAuth.authStateReady();
+    if (shouldRedirectToAccount(firebaseAuth.currentUser)) {
+      window.location.replace('account.html');
+    } else {
+      document.body.style.visibility = 'visible';
+    }
+  </script>
   <div class="app-shell">
     <header class="app-header">
       <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
