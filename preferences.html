@@ -52,8 +52,11 @@
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
-      <h1 class="page-title">Mis preferencias</h1>
+      <div class="logo-area">
+        <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+        <h1 class="page-title">Mis preferencias</h1>
+      </div>
+      <a href="#" id="header-badge" class="header-badge hidden" aria-live="polite"></a>
     </header>
     <main class="app-main content-page">
       <div class="content-card">
@@ -211,6 +214,7 @@
   <script src="analytics.js"></script>
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="authClient.js"></script>
+  <script type="module" src="header-badge.js"></script>
   <script type="module" src="preferences-ui.js"></script>
   <script src="nav.js"></script>
 </body>
