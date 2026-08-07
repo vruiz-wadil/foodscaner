@@ -18,6 +18,8 @@
   --paper:         var(--white);
   --border:        rgba(45,188,158,0.2);
   --ink-3:         var(--ink-muted);
+  --chile:         #dc2626;
+  --amber:         #eab308;
 }
 
 :focus-visible {
@@ -889,3 +891,50 @@ body:has(.app-main.content-page) {
    botón con esta clase (ej. #btn-skip-preferences en preferences.html) se
    renderizaba sin ningún estilo, botón de navegador puro (hallazgo UX). */
 .link-button { background: none; border: none; color: var(--ink); text-decoration: underline; font-size: 0.85rem; padding: 8px 0; cursor: pointer; }
+
+/* Copied verbatim from styles.css — index.html only loads home.css, not
+   styles.css, so the header membership badge rendered completely unstyled
+   here (Critical #3, review 2026-08-06). Keep in sync with styles.css. */
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.header-badge:hover,
+.header-badge:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.header-badge.hidden {
+  display: none;
+}
+
+.header-badge.cta {
+  background: var(--chile);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.header-badge.premium {
+  background: var(--amber);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.header-badge-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
