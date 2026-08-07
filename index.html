@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-title" content="Yomi">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="home.css?v=15">
+  <link rel="stylesheet" href="home.css?v=16">
 </head>
 <body>
   <div class="app-shell">
@@ -24,6 +24,7 @@
     <!-- Header -->
     <header class="app-header">
       <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+      <a href="#" id="header-badge" class="header-badge hidden" aria-live="polite"></a>
     </header>
 
     <!-- Scrollable main -->
@@ -119,6 +120,7 @@
   <script src="home.js"></script>
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="authClient.js"></script>
+  <script type="module" src="header-badge.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');

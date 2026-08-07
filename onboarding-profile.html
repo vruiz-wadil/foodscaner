@@ -11,13 +11,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="home.css?v=15">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
   <style>.hidden{display:none!important}</style>
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
       <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+      <a href="#" id="header-badge" class="header-badge hidden" aria-live="polite"></a>
     </header>
     <main class="app-main content-page">
       <section class="section-heading">
@@ -47,6 +48,7 @@
   </div>
   <script src="analytics.js"></script>
   <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="header-badge.js"></script>
   <script type="module" src="onboarding-profile-ui.js"></script>
 </body>
 </html>

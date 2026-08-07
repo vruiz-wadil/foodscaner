@@ -25,7 +25,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=56">
+  <link rel="stylesheet" href="styles.css?v=57">
   <!-- BarcodeDetector ponyfill: self-hosted (offline PWA) — activa ZXing-WASM en iOS y escritorio donde el API nativo no existe -->
   <script type="module">
     import { BarcodeDetector, setZXingModuleOverrides } from "/vendor/barcode-detector.js";
@@ -72,6 +72,7 @@
       <div class="logo-area">
         <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
       </div>
+      <a href="#" id="header-badge" class="header-badge hidden" aria-live="polite"></a>
     </header>
 
     <main class="app-main-grid">
@@ -679,5 +680,6 @@
   <script src="nav.js"></script>
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="authClient.js"></script>
+  <script type="module" src="header-badge.js"></script>
 </body>
 </html>

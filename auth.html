@@ -13,7 +13,7 @@
   <!-- home.css NO define estilos de input/botón (viven en styles.css) — hallazgo
        de revisión UX: sin este link el formulario se ve roto/sin marca. -->
   <link rel="stylesheet" href="home.css?v=15">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
   <style>
     /* home.css solo scopea .hidden a selectores específicos — regla genérica
        para #auth-error, necesaria para que se oculte correctamente (hallazgo UX). */
@@ -31,6 +31,7 @@
   <div class="app-shell">
     <header class="app-header">
       <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+      <a href="#" id="header-badge" class="header-badge hidden" aria-live="polite"></a>
     </header>
     <main class="app-main content-page">
       <section class="section-heading">
@@ -158,6 +159,7 @@
   </div>
   <script src="analytics.js"></script>
   <script type="module" src="firebase-init.js"></script>
+  <script type="module" src="header-badge.js"></script>
   <script type="module" src="auth-ui.js"></script>
   <script src="nav.js"></script>
 </body>

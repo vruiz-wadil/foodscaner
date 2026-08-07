@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
   <title>Yomi — Análisis personalizado con Premium</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.json">
@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="home.css?v=15">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
   <style>
     .hidden{display:none!important}
     .membership-compare { width: 100%; border-collapse: collapse; margin: 8px 0; }
@@ -19,8 +19,32 @@
     .membership-compare th:first-child, .membership-compare td:first-child { text-align: left; }
     .membership-price { font-size: 1.25rem; font-weight: 700; text-align: center; margin: 8px 0 16px; }
   </style>
+  <style>body { visibility: hidden; }</style>
 </head>
 <body>
+  <script type="module">
+    // Fail-open by design: body starts hidden (see <style> above) so a
+    // logged-in user isn't flashed the offer before the account.html
+    // redirect fires. But if ANYTHING here throws — a future CSP
+    // regression, a blocked import, an SDK error — visibility must still
+    // be restored, or the page is permanently blank for every visitor
+    // (Critical #1, review 2026-08-06). try/finally guarantees that: the
+    // only way visibility does NOT get restored is the redirect branch
+    // actually firing, which navigates away anyway.
+    let redirected = false;
+    try {
+      const { firebaseAuth } = await import('./firebase-init.js');
+      const { shouldRedirectToAccount } = await import('./premium-offer-guard.js');
+
+      await firebaseAuth.authStateReady();
+      if (shouldRedirectToAccount(firebaseAuth.currentUser)) {
+        redirected = true;
+        window.location.replace('account.html');
+      }
+    } finally {
+      if (!redirected) document.body.style.visibility = 'visible';
+    }
+  </script>
   <div class="app-shell">
     <header class="app-header">
       <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">

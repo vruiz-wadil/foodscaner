@@ -2,6 +2,33 @@ import { firebaseAuth, onAuthStateChanged } from './firebase-init.js';
 
 let cachedProfile = null;
 
+// profileResolved tracks whether we've ever reached a DEFINITIVE profile
+// answer (either a fetched profile, or a confirmed "no session"). Consumers
+// like header-badge.js need to distinguish "we don't know yet" from "we know
+// there is no profile" — onAuthChange's raw Firebase event fires before
+// syncUserProfile() has actually completed, so it can't tell them that (see
+// Critical #2 finding, 2026-08-06 review). onProfileChange() below is the
+// fix: it notifies subscribers only once the real answer is known, and
+// replays the last known answer immediately to any subscriber that attaches
+// after resolution already happened (e.g. account.html/preferences.html,
+// which call syncUserProfile() explicitly before header-badge.js mounts).
+let profileResolved = false;
+let profileListeners = [];
+
+function notifyProfileChange(profile) {
+  cachedProfile = profile;
+  profileResolved = true;
+  profileListeners.forEach((cb) => cb(profile));
+}
+
+export function onProfileChange(callback) {
+  profileListeners.push(callback);
+  if (profileResolved) callback(cachedProfile);
+  return () => {
+    profileListeners = profileListeners.filter((cb) => cb !== callback);
+  };
+}
+
 export function onAuthChange(callback) {
   return onAuthStateChanged(firebaseAuth, callback);
 }
@@ -22,7 +49,7 @@ export async function getIdToken(forceRefresh = false) {
 export async function syncUserProfile() {
   const token = await getIdToken();
   if (!token) {
-    cachedProfile = null;
+    notifyProfileChange(null);
     return null;
   }
 
@@ -36,12 +63,13 @@ export async function syncUserProfile() {
   });
 
   if (!res.ok) {
-    cachedProfile = null;
+    notifyProfileChange(null);
     return null;
   }
 
-  cachedProfile = await res.json();
-  return cachedProfile;
+  const profile = await res.json();
+  notifyProfileChange(profile);
+  return profile;
 }
 
 export function getCachedProfile() {
@@ -79,6 +107,10 @@ onAuthChange((user) => {
   // value. Firebase's real onAuthStateChanged ignores the callback's return
   // value, so this has no effect on production behavior.
   if (user && !autoSyncSuppressed) return syncUserProfile();
+  // No user: this IS a definitive answer (confirmed no session) even though
+  // syncUserProfile() never runs — notify so onProfileChange subscribers
+  // (e.g. an anonymous visitor on index.html) aren't left waiting forever.
+  if (!user) notifyProfileChange(null);
 });
 
-window.authClient = { getIdToken, onAuthChange, syncUserProfile, getCachedProfile, setAutoSyncSuppressed };
+window.authClient = { getIdToken, onAuthChange, onProfileChange, syncUserProfile, getCachedProfile, setAutoSyncSuppressed };

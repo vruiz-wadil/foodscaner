@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://images.openfoodfacts.org https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://apis.google.com https://www.googleapis.com https://www.google.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com; frame-src https://*.firebaseapp.com https://apis.google.com https://accounts.google.com https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self';">
   <title>Yomi — Análisis</title>
   <link rel="stylesheet" href="home.css?v=15">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
   <style>
     .hidden{display:none!important}
     /* El upsell de free-plan usa el mismo tratamiento de card que account.html
@@ -18,8 +18,11 @@
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
-      <h1 class="page-title">Análisis</h1>
+      <div class="logo-area">
+        <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+        <h1 class="page-title">Análisis</h1>
+      </div>
+      <a href="#" id="header-badge" class="header-badge hidden" aria-live="polite"></a>
     </header>
     <main class="app-main content-page" id="history-root"></main>
 
@@ -50,6 +53,7 @@
   <script src="app.js?v=75"></script>
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="authClient.js"></script>
+  <script type="module" src="header-badge.js"></script>
   <script type="module" src="history-ui.js"></script>
   <script src="nav.js"></script>
 </body>
