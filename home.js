@@ -86,6 +86,12 @@ function redirectTargetForIncompleteOnboarding(profile) {
   return null;
 }
 
+function historyNavTarget(profile) {
+  if (!profile) return 'premium-offer.html';
+  if (profile.membershipStatus !== 'active') return 'onboarding-membership.html';
+  return 'history.html';
+}
+
 function greetingSubtitle(profile) {
   const displayName = profile && ((profile.profile && profile.profile.displayName) || profile.displayName || '');
   return displayName ? `Hola ${displayName}, escanea y lo sabrás en segundos.` : null;
@@ -100,7 +106,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = 'account.html';
   });
   document.getElementById('nav-history').addEventListener('click', () => {
-    window.location.href = 'history.html';
+    const profile = window.authClient && window.authClient.getCachedProfile();
+    window.location.href = historyNavTarget(profile);
   });
 
   // Product card click → scan that barcode

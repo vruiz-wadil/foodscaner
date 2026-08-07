@@ -9,13 +9,28 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const homeCode = fs.readFileSync(path.join(__dirname, '..', 'home.js'), 'utf8')
 
-let redirectTargetForIncompleteOnboarding, greetingSubtitle
+let redirectTargetForIncompleteOnboarding, greetingSubtitle, historyNavTarget
 
 beforeAll(() => {
-  const fn = new Function(homeCode + '\nreturn { redirectTargetForIncompleteOnboarding, greetingSubtitle }')
+  const fn = new Function(homeCode + '\nreturn { redirectTargetForIncompleteOnboarding, greetingSubtitle, historyNavTarget }')
   const exported = fn()
   redirectTargetForIncompleteOnboarding = exported.redirectTargetForIncompleteOnboarding
   greetingSubtitle = exported.greetingSubtitle
+  historyNavTarget = exported.historyNavTarget
+})
+
+describe('historyNavTarget', () => {
+  it('regresa premium-offer.html cuando no hay sesión', () => {
+    expect(historyNavTarget(null)).toBe('premium-offer.html')
+  })
+
+  it('regresa onboarding-membership.html cuando hay sesión sin membresía activa', () => {
+    expect(historyNavTarget({ membershipStatus: 'pending' })).toBe('onboarding-membership.html')
+  })
+
+  it('regresa history.html cuando la membresía está activa', () => {
+    expect(historyNavTarget({ membershipStatus: 'active' })).toBe('history.html')
+  })
 })
 
 describe('redirectTargetForIncompleteOnboarding', () => {
