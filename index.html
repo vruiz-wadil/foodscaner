@@ -24,6 +24,7 @@
     <!-- Header -->
     <header class="app-header">
       <img src="assets/redesign/logo.svg" alt="Yomi" class="app-logo">
+      <a href="#" id="header-badge" class="header-badge hidden" aria-live="polite"></a>
     </header>
 
     <!-- Scrollable main -->
@@ -119,6 +120,7 @@
   <script src="home.js"></script>
   <script type="module" src="firebase-init.js"></script>
   <script type="module" src="authClient.js"></script>
+  <script type="module" src="header-badge.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');
