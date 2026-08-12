@@ -25,6 +25,27 @@
   let currentDetailUid = null;
 
   const SECTION_TITLES = { resumen: 'Resumen', scan_logs: 'Logs de escaneo', reports: 'Reportes', products_ocr: 'OCR ingredientes', products_nutrition: 'OCR nutrición', cache: 'Cache', users: 'Usuarios' };
+  const DIETARY_LABELS = {
+    vegan: 'Vegano', vegetarian: 'Vegetariano', keto: 'Keto', glutenFree: 'Sin gluten',
+    caseinFree: 'Sin caseína', organic: 'Orgánico', kosher: 'Kosher', halal: 'Halal',
+    nonGmo: 'Sin OGM', noAdditives: 'Sin aditivos', palmOilFree: 'Sin palma', fairTrade: 'C. justo'
+  };
+  const HEALTH_LABELS = {
+    diabet: 'Diabetes', celiac: 'Celiaquía', hipert: 'Hipertensión',
+    ninos: 'Niños en casa', fenilc: 'Fenilcetonuria', lactos: 'Intolerancia a lactosa'
+  };
+  const ALLERGEN_LABELS = {
+    cacahuate: 'Cacahuate', lacteos: 'Lácteos', nueces: 'Nueces', trigo: 'Trigo',
+    huevo: 'Huevo', pescado: 'Pescado', mariscos: 'Mariscos', soja: 'Soya'
+  };
+
+  function renderPrefCheckboxes(name, labelMap, selectedCodes) {
+    return Object.entries(labelMap).map(([code, label]) => `
+      <label style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:0.85rem;">
+        <input type="checkbox" name="${escHtml(name)}" value="${escHtml(code)}" ${selectedCodes.includes(code) ? 'checked' : ''}>
+        ${escHtml(label)}
+      </label>`).join('');
+  }
 
   async function loadStats() {
     docList.innerHTML = '<div class="empty-msg">Cargando…</div>';
@@ -393,6 +414,17 @@
           <input type="text" id="user-contact-phone" placeholder="Teléfono (+52...)" value="${escHtml((profile.profile && profile.profile.phone) || '')}" style="flex:1;min-width:140px;">
           <button class="btn" data-action="save-contact" data-uid="${escHtml(uid)}">Guardar datos de contacto</button>
         </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="doc-meta">Preferencias dietéticas:</div>
+          <div id="user-pref-dietary">${renderPrefCheckboxes('pref-dietary', DIETARY_LABELS, (profile.preferences && profile.preferences.dietary) || [])}</div>
+          <div class="doc-meta">Condiciones de salud:</div>
+          <div id="user-pref-health">${renderPrefCheckboxes('pref-health', HEALTH_LABELS, (profile.preferences && profile.preferences.healthConditions) || [])}</div>
+          <div class="doc-meta">Alergias (severidad estricta):</div>
+          <div id="user-pref-allergens">${renderPrefCheckboxes('pref-allergens', ALLERGEN_LABELS, ((profile.preferences && profile.preferences.allergens) || []).map(a => a.code))}</div>
+          <div>
+            <button class="btn" data-action="save-preferences" data-uid="${escHtml(uid)}">Guardar preferencias</button>
+          </div>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <select id="user-membership-status">
             <option value="pending" ${profile.membershipStatus === 'pending' ? 'selected' : ''}>Pendiente</option>
@@ -689,6 +721,24 @@
         alert('Error al guardar los datos de contacto.');
         btn.disabled = false;
         btn.textContent = 'Guardar datos de contacto';
+      }
+    } else if (btn.dataset.action === 'save-preferences') {
+      const uid = btn.dataset.uid;
+      const dietary = Array.from(document.querySelectorAll('input[name="pref-dietary"]:checked')).map(el => el.value);
+      const healthConditions = Array.from(document.querySelectorAll('input[name="pref-health"]:checked')).map(el => el.value);
+      const allergens = Array.from(document.querySelectorAll('input[name="pref-allergens"]:checked')).map(el => ({ code: el.value, severity: 'severe' }));
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify({ dietary, allergens, healthConditions })
+      });
+      if (r.ok) {
+        loadUserDetail(currentDetailUid);
+      } else {
+        alert('Error al guardar las preferencias.');
+        btn.disabled = false;
+        btn.textContent = 'Guardar preferencias';
       }
     } else if (btn.dataset.action === 'view-user') {
       loadUserDetail(btn.dataset.uid);
