@@ -388,6 +388,12 @@
           <div class="doc-meta">Estado de cuenta: ${authBadge}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="user-contact-name" placeholder="Nombre" value="${escHtml((profile.profile && profile.profile.displayName) || '')}" style="flex:1;min-width:140px;">
+          <input type="email" id="user-contact-email" placeholder="Correo de contacto" value="${escHtml((profile.profile && profile.profile.email) || '')}" style="flex:1;min-width:180px;">
+          <input type="text" id="user-contact-phone" placeholder="Teléfono (+52...)" value="${escHtml((profile.profile && profile.profile.phone) || '')}" style="flex:1;min-width:140px;">
+          <button class="btn" data-action="save-contact" data-uid="${escHtml(uid)}">Guardar datos de contacto</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <select id="user-membership-status">
             <option value="pending" ${profile.membershipStatus === 'pending' ? 'selected' : ''}>Pendiente</option>
             <option value="active" ${profile.membershipStatus === 'active' ? 'selected' : ''}>Activa</option>
@@ -665,6 +671,24 @@
         alert('Error al eliminar la cuenta.');
         btn.disabled = false;
         btn.textContent = 'Eliminar cuenta';
+      }
+    } else if (btn.dataset.action === 'save-contact') {
+      const uid = btn.dataset.uid;
+      const displayName = document.getElementById('user-contact-name').value.trim();
+      const email = document.getElementById('user-contact-email').value.trim();
+      const phone = document.getElementById('user-contact-phone').value.trim();
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({ displayName, email, phone })
+      });
+      if (r.ok) {
+        loadUserDetail(currentDetailUid);
+      } else {
+        alert('Error al guardar los datos de contacto.');
+        btn.disabled = false;
+        btn.textContent = 'Guardar datos de contacto';
       }
     } else if (btn.dataset.action === 'view-user') {
       loadUserDetail(btn.dataset.uid);
