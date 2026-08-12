@@ -2381,12 +2381,50 @@ async function adminDeleteAccountHandler(req, res) {
   }
 }
 
+async function adminPatchUserProfileHandler(req, res) {
+  const { uid } = req.params;
+  try {
+    const user = await fireGetUser(uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    const { displayName, phone, email } = req.body || {};
+    const fieldPaths = [];
+    const profile = { ...(user.profile || {}) };
+
+    if (displayName !== undefined) {
+      const clean = typeof displayName === 'string' ? displayName.trim().slice(0, 100) : '';
+      if (!clean) return res.status(400).json({ error: 'invalid_display_name' });
+      profile.displayName = clean;
+      fieldPaths.push('profile.displayName');
+    }
+    if (phone !== undefined) {
+      if (typeof phone !== 'string' || !E164_RE.test(phone)) return res.status(400).json({ error: 'invalid_phone' });
+      profile.phone = phone;
+      fieldPaths.push('profile.phone');
+    }
+    if (email !== undefined) {
+      const clean = typeof email === 'string' ? email.trim().slice(0, 200) : '';
+      if (!EMAIL_RE.test(clean)) return res.status(400).json({ error: 'invalid_email' });
+      profile.email = clean;
+      fieldPaths.push('profile.email');
+    }
+    if (fieldPaths.length === 0) return res.status(400).json({ error: 'no_fields' });
+
+    await firePatchUserFields(uid, fieldPaths, { profile });
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[PATCH /api/admin/users/:uid/profile] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
 app.get('/api/admin/users/search', requireAdmin, searchUserHandler);
 app.get('/api/admin/users/list', requireAdmin, listUsersHandler);
 app.patch('/api/admin/users/:uid/membership', requireAdmin, patchUserMembershipHandler);
 app.post('/api/admin/users/:uid/disabled', requireAdmin, setUserDisabledHandler);
 app.get('/api/admin/users/:uid', requireAdmin, getUserByUidHandler);
 app.post('/api/admin/users/:uid/cancel-subscription', requireAdmin, adminCancelSubscriptionHandler);
+app.patch('/api/admin/users/:uid/profile', requireAdmin, adminPatchUserProfileHandler);
 app.delete('/api/admin/users/:uid', requireAdmin, adminDeleteAccountHandler);
 
 app.get('/api/admin/:collection', requireAdmin, validCol, async (req, res) => {
@@ -2440,6 +2478,7 @@ module.exports.getUserByUidHandler = getUserByUidHandler;
 module.exports.listUsersHandler = listUsersHandler;
 module.exports.adminCancelSubscriptionHandler = adminCancelSubscriptionHandler;
 module.exports.adminDeleteAccountHandler = adminDeleteAccountHandler;
+module.exports.adminPatchUserProfileHandler = adminPatchUserProfileHandler;
 module.exports.ocrProcessHandler = ocrProcessHandler;
 module.exports.postHistoryHandler = postHistoryHandler;
 module.exports.getHistoryHandler = getHistoryHandler;
