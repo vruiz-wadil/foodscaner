@@ -535,6 +535,8 @@ app.get('/api/product/:barcode', async (req, res) => {
         country: geo.country,
         region:  geo.region,
         city:    geo.city,
+        latitude: geo.latitude,
+        longitude: geo.longitude,
         os:      detectOS(req.headers['user-agent']),
         ua:      req.headers['user-agent'] || ''
       });
@@ -1468,7 +1470,9 @@ app.post('/api/report', async (req, res) => {
     os: detectOS(ua), ua, ip,
     country: geo.country,
     region: geo.region,
-    city: geo.city
+    city: geo.city,
+    latitude: geo.latitude,
+    longitude: geo.longitude
   });
   if (!ok) return res.status(500).json({ error: 'No se pudo guardar el reporte' });
   res.json({ ok: true });
