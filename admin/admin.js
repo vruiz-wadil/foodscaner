@@ -25,6 +25,28 @@
   let currentDetailUid = null;
 
   const SECTION_TITLES = { resumen: 'Resumen', scan_logs: 'Logs de escaneo', reports: 'Reportes', products_ocr: 'OCR ingredientes', products_nutrition: 'OCR nutrición', cache: 'Cache', users: 'Usuarios' };
+  // Duplicado de preference-labels.js: mantener en sincronía si ese archivo cambia.
+  const DIETARY_LABELS = {
+    vegan: 'Vegano', vegetarian: 'Vegetariano', keto: 'Keto', glutenFree: 'Sin gluten',
+    caseinFree: 'Sin caseína', organic: 'Orgánico', kosher: 'Kosher', halal: 'Halal',
+    nonGmo: 'Sin OGM', noAdditives: 'Sin aditivos', palmOilFree: 'Sin palma', fairTrade: 'C. justo'
+  };
+  const HEALTH_LABELS = {
+    diabet: 'Diabetes', celiac: 'Celiaquía', hipert: 'Hipertensión',
+    ninos: 'Niños en casa', fenilc: 'Fenilcetonuria', lactos: 'Intolerancia a lactosa'
+  };
+  const ALLERGEN_LABELS = {
+    cacahuate: 'Cacahuate', lacteos: 'Lácteos', nueces: 'Nueces', trigo: 'Trigo',
+    huevo: 'Huevo', pescado: 'Pescado', mariscos: 'Mariscos', soja: 'Soya'
+  };
+
+  function renderPrefCheckboxes(name, labelMap, selectedCodes, severityByCode = {}) {
+    return Object.entries(labelMap).map(([code, label]) => `
+      <label style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:0.85rem;">
+        <input type="checkbox" name="${escHtml(name)}" value="${escHtml(code)}" data-severity="${escHtml(severityByCode[code] || 'severe')}" ${selectedCodes.includes(code) ? 'checked' : ''}>
+        ${escHtml(label)}
+      </label>`).join('');
+  }
 
   async function loadStats() {
     docList.innerHTML = '<div class="empty-msg">Cargando…</div>';
@@ -388,6 +410,23 @@
           <div class="doc-meta">Estado de cuenta: ${authBadge}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="user-contact-name" placeholder="Nombre" value="${escHtml((profile.profile && profile.profile.displayName) || '')}" style="flex:1;min-width:140px;">
+          <input type="email" id="user-contact-email" placeholder="Correo de contacto" value="${escHtml((profile.profile && profile.profile.email) || '')}" style="flex:1;min-width:180px;">
+          <input type="text" id="user-contact-phone" placeholder="Teléfono (+52...)" value="${escHtml((profile.profile && profile.profile.phone) || '')}" style="flex:1;min-width:140px;">
+          <button class="btn" data-action="save-contact" data-uid="${escHtml(uid)}">Guardar datos de contacto</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="doc-meta">Preferencias dietéticas:</div>
+          <div id="user-pref-dietary">${renderPrefCheckboxes('pref-dietary', DIETARY_LABELS, (profile.preferences && profile.preferences.dietary) || [])}</div>
+          <div class="doc-meta">Condiciones de salud:</div>
+          <div id="user-pref-health">${renderPrefCheckboxes('pref-health', HEALTH_LABELS, (profile.preferences && profile.preferences.healthConditions) || [])}</div>
+          <div class="doc-meta">Alergias (severidad estricta):</div>
+          <div id="user-pref-allergens">${renderPrefCheckboxes('pref-allergens', ALLERGEN_LABELS, ((profile.preferences && profile.preferences.allergens) || []).map(a => a.code), Object.fromEntries(((profile.preferences && profile.preferences.allergens) || []).map(a => [a.code, a.severity])))}</div>
+          <div>
+            <button class="btn" data-action="save-preferences" data-uid="${escHtml(uid)}">Guardar preferencias</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <select id="user-membership-status">
             <option value="pending" ${profile.membershipStatus === 'pending' ? 'selected' : ''}>Pendiente</option>
             <option value="active" ${profile.membershipStatus === 'active' ? 'selected' : ''}>Activa</option>
@@ -665,6 +704,48 @@
         alert('Error al eliminar la cuenta.');
         btn.disabled = false;
         btn.textContent = 'Eliminar cuenta';
+      }
+    } else if (btn.dataset.action === 'save-contact') {
+      const uid = btn.dataset.uid;
+      const displayName = document.getElementById('user-contact-name').value.trim();
+      const email = document.getElementById('user-contact-email').value.trim();
+      const phone = document.getElementById('user-contact-phone').value.trim();
+      const payload = {};
+      if (displayName) payload.displayName = displayName;
+      if (email) payload.email = email;
+      if (phone) payload.phone = phone;
+      if (!Object.keys(payload).length) { alert('Sin cambios que guardar.'); return; }
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      if (r.ok) {
+        loadUserDetail(currentDetailUid);
+      } else {
+        const err = await r.json().catch(() => ({}));
+        alert('Error al guardar los datos de contacto' + (err.error ? ': ' + err.error : '.'));
+        btn.disabled = false;
+        btn.textContent = 'Guardar datos de contacto';
+      }
+    } else if (btn.dataset.action === 'save-preferences') {
+      const uid = btn.dataset.uid;
+      const dietary = Array.from(document.getElementById('user-pref-dietary').querySelectorAll('input:checked')).map(el => el.value);
+      const healthConditions = Array.from(document.getElementById('user-pref-health').querySelectorAll('input:checked')).map(el => el.value);
+      const allergens = Array.from(document.getElementById('user-pref-allergens').querySelectorAll('input:checked')).map(el => ({ code: el.value, severity: el.dataset.severity || 'severe' }));
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify({ dietary, allergens, healthConditions })
+      });
+      if (r.ok) {
+        loadUserDetail(currentDetailUid);
+      } else {
+        alert('Error al guardar las preferencias.');
+        btn.disabled = false;
+        btn.textContent = 'Guardar preferencias';
       }
     } else if (btn.dataset.action === 'view-user') {
       loadUserDetail(btn.dataset.uid);

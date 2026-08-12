@@ -8,11 +8,13 @@ const phoneAuthModule = requireFn('../api/phoneAuth.js')
 const findUserByEmail = vi.fn()
 const fireGetPhoneIndex = vi.fn()
 const fireGetUserRaw = vi.fn()
+const fireGetUser = vi.fn()
 const firePatchUserFields = vi.fn()
 const fireListUsers = vi.fn()
 firestoreModule.findUserByEmail = findUserByEmail
 firestoreModule.fireGetPhoneIndex = fireGetPhoneIndex
 firestoreModule.fireGetUserRaw = fireGetUserRaw
+firestoreModule.fireGetUser = fireGetUser
 firestoreModule.firePatchUserFields = firePatchUserFields
 firestoreModule.fireListUsers = fireListUsers
 
@@ -21,7 +23,7 @@ const setUserDisabled = vi.fn()
 phoneAuthModule.lookupAuthAccount = lookupAuthAccount
 phoneAuthModule.setUserDisabled = setUserDisabled
 
-const { searchUserHandler, patchUserMembershipHandler, setUserDisabledHandler, getUserByUidHandler, listUsersHandler } = await import('../api/index.js')
+const { searchUserHandler, patchUserMembershipHandler, setUserDisabledHandler, getUserByUidHandler, listUsersHandler, adminPatchUserProfileHandler, adminPatchUserPreferencesHandler } = await import('../api/index.js')
 
 function makeRes() {
   return {
@@ -268,6 +270,182 @@ describe('listUsersHandler', () => {
     const req = { query: {} }
     const res = makeRes()
     await listUsersHandler(req, res)
+    expect(res.statusCode).toBe(500)
+  })
+})
+
+describe('adminPatchUserProfileHandler', () => {
+  beforeEach(() => {
+    fireGetUser.mockReset()
+    firePatchUserFields.mockReset()
+  })
+
+  it('responds 404 when the user document does not exist', async () => {
+    fireGetUser.mockResolvedValue(null)
+    const req = { params: { uid: 'uid-1' }, body: { displayName: 'Ana' } }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('responds 400 no_fields when the body has none of displayName/phone/email', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-2' }, body: {} }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'no_fields' })
+    expect(firePatchUserFields).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty displayName with 400 invalid_display_name', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-3' }, body: { displayName: '   ' } }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_display_name' })
+  })
+
+  it('rejects a phone that is not E.164 with 400 invalid_phone', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-4' }, body: { phone: '5512345678' } }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_phone' })
+  })
+
+  it('rejects a malformed email with 400 invalid_email', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-5' }, body: { email: 'not-an-email' } }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_email' })
+  })
+
+  it('patches only the fields present in the body, with an explicit nested updateMask', async () => {
+    fireGetUser.mockResolvedValue({ profile: { phone: '+525512345678', displayName: 'Old' } })
+    firePatchUserFields.mockResolvedValue(true)
+    const req = { params: { uid: 'uid-6' }, body: { displayName: 'Ana Ruiz' } }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    expect(firePatchUserFields).toHaveBeenCalledWith(
+      'uid-6',
+      expect.arrayContaining(['profile.displayName']),
+      expect.objectContaining({ profile: expect.objectContaining({ displayName: 'Ana Ruiz', phone: '+525512345678' }) })
+    )
+    expect(firePatchUserFields.mock.calls[0][1]).not.toContain('profile.phone')
+    expect(res.body).toEqual({ ok: true })
+  })
+
+  it('does NOT touch profile.completedAt (admin correction, not onboarding)', async () => {
+    fireGetUser.mockResolvedValue({ profile: { displayName: null, phone: null, email: null, completedAt: null } })
+    firePatchUserFields.mockResolvedValue(true)
+    const req = { params: { uid: 'uid-7' }, body: { displayName: 'Ana', phone: '+525512345678', email: 'a@b.com' } }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    const [, fieldPaths] = firePatchUserFields.mock.calls[0]
+    expect(fieldPaths).not.toContain('profile.completedAt')
+  })
+
+  it('responds 500 when firePatchUserFields throws', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    firePatchUserFields.mockRejectedValue(new Error('boom'))
+    const req = { params: { uid: 'uid-8' }, body: { displayName: 'Ana' } }
+    const res = makeRes()
+    await adminPatchUserProfileHandler(req, res)
+    expect(res.statusCode).toBe(500)
+  })
+})
+
+describe('adminPatchUserPreferencesHandler', () => {
+  beforeEach(() => {
+    firePatchUserFields.mockReset()
+    fireGetUser.mockReset()
+  })
+
+  it('responds 404 user_not_found when the user does not exist', async () => {
+    fireGetUser.mockResolvedValue(null)
+    const req = { params: { uid: 'uid-missing' }, body: { dietary: [], allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toEqual({ error: 'user_not_found' })
+    expect(firePatchUserFields).not.toHaveBeenCalled()
+  })
+
+  it('responds 400 invalid_preferences when dietary/allergens/healthConditions are not arrays', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-1' }, body: { dietary: 'vegan', allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_preferences' })
+    expect(firePatchUserFields).not.toHaveBeenCalled()
+  })
+
+  it('responds 400 invalid_dietary for a code outside the whitelist', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-2' }, body: { dietary: ['bogus'], allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_dietary' })
+  })
+
+  it('responds 400 invalid_health_conditions for a code outside the whitelist', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-3' }, body: { dietary: [], allergens: [], healthConditions: ['bogus'] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_health_conditions' })
+  })
+
+  it('responds 400 invalid_allergens for a bad code or severity', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    const req = { params: { uid: 'uid-4' }, body: { dietary: [], allergens: [{ code: 'bogus', severity: 'severe' }], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_allergens' })
+  })
+
+  it('patches dietary/allergens/healthConditions without touching consent fields', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    firePatchUserFields.mockResolvedValue(true)
+    const req = {
+      params: { uid: 'uid-5' },
+      body: {
+        dietary: ['vegan', 'glutenFree'],
+        allergens: [{ code: 'cacahuate', severity: 'severe' }],
+        healthConditions: ['diabet']
+      }
+    }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(firePatchUserFields).toHaveBeenCalledWith(
+      'uid-5',
+      ['preferences.dietary', 'preferences.allergens', 'preferences.healthConditions', 'preferences.updatedAt'],
+      expect.objectContaining({
+        preferences: expect.objectContaining({
+          dietary: ['vegan', 'glutenFree'],
+          allergens: [{ code: 'cacahuate', severity: 'severe' }],
+          healthConditions: ['diabet']
+        })
+      })
+    )
+    expect(res.body).toEqual({ ok: true, preferences: expect.any(Object) })
+  })
+
+  it('responds 500 when firePatchUserFields throws', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
+    firePatchUserFields.mockRejectedValue(new Error('boom'))
+    const req = { params: { uid: 'uid-6' }, body: { dietary: [], allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
     expect(res.statusCode).toBe(500)
   })
 })
