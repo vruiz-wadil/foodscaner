@@ -25,6 +25,7 @@
   let currentDetailUid = null;
 
   const SECTION_TITLES = { resumen: 'Resumen', scan_logs: 'Logs de escaneo', reports: 'Reportes', products_ocr: 'OCR ingredientes', products_nutrition: 'OCR nutrición', cache: 'Cache', users: 'Usuarios' };
+  // Duplicado de preference-labels.js: mantener en sincronía si ese archivo cambia.
   const DIETARY_LABELS = {
     vegan: 'Vegano', vegetarian: 'Vegetariano', keto: 'Keto', glutenFree: 'Sin gluten',
     caseinFree: 'Sin caseína', organic: 'Orgánico', kosher: 'Kosher', halal: 'Halal',
@@ -39,10 +40,10 @@
     huevo: 'Huevo', pescado: 'Pescado', mariscos: 'Mariscos', soja: 'Soya'
   };
 
-  function renderPrefCheckboxes(name, labelMap, selectedCodes) {
+  function renderPrefCheckboxes(name, labelMap, selectedCodes, severityByCode = {}) {
     return Object.entries(labelMap).map(([code, label]) => `
       <label style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:0.85rem;">
-        <input type="checkbox" name="${escHtml(name)}" value="${escHtml(code)}" ${selectedCodes.includes(code) ? 'checked' : ''}>
+        <input type="checkbox" name="${escHtml(name)}" value="${escHtml(code)}" data-severity="${escHtml(severityByCode[code] || 'severe')}" ${selectedCodes.includes(code) ? 'checked' : ''}>
         ${escHtml(label)}
       </label>`).join('');
   }
@@ -420,7 +421,7 @@
           <div class="doc-meta">Condiciones de salud:</div>
           <div id="user-pref-health">${renderPrefCheckboxes('pref-health', HEALTH_LABELS, (profile.preferences && profile.preferences.healthConditions) || [])}</div>
           <div class="doc-meta">Alergias (severidad estricta):</div>
-          <div id="user-pref-allergens">${renderPrefCheckboxes('pref-allergens', ALLERGEN_LABELS, ((profile.preferences && profile.preferences.allergens) || []).map(a => a.code))}</div>
+          <div id="user-pref-allergens">${renderPrefCheckboxes('pref-allergens', ALLERGEN_LABELS, ((profile.preferences && profile.preferences.allergens) || []).map(a => a.code), Object.fromEntries(((profile.preferences && profile.preferences.allergens) || []).map(a => [a.code, a.severity])))}</div>
           <div>
             <button class="btn" data-action="save-preferences" data-uid="${escHtml(uid)}">Guardar preferencias</button>
           </div>
@@ -709,24 +710,30 @@
       const displayName = document.getElementById('user-contact-name').value.trim();
       const email = document.getElementById('user-contact-email').value.trim();
       const phone = document.getElementById('user-contact-phone').value.trim();
+      const payload = {};
+      if (displayName) payload.displayName = displayName;
+      if (email) payload.email = email;
+      if (phone) payload.phone = phone;
+      if (!Object.keys(payload).length) { alert('Sin cambios que guardar.'); return; }
       btn.disabled = true;
       btn.textContent = '…';
       const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/profile', {
         method: 'PATCH',
-        body: JSON.stringify({ displayName, email, phone })
+        body: JSON.stringify(payload)
       });
       if (r.ok) {
         loadUserDetail(currentDetailUid);
       } else {
-        alert('Error al guardar los datos de contacto.');
+        const err = await r.json().catch(() => ({}));
+        alert('Error al guardar los datos de contacto' + (err.error ? ': ' + err.error : '.'));
         btn.disabled = false;
         btn.textContent = 'Guardar datos de contacto';
       }
     } else if (btn.dataset.action === 'save-preferences') {
       const uid = btn.dataset.uid;
-      const dietary = Array.from(document.querySelectorAll('input[name="pref-dietary"]:checked')).map(el => el.value);
-      const healthConditions = Array.from(document.querySelectorAll('input[name="pref-health"]:checked')).map(el => el.value);
-      const allergens = Array.from(document.querySelectorAll('input[name="pref-allergens"]:checked')).map(el => ({ code: el.value, severity: 'severe' }));
+      const dietary = Array.from(document.getElementById('user-pref-dietary').querySelectorAll('input:checked')).map(el => el.value);
+      const healthConditions = Array.from(document.getElementById('user-pref-health').querySelectorAll('input:checked')).map(el => el.value);
+      const allergens = Array.from(document.getElementById('user-pref-allergens').querySelectorAll('input:checked')).map(el => ({ code: el.value, severity: el.dataset.severity || 'severe' }));
       btn.disabled = true;
       btn.textContent = '…';
       const r = await apiFetch('/api/admin/users/' + encodeURIComponent(uid) + '/preferences', {

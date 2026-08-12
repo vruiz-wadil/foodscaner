@@ -2421,6 +2421,9 @@ async function adminPatchUserProfileHandler(req, res) {
 async function adminPatchUserPreferencesHandler(req, res) {
   const { uid } = req.params;
   try {
+    const user = await fireGetUser(uid);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
     const { dietary, allergens, healthConditions } = req.body || {};
     if (!Array.isArray(dietary) || !Array.isArray(allergens) || !Array.isArray(healthConditions)) {
       return res.status(400).json({ error: 'invalid_preferences' });

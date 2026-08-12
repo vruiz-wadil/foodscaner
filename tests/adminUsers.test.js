@@ -361,9 +361,23 @@ describe('adminPatchUserProfileHandler', () => {
 })
 
 describe('adminPatchUserPreferencesHandler', () => {
-  beforeEach(() => { firePatchUserFields.mockReset() })
+  beforeEach(() => {
+    firePatchUserFields.mockReset()
+    fireGetUser.mockReset()
+  })
+
+  it('responds 404 user_not_found when the user does not exist', async () => {
+    fireGetUser.mockResolvedValue(null)
+    const req = { params: { uid: 'uid-missing' }, body: { dietary: [], allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toEqual({ error: 'user_not_found' })
+    expect(firePatchUserFields).not.toHaveBeenCalled()
+  })
 
   it('responds 400 invalid_preferences when dietary/allergens/healthConditions are not arrays', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
     const req = { params: { uid: 'uid-1' }, body: { dietary: 'vegan', allergens: [], healthConditions: [] } }
     const res = makeRes()
     await adminPatchUserPreferencesHandler(req, res)
@@ -373,6 +387,7 @@ describe('adminPatchUserPreferencesHandler', () => {
   })
 
   it('responds 400 invalid_dietary for a code outside the whitelist', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
     const req = { params: { uid: 'uid-2' }, body: { dietary: ['bogus'], allergens: [], healthConditions: [] } }
     const res = makeRes()
     await adminPatchUserPreferencesHandler(req, res)
@@ -381,6 +396,7 @@ describe('adminPatchUserPreferencesHandler', () => {
   })
 
   it('responds 400 invalid_health_conditions for a code outside the whitelist', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
     const req = { params: { uid: 'uid-3' }, body: { dietary: [], allergens: [], healthConditions: ['bogus'] } }
     const res = makeRes()
     await adminPatchUserPreferencesHandler(req, res)
@@ -389,6 +405,7 @@ describe('adminPatchUserPreferencesHandler', () => {
   })
 
   it('responds 400 invalid_allergens for a bad code or severity', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
     const req = { params: { uid: 'uid-4' }, body: { dietary: [], allergens: [{ code: 'bogus', severity: 'severe' }], healthConditions: [] } }
     const res = makeRes()
     await adminPatchUserPreferencesHandler(req, res)
@@ -397,6 +414,7 @@ describe('adminPatchUserPreferencesHandler', () => {
   })
 
   it('patches dietary/allergens/healthConditions without touching consent fields', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
     firePatchUserFields.mockResolvedValue(true)
     const req = {
       params: { uid: 'uid-5' },
@@ -423,6 +441,7 @@ describe('adminPatchUserPreferencesHandler', () => {
   })
 
   it('responds 500 when firePatchUserFields throws', async () => {
+    fireGetUser.mockResolvedValue({ profile: {} })
     firePatchUserFields.mockRejectedValue(new Error('boom'))
     const req = { params: { uid: 'uid-6' }, body: { dietary: [], allergens: [], healthConditions: [] } }
     const res = makeRes()
