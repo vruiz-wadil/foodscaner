@@ -2418,6 +2418,37 @@ async function adminPatchUserProfileHandler(req, res) {
   }
 }
 
+async function adminPatchUserPreferencesHandler(req, res) {
+  const { uid } = req.params;
+  try {
+    const { dietary, allergens, healthConditions } = req.body || {};
+    if (!Array.isArray(dietary) || !Array.isArray(allergens) || !Array.isArray(healthConditions)) {
+      return res.status(400).json({ error: 'invalid_preferences' });
+    }
+    if (!dietary.every(d => ALLOWED_DIETARY.includes(d))) {
+      return res.status(400).json({ error: 'invalid_dietary' });
+    }
+    if (!healthConditions.every(h => ALLOWED_HEALTH_CONDITIONS.includes(h))) {
+      return res.status(400).json({ error: 'invalid_health_conditions' });
+    }
+    if (!allergens.every(a => a && ALLOWED_ALLERGEN_CODES.includes(a.code) && ALLOWED_SEVERITY.includes(a.severity))) {
+      return res.status(400).json({ error: 'invalid_allergens' });
+    }
+
+    const preferences = { dietary, allergens, healthConditions, updatedAt: new Date().toISOString() };
+    // A diferencia de PUT /api/me/preferences, no se toca consentGivenAt/consentNoticeVersion:
+    // un admin corrigiendo datos no otorga consentimiento en nombre del usuario.
+    await firePatchUserFields(uid, [
+      'preferences.dietary', 'preferences.allergens', 'preferences.healthConditions', 'preferences.updatedAt'
+    ], { preferences });
+
+    res.json({ ok: true, preferences });
+  } catch (e) {
+    console.warn('[PATCH /api/admin/users/:uid/preferences] error, uid:', req.params.uid, e.message);
+    res.status(500).json({ error: 'internal_error' });
+  }
+}
+
 app.get('/api/admin/users/search', requireAdmin, searchUserHandler);
 app.get('/api/admin/users/list', requireAdmin, listUsersHandler);
 app.patch('/api/admin/users/:uid/membership', requireAdmin, patchUserMembershipHandler);
@@ -2425,6 +2456,7 @@ app.post('/api/admin/users/:uid/disabled', requireAdmin, setUserDisabledHandler)
 app.get('/api/admin/users/:uid', requireAdmin, getUserByUidHandler);
 app.post('/api/admin/users/:uid/cancel-subscription', requireAdmin, adminCancelSubscriptionHandler);
 app.patch('/api/admin/users/:uid/profile', requireAdmin, adminPatchUserProfileHandler);
+app.patch('/api/admin/users/:uid/preferences', requireAdmin, adminPatchUserPreferencesHandler);
 app.delete('/api/admin/users/:uid', requireAdmin, adminDeleteAccountHandler);
 
 app.get('/api/admin/:collection', requireAdmin, validCol, async (req, res) => {
@@ -2479,6 +2511,7 @@ module.exports.listUsersHandler = listUsersHandler;
 module.exports.adminCancelSubscriptionHandler = adminCancelSubscriptionHandler;
 module.exports.adminDeleteAccountHandler = adminDeleteAccountHandler;
 module.exports.adminPatchUserProfileHandler = adminPatchUserProfileHandler;
+module.exports.adminPatchUserPreferencesHandler = adminPatchUserPreferencesHandler;
 module.exports.ocrProcessHandler = ocrProcessHandler;
 module.exports.postHistoryHandler = postHistoryHandler;
 module.exports.getHistoryHandler = getHistoryHandler;

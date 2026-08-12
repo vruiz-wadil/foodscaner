@@ -23,7 +23,7 @@ const setUserDisabled = vi.fn()
 phoneAuthModule.lookupAuthAccount = lookupAuthAccount
 phoneAuthModule.setUserDisabled = setUserDisabled
 
-const { searchUserHandler, patchUserMembershipHandler, setUserDisabledHandler, getUserByUidHandler, listUsersHandler, adminPatchUserProfileHandler } = await import('../api/index.js')
+const { searchUserHandler, patchUserMembershipHandler, setUserDisabledHandler, getUserByUidHandler, listUsersHandler, adminPatchUserProfileHandler, adminPatchUserPreferencesHandler } = await import('../api/index.js')
 
 function makeRes() {
   return {
@@ -356,6 +356,77 @@ describe('adminPatchUserProfileHandler', () => {
     const req = { params: { uid: 'uid-8' }, body: { displayName: 'Ana' } }
     const res = makeRes()
     await adminPatchUserProfileHandler(req, res)
+    expect(res.statusCode).toBe(500)
+  })
+})
+
+describe('adminPatchUserPreferencesHandler', () => {
+  beforeEach(() => { firePatchUserFields.mockReset() })
+
+  it('responds 400 invalid_preferences when dietary/allergens/healthConditions are not arrays', async () => {
+    const req = { params: { uid: 'uid-1' }, body: { dietary: 'vegan', allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_preferences' })
+    expect(firePatchUserFields).not.toHaveBeenCalled()
+  })
+
+  it('responds 400 invalid_dietary for a code outside the whitelist', async () => {
+    const req = { params: { uid: 'uid-2' }, body: { dietary: ['bogus'], allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_dietary' })
+  })
+
+  it('responds 400 invalid_health_conditions for a code outside the whitelist', async () => {
+    const req = { params: { uid: 'uid-3' }, body: { dietary: [], allergens: [], healthConditions: ['bogus'] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_health_conditions' })
+  })
+
+  it('responds 400 invalid_allergens for a bad code or severity', async () => {
+    const req = { params: { uid: 'uid-4' }, body: { dietary: [], allergens: [{ code: 'bogus', severity: 'severe' }], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_allergens' })
+  })
+
+  it('patches dietary/allergens/healthConditions without touching consent fields', async () => {
+    firePatchUserFields.mockResolvedValue(true)
+    const req = {
+      params: { uid: 'uid-5' },
+      body: {
+        dietary: ['vegan', 'glutenFree'],
+        allergens: [{ code: 'cacahuate', severity: 'severe' }],
+        healthConditions: ['diabet']
+      }
+    }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
+    expect(firePatchUserFields).toHaveBeenCalledWith(
+      'uid-5',
+      ['preferences.dietary', 'preferences.allergens', 'preferences.healthConditions', 'preferences.updatedAt'],
+      expect.objectContaining({
+        preferences: expect.objectContaining({
+          dietary: ['vegan', 'glutenFree'],
+          allergens: [{ code: 'cacahuate', severity: 'severe' }],
+          healthConditions: ['diabet']
+        })
+      })
+    )
+    expect(res.body).toEqual({ ok: true, preferences: expect.any(Object) })
+  })
+
+  it('responds 500 when firePatchUserFields throws', async () => {
+    firePatchUserFields.mockRejectedValue(new Error('boom'))
+    const req = { params: { uid: 'uid-6' }, body: { dietary: [], allergens: [], healthConditions: [] } }
+    const res = makeRes()
+    await adminPatchUserPreferencesHandler(req, res)
     expect(res.statusCode).toBe(500)
   })
 })
