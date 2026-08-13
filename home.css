@@ -233,6 +233,8 @@ body {
   .home-left .section-scan    { order: 5; }
   .home-right .section-recent { order: 6; }
   .home-right .section-social { order: 7; }
+  .home-right .how-it-works { order: 8; }
+  .home-right .faq { order: 9; }
 }
 
 @media (min-width: 768px) and (min-height: 600px) {
