@@ -1,0 +1,18 @@
+# Yomi
+
+> Yomi es una app web que escanea el código de barras de alimentos y dice al instante, con análisis generado por IA, si un producto es apto según las alergias, dietas y condiciones de salud del usuario.
+
+## Producto
+
+- [Inicio](https://yomi.mx/): Presentación de Yomi, qué es y cómo funciona el escaneo de productos.
+- [Escanear producto](https://yomi.mx/scan.html): Herramienta para escanear o ingresar el código de barras de un alimento y obtener su análisis.
+- [Plan premium](https://yomi.mx/premium-offer.html): Información sobre el plan premium de Yomi y sus funciones adicionales.
+
+## Cuenta
+
+- [Crear cuenta / Iniciar sesión](https://yomi.mx/auth.html): Registro e inicio de sesión para crear tu perfil de alergias, dietas y condiciones de salud.
+
+## Legal
+
+- [Términos y condiciones](https://yomi.mx/terminos.html): Términos de uso del servicio Yomi.
+- [Aviso de privacidad](https://yomi.mx/privacidad.html): Política de privacidad y manejo de datos de los usuarios.
