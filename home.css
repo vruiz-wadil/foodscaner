@@ -982,3 +982,41 @@ body:has(.app-main.content-page) {
   color: var(--teal-soft);
   font-weight: 700;
 }
+
+/* ── FAQ section ────────────────────────────────────────────────── */
+.faq {
+  width: 100%;
+  padding: 8px 20px 24px;
+  color: var(--ink);
+}
+
+.faq h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.faq-item {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.faq-item h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.faq-item p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.faq-item a {
+  color: var(--teal-soft);
+}
