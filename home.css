@@ -958,34 +958,46 @@ body:has(.app-main.content-page) {
   font-size: 14px;
   line-height: 1.6;
   color: var(--ink-muted);
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
-.how-it-works ul {
-  list-style: none;
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.step-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 8px;
 }
 
-.how-it-works li {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--ink);
-  padding-left: 20px;
-  position: relative;
-}
-
-.how-it-works li::before {
-  content: "✓";
-  position: absolute;
-  left: 0;
-  color: var(--teal-soft);
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--teal-soft);
+  color: var(--white);
+  font-size: 13px;
   font-weight: 700;
 }
 
-/* ── FAQ section ────────────────────────────────────────────────── */
+.step-card p {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+/* ── FAQ section (native <details> accordion) ──────────────────── */
 .faq {
   width: 100%;
   padding: 8px 20px 24px;
@@ -1003,20 +1015,43 @@ body:has(.app-main.content-page) {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
-  padding: 14px 16px;
+  padding: 4px 16px;
   margin-bottom: 10px;
 }
 
-.faq-item h3 {
+.faq-item summary {
+  list-style: none;
+  cursor: pointer;
   font-size: 15px;
   font-weight: 600;
-  margin-bottom: 6px;
+  padding: 12px 24px 12px 0;
+  position: relative;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item summary::after {
+  content: "+";
+  position: absolute;
+  right: 0;
+  top: 10px;
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--teal-soft);
+  transition: transform 0.15s ease;
+}
+
+.faq-item[open] summary::after {
+  content: "−";
 }
 
 .faq-item p {
   font-size: 14px;
   line-height: 1.5;
   color: var(--ink-muted);
+  padding-bottom: 14px;
 }
 
 .faq-item a {
