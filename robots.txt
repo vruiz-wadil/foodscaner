@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /account.html
+Disallow: /history.html
+Disallow: /onboarding-membership.html
+Disallow: /onboarding-profile.html
+Disallow: /preferences.html
+Disallow: /reset-password.html
+Disallow: /verify-email.html
+
+Sitemap: https://yomi.mx/sitemap.xml

@@ -7,7 +7,7 @@
       "config": { "maxDuration": 30 }
     },
     {
-      "src": "*.{html,css,js,json}",
+      "src": "*.{html,css,js,json,txt,xml}",
       "use": "@vercel/static"
     },
     {
