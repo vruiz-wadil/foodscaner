@@ -938,3 +938,47 @@ body:has(.app-main.content-page) {
   font-weight: 600;
   opacity: 0.75;
 }
+
+/* ── How it works / About section ──────────────────────────────── */
+.how-it-works {
+  width: 100%;
+  padding: 24px 20px 8px;
+  color: var(--ink);
+}
+
+.how-it-works h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.how-it-works p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  margin-bottom: 12px;
+}
+
+.how-it-works ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.how-it-works li {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  padding-left: 20px;
+  position: relative;
+}
+
+.how-it-works li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--teal-soft);
+  font-weight: 700;
+}
