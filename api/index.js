@@ -766,11 +766,21 @@ app.get('/api/product/:barcode', async (req, res) => {
           const data = await response.json();
           if (data.foods && data.foods.length > 0) {
             const queryLower = query.toLowerCase();
-            const matched = data.foods.find(f => {
+            // confidentMatch: el nombre buscado realmente aparece en la
+            // descripción USDA (o viceversa). Sin esto, el fallback a
+            // data.foods[0] atribuye ingredientes/gluten de un producto
+            // USDA no relacionado a este barcode (ej. "Japones con Tajín"
+            // sin match real en USDA cae en foods[0], un producto random,
+            // y su ausencia de gluten se mostraba como "declarado sin
+            // gluten" — hallazgo: usuario reportó declaración falsa).
+            // Calorías/macros del fallback se mantienen (menor riesgo,
+            // ya se muestran como estimado); gluten/ingredientes/caseína
+            // solo se usan con match confiable.
+            const confidentMatch = data.foods.find(f => {
               const desc = (f.description || "").toLowerCase();
               return desc.includes(queryLower) || queryLower.includes(desc);
-            }) || data.foods[0];
-            const item = matched;
+            });
+            const item = confidentMatch || data.foods[0];
             let kcal = 0;
             let sugarsVal = null;
             let carbsVal = null;
@@ -795,22 +805,28 @@ app.get('/api/product/:barcode', async (req, res) => {
             }
             const el = computeEnergyLevel(kcal);
             let energyLevel = el.level, percent = el.percent;
-            const ingredientsText = (item.ingredients || "").toLowerCase();
-            const allergenText = (item.allergenWarning || "").toLowerCase();
-            const gluten = detectGluten(ingredientsText, allergenText);
+            let gluten = { hasGluten: false, detected: [] };
+            let caseinEnrich = { hasCasein: false, detected: [] };
+            let allergens = [];
+            let ingredientsTextOut = "";
+            if (confidentMatch) {
+              const ingredientsText = (item.ingredients || "").toLowerCase();
+              const allergenText = (item.allergenWarning || "").toLowerCase();
+              gluten = detectGluten(ingredientsText, allergenText);
+              caseinEnrich = detectCasein(ingredientsText, allergenText);
+              ingredientsTextOut = item.ingredients || "";
+              if (item.allergenWarning) {
+                const usdaToEn = { milk: "en:milk", eggs: "en:eggs", peanuts: "en:peanuts", soy: "en:soybeans", soybeans: "en:soybeans", wheat: "en:wheat", "tree nuts": "en:nuts", fish: "en:fish", shellfish: "en:crustaceans", sesame: "en:sesame-seeds", mustard: "en:mustard", sulfites: "en:sulphur-dioxide-and-sulphites" };
+                item.allergenWarning.split(",").forEach(a => {
+                  const t = a.trim().toLowerCase();
+                  const mapped = usdaToEn[t] || t;
+                  if (t && !allergens.includes(mapped)) allergens.push(mapped);
+                });
+              }
+            }
             const hasGluten = gluten.hasGluten;
             const glutenDetails = hasGluten ? `Contiene gluten (detectado: ${gluten.detected.join(", ")})` : "Sin ingredientes con gluten detectados en la información declarada";
-            const caseinEnrich = detectCasein(ingredientsText, allergenText);
-            let allergens = [];
-            if (item.allergenWarning) {
-              const usdaToEn = { milk: "en:milk", eggs: "en:eggs", peanuts: "en:peanuts", soy: "en:soybeans", soybeans: "en:soybeans", wheat: "en:wheat", "tree nuts": "en:nuts", fish: "en:fish", shellfish: "en:crustaceans", sesame: "en:sesame-seeds", mustard: "en:mustard", sulfites: "en:sulphur-dioxide-and-sulphites" };
-              item.allergenWarning.split(",").forEach(a => {
-                const t = a.trim().toLowerCase();
-                const mapped = usdaToEn[t] || t;
-                if (t && !allergens.includes(mapped)) allergens.push(mapped);
-              });
-            }
-            return { calories: { value: kcal, level: energyLevel, percent }, gluten: { hasGluten, details: glutenDetails }, casein: caseinEnrich, sugars: { sugars: sugarsVal, carbohydrates: carbsVal, fiber: fiberVal }, saturatedFat: satFatVal, sodium: sodiumVal, allergens, ingredientsText: item.ingredients || "" };
+            return { calories: { value: kcal, level: energyLevel, percent }, gluten: { hasGluten, details: glutenDetails }, casein: caseinEnrich, sugars: { sugars: sugarsVal, carbohydrates: carbsVal, fiber: fiberVal }, saturatedFat: satFatVal, sodium: sodiumVal, allergens, ingredientsText: ingredientsTextOut };
           }
         }
       } catch (e) { console.warn('[USDA] enrich error:', e.message); }
