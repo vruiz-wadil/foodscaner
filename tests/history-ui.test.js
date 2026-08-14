@@ -4,9 +4,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const getIdToken = vi.fn()
-const getCachedProfile = vi.fn()
+const syncUserProfile = vi.fn()
 
-vi.mock('../authClient.js', () => ({ getIdToken, getCachedProfile }))
+vi.mock('../authClient.js', () => ({ getIdToken, syncUserProfile }))
 
 let renderHistoryScreen
 
@@ -25,7 +25,7 @@ beforeEach(async () => {
 
 describe('renderHistoryScreen — usuario free', () => {
   it('muestra el historial local real (sin blur) + un bloque de upsell bloqueado, sin llamar al backend', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     expect(root.textContent).toMatch(/Producto A/)
@@ -37,7 +37,7 @@ describe('renderHistoryScreen — usuario free', () => {
 
 describe('renderHistoryScreen — usuario premium', () => {
   it('pide GET /api/me/history con Bearer token y renderiza la lista completa de la nube, sin bloque de upsell', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,
@@ -59,7 +59,7 @@ describe('renderHistoryScreen — usuario premium', () => {
 
 describe('renderHistoryScreen — estructura visual', () => {
   it('envuelve el contenido en un único .content-card, no en cards sueltas (hallazgo de reskin visual)', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     expect(root.querySelectorAll(':scope > .content-card').length).toBe(1)
@@ -68,7 +68,7 @@ describe('renderHistoryScreen — estructura visual', () => {
 
 describe('renderHistoryScreen — botón de compartir (usuario free, historial local)', () => {
   it('cada row-card tiene un botón de compartir que llama a window.shareResult con name/verdict normalizados desde rating', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     const shareBtn = root.querySelector('.row-card .share-btn')
@@ -80,7 +80,7 @@ describe('renderHistoryScreen — botón de compartir (usuario free, historial l
 
 describe('renderHistoryScreen — botón de compartir (usuario premium, historial cloud)', () => {
   it('cada row-card tiene un botón de compartir que llama a window.shareResult con name/verdict normalizados desde productName/verdict', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,
@@ -104,7 +104,7 @@ describe('renderHistoryScreen — thumbnail', () => {
     window.getLocalHistory.mockReturnValue([
       { barcode: '111', name: 'Producto A', brand: 'Marca', image: 'https://example.com/a.jpg', rating: 'sano' }
     ])
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const img = document.querySelector('#history-root .row-card img')
     expect(img.src).toBe('https://example.com/a.jpg')
@@ -114,7 +114,7 @@ describe('renderHistoryScreen — thumbnail', () => {
     window.getLocalHistory.mockReturnValue([
       { barcode: '111', name: 'Producto A', brand: 'Marca', image: '', rating: 'sano' }
     ])
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     expect(root.querySelector('.row-card img')).toBeNull()
@@ -122,7 +122,7 @@ describe('renderHistoryScreen — thumbnail', () => {
   })
 
   it('muestra la imagen del producto cuando el entry de la nube trae image (historial premium)', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,
@@ -136,7 +136,7 @@ describe('renderHistoryScreen — thumbnail', () => {
   })
 
   it('muestra un placeholder cuando el entry de la nube no trae image', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,
@@ -165,7 +165,7 @@ describe('renderHistoryScreen — click navega a scan.html', () => {
   })
 
   it('click en la row-card (historial local) navega a scan.html?barcode=X', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const link = document.querySelector('#history-root .row-card .row-card-link')
     link.click()
@@ -173,7 +173,7 @@ describe('renderHistoryScreen — click navega a scan.html', () => {
   })
 
   it('click en el boton de compartir NO navega (stopPropagation)', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const shareBtn = document.querySelector('#history-root .row-card .share-btn')
     shareBtn.click()
@@ -181,7 +181,7 @@ describe('renderHistoryScreen — click navega a scan.html', () => {
   })
 
   it('click en la row-card (historial cloud) navega a scan.html?barcode=X', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,
@@ -196,7 +196,7 @@ describe('renderHistoryScreen — click navega a scan.html', () => {
   })
 
   it('click en el upsell (usuario free) no navega, ya que no tiene data-barcode', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const upsell = document.querySelector('#history-root .history-upsell')
     upsell.click()
@@ -204,7 +204,7 @@ describe('renderHistoryScreen — click navega a scan.html', () => {
   })
 
   it('click en el link "Configurar mis preferencias" del upsell no navega a scan.html', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const link = document.querySelector('#history-root .history-upsell a.btn.btn-primary')
     link.click()
@@ -217,7 +217,7 @@ describe('renderHistoryScreen — escapado de nombre de producto (XSS)', () => {
     window.getLocalHistory.mockReturnValue([
       { barcode: '111', name: '<img src=x onerror=alert(1)>', brand: 'Marca', image: '', rating: 'sano' }
     ])
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     const nameEl = root.querySelector('.history-item-name')
@@ -229,7 +229,7 @@ describe('renderHistoryScreen — escapado de nombre de producto (XSS)', () => {
   })
 
   it('escapa h.productName en el texto visible y en data-name del share-btn (historial cloud)', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'active' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'active' })
     getIdToken.mockResolvedValue('tok-1')
     global.fetch.mockResolvedValue({
       ok: true,
@@ -261,7 +261,7 @@ describe('renderHistoryScreen — botón de compartir por teclado no navega', ()
   })
 
   it('Enter/Space en el share-btn (focus + keydown) no navega la row-card', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const shareBtn = document.querySelector('#history-root .row-card .share-btn')
     shareBtn.focus()
@@ -272,7 +272,7 @@ describe('renderHistoryScreen — botón de compartir por teclado no navega', ()
 
 describe('renderHistoryScreen — estructura ARIA de la row-card', () => {
   it('no usa role="button" en .row-card (evita controles interactivos anidados) y expone un <a> real hacia scan.html', async () => {
-    getCachedProfile.mockReturnValue({ membershipStatus: 'pending' })
+    syncUserProfile.mockResolvedValue({ membershipStatus: 'pending' })
     await renderHistoryScreen()
     const root = document.getElementById('history-root')
     const card = root.querySelector('.row-card[data-barcode]')
