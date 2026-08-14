@@ -31,11 +31,29 @@ function imgHtml(item) {
   </div>`;
 }
 
-function renderGrid() {
+async function getCloudHistory() {
+  const token = await window.authClient.getIdToken();
+  const res = await fetch('/api/me/history', { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('cloud history fetch failed');
+  const { history } = await res.json();
+  return history.map(h => ({ barcode: h.barcode, name: h.productName, brand: '', rating: h.verdict, image: h.image || '' }));
+}
+
+async function renderGrid(profile) {
   const grid   = document.getElementById('products-grid');
   const empty  = document.getElementById('products-empty');
   const hint   = document.getElementById('activation-hint');
-  const history = getHistory();
+
+  let history;
+  if (profile && profile.membershipStatus === 'active') {
+    try {
+      history = await getCloudHistory();
+    } catch {
+      history = getHistory();
+    }
+  } else {
+    history = getHistory();
+  }
 
   if (!history.length) {
     grid.innerHTML = '';
@@ -98,7 +116,12 @@ function greetingSubtitle(profile) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  renderGrid();
+  // await explícito (mismo motivo que preferences-ui.js, Task 15): no depender
+  // de que el auto-sync de authClient.js ya haya resuelto para este frame.
+  // Movido arriba de renderGrid() — el grid necesita saber membershipStatus
+  // para decidir historial local vs nube.
+  const profile = window.authClient ? await window.authClient.syncUserProfile() : null;
+  renderGrid(profile);
 
   document.getElementById('btn-scan').addEventListener('click', goScan);
   document.getElementById('nav-scan').addEventListener('click', goScan);
@@ -125,10 +148,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     e.preventDefault();
     window.location.href = 'scan.html?barcode=' + encodeURIComponent(card.dataset.barcode);
   });
-
-  // await explícito (mismo motivo que preferences-ui.js, Task 15): no depender
-  // de que el auto-sync de authClient.js ya haya resuelto para este frame.
-  const profile = window.authClient ? await window.authClient.syncUserProfile() : null;
 
   const greeting = greetingSubtitle(profile);
   if (greeting) {

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -9,14 +9,15 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const homeCode = fs.readFileSync(path.join(__dirname, '..', 'home.js'), 'utf8')
 
-let redirectTargetForIncompleteOnboarding, greetingSubtitle, historyNavTarget
+let redirectTargetForIncompleteOnboarding, greetingSubtitle, historyNavTarget, renderGrid
 
 beforeAll(() => {
-  const fn = new Function(homeCode + '\nreturn { redirectTargetForIncompleteOnboarding, greetingSubtitle, historyNavTarget }')
+  const fn = new Function(homeCode + '\nreturn { redirectTargetForIncompleteOnboarding, greetingSubtitle, historyNavTarget, renderGrid }')
   const exported = fn()
   redirectTargetForIncompleteOnboarding = exported.redirectTargetForIncompleteOnboarding
   greetingSubtitle = exported.greetingSubtitle
   historyNavTarget = exported.historyNavTarget
+  renderGrid = exported.renderGrid
 })
 
 describe('historyNavTarget', () => {
@@ -74,5 +75,50 @@ describe('greetingSubtitle', () => {
 
   it('cae a profile.displayName si profile.profile no lo tiene', () => {
     expect(greetingSubtitle({ displayName: 'Luis' })).toBe('Hola Luis, escanea y lo sabrás en segundos.')
+  })
+})
+
+describe('renderGrid — fuente del historial (local vs nube)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="products-grid"></div>
+      <div id="products-empty" class="hidden"></div>
+      <div id="activation-hint" class="hidden"></div>
+    `
+    localStorage.clear()
+    localStorage.setItem('yomi_activation_shown', '1') // evita el nudge de primer-scan en estos tests
+    window.authClient = { getIdToken: async () => 'tok-1' }
+    global.fetch = undefined
+  })
+
+  it('usuario sin perfil (no logueado) usa el historial local', async () => {
+    localStorage.setItem('yomi_history', JSON.stringify([{ barcode: '111', name: 'Local Producto', rating: 'sano' }]))
+    await renderGrid(null)
+    expect(document.getElementById('products-grid').textContent).toMatch(/Local Producto/)
+  })
+
+  it('usuario premium (membershipStatus active) usa el historial de la nube, no el local', async () => {
+    localStorage.setItem('yomi_history', JSON.stringify([{ barcode: '111', name: 'Local Producto', rating: 'sano' }]))
+    global.fetch = async () => ({
+      ok: true,
+      json: async () => ({ history: [{ barcode: '222', productName: 'Cloud Producto', verdict: 'evitar', image: '' }] })
+    })
+    await renderGrid({ membershipStatus: 'active' })
+    const text = document.getElementById('products-grid').textContent
+    expect(text).toMatch(/Cloud Producto/)
+    expect(text).not.toMatch(/Local Producto/)
+  })
+
+  it('usuario premium con fetch de nube fallido cae al historial local', async () => {
+    localStorage.setItem('yomi_history', JSON.stringify([{ barcode: '111', name: 'Local Producto', rating: 'sano' }]))
+    global.fetch = async () => ({ ok: false })
+    await renderGrid({ membershipStatus: 'active' })
+    expect(document.getElementById('products-grid').textContent).toMatch(/Local Producto/)
+  })
+
+  it('usuario logueado pero no premium (pending) usa el historial local', async () => {
+    localStorage.setItem('yomi_history', JSON.stringify([{ barcode: '111', name: 'Local Producto', rating: 'sano' }]))
+    await renderGrid({ membershipStatus: 'pending' })
+    expect(document.getElementById('products-grid').textContent).toMatch(/Local Producto/)
   })
 })
