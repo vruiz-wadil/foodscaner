@@ -998,13 +998,18 @@ describe('renderPersonalizedReasons', () => {
     expect(cta.getAttribute('href')).toBe('onboarding-membership.html')
   })
 
-  it('usuario premium activo sin preferences configuradas: oculta la tarjeta y NO muestra el teaser', () => {
+  it('usuario premium activo sin preferences configuradas: muestra el nudge de configurar perfil (no el paywall, no oculta)', () => {
     window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active' }) }
     const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
     renderPersonalizedReasons(product, null)
     const card = document.getElementById('verdict-reasons')
-    expect(card.classList.contains('hidden')).toBe(true)
-    expect(card.classList.contains('reason-card--teaser')).toBe(false)
+    expect(card.classList.contains('hidden')).toBe(false)
+    expect(card.classList.contains('reason-card--teaser')).toBe(true)
+    expect(document.getElementById('verdict-reasons-title').textContent).toBe('Configura tu perfil para ver tu análisis personalizado')
+    const cta = card.querySelector('.btn-teaser-cta')
+    expect(cta).not.toBeNull()
+    expect(cta.getAttribute('href')).toBe('preferences.html')
+    expect(card.querySelector('.teaser-price-line')).toBeNull()
   })
 
   it('usuario premium sin restricciones configuradas: oculta la tarjeta (regresión)', () => {
@@ -1112,12 +1117,13 @@ describe('renderPersonalizedReasons', () => {
     expect(window.track).toHaveBeenCalledWith('Paywall Hit', { context: 'personalized-reasons' })
   })
 
-  it('NO dispara "Paywall Hit" para un usuario premium activo', () => {
+  it('NO dispara "Paywall Hit" para un usuario premium activo (dispara "Preferences Setup Nudge Shown" en su lugar)', () => {
     window.track = vi.fn()
     window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active' }) }
     const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
     renderPersonalizedReasons(product, null)
-    expect(window.track).not.toHaveBeenCalled()
+    expect(window.track).not.toHaveBeenCalledWith('Paywall Hit', expect.anything())
+    expect(window.track).toHaveBeenCalledWith('Preferences Setup Nudge Shown', { context: 'personalized-reasons' })
   })
 })
 

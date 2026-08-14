@@ -1902,6 +1902,19 @@ function renderPersonalizedReasons(product, userPreferences) {
       : null;
     const isActiveMember = !!profile && profile.membershipStatus === 'active';
 
+    if (isActiveMember && !hasNoRealData(product)) {
+      // Premium sin preferencias configuradas: antes se ocultaba la tarjeta
+      // sin más, y la pantalla quedaba indistinguible de la versión free —
+      // el usuario ya pagó pero no ve ninguna señal de que le falta un paso
+      // (hallazgo: "parece que está usándose la versión free"). Nudge propio
+      // (no renderTeaserReasons: ese es para no-premium, con precio y CTA de
+      // suscripción que no aplican aquí).
+      if (typeof window.track === 'function') {
+        window.track('Preferences Setup Nudge Shown', { context: 'personalized-reasons' });
+      }
+      renderPreferencesSetupNudge(card);
+      return;
+    }
     if (isActiveMember || hasNoRealData(product)) {
       clearTeaserState(card);
       card.classList.add('hidden');
@@ -2031,6 +2044,48 @@ function renderTeaserReasons(card) {
   priceLine.textContent = '$29.90 MXN/mes — cancela cuando quieras';
   card.appendChild(priceLine);
 
+  card.appendChild(cta);
+
+  card.classList.remove('hidden');
+  card.classList.remove('verdict-reasons-reveal');
+  void card.offsetWidth;
+  card.classList.add('verdict-reasons-reveal');
+}
+
+// Pinta el nudge para usuarios PREMIUM que aún no configuraron preferencias
+// (a diferencia de renderTeaserReasons, que es para no-premium: sin precio,
+// sin CTA de suscripción — el CTA manda a preferences.html, no a
+// onboarding-membership.html, porque este usuario ya pagó).
+function renderPreferencesSetupNudge(card) {
+  clearTeaserState(card);
+  card.classList.add('reason-card--teaser');
+
+  const titleEl = document.getElementById('verdict-reasons-title');
+  if (titleEl) titleEl.textContent = 'Configura tu perfil para ver tu análisis personalizado';
+
+  const summaryEl = document.getElementById('verdict-reasons-summary');
+  if (summaryEl) summaryEl.textContent = 'Ya tienes Premium — solo falta decirnos qué evitar';
+
+  const teaserRows = [
+    { icon: '🥜', title: 'Alergias', detail: 'Verificación automática' },
+    { icon: '🍽️', title: 'Dieta', detail: 'Compatibilidad con tu estilo de alimentación' },
+    { icon: '⚕️', title: 'Condiciones de salud', detail: 'Alertas relevantes para ti' }
+  ];
+
+  const list = document.getElementById('verdict-reasons-list');
+  if (list) {
+    list.innerHTML = teaserRows.map(r => `
+      <li class="reason-row reason-row--teaser">
+        <span class="reason-icon" aria-hidden="true">${escReasons(r.icon)}</span>
+        <span class="reason-text" aria-hidden="true"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
+      </li>
+    `).join('');
+  }
+
+  const cta = document.createElement('a');
+  cta.href = 'preferences.html';
+  cta.className = 'btn btn-primary btn-teaser-cta';
+  cta.textContent = 'Configurar mis preferencias';
   card.appendChild(cta);
 
   card.classList.remove('hidden');
