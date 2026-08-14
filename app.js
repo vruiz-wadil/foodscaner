@@ -2686,12 +2686,20 @@ function runAICheck(product, barcode) {
     // Diabetes card
     if (data.diabetes) renderDiabetesCard(data.diabetes);
 
-    // Merge AI gluten
+    // Merge AI gluten — classification NO se pone en "declared": sin
+    // ingredientes reales, la IA solo está adivinando por el nombre del
+    // producto, no reportando una declaración de fabricante/base de datos.
+    // "declared" hacía que renderDietaryBadges mostrara "Declarado como Sin
+    // gluten. Según la base de datos." para un guess de IA sin base real
+    // (hallazgo: barcode 7502294224047, sin ingredientes en OFF/USDA).
+    // "ai_inferred" cae en las ramas ai-yes/ai-no ya existentes (basadas en
+    // source==='ai'), que rotulan correctamente "Probablemente... Inferido
+    // por IA".
     if (data.gluten && product.gluten) {
       if (product.gluten.dataAvailable === false || product.gluten.classification === "no_info") {
         product.gluten.hasGluten = data.gluten.hasGluten;
         product.gluten.details = data.gluten.details || product.gluten.details;
-        product.gluten.classification = "declared";
+        product.gluten.classification = "ai_inferred";
         product.gluten.dataAvailable = true;
         product.gluten.source = 'ai';
         renderDietaryBadges(product);
