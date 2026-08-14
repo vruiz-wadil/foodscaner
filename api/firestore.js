@@ -708,7 +708,13 @@ async function fireDeleteUserHistoryEntry(uid, id) {
 async function fireListUserHistory(uid, limit = 50) {
   const token = await getAccessToken();
   if (!token) throw new Error('No Firestore access token');
-  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents:runQuery`, {
+  // El scoping a la subcollection va en la URL (:runQuery cuelga del parent
+  // path), no en el body — Firestore ignora un campo "parent" dentro del
+  // JSON y corre la query contra la RAÍZ de la base, donde "history" no
+  // existe como collection top-level. Resultado: 200 con array vacío
+  // siempre, aunque el POST de escritura sí haya creado el doc bajo
+  // users/{uid}/history (confirmado con GET directo a Firestore REST).
+  const resp = await fetch(`${BASE}/projects/${getProjectId()}/databases/(default)/documents/users/${encodeURIComponent(uid)}:runQuery`, {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -716,8 +722,7 @@ async function fireListUserHistory(uid, limit = 50) {
         from: [{ collectionId: 'history' }],
         orderBy: [{ field: { fieldPath: 'scannedAt' }, direction: 'DESCENDING' }],
         limit
-      },
-      parent: `projects/${getProjectId()}/databases/(default)/documents/users/${encodeURIComponent(uid)}`
+      }
     }),
     signal: AbortSignal.timeout(5000)
   });
