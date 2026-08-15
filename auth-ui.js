@@ -6,7 +6,7 @@ import {
   GoogleAuthProvider,
   signInWithCustomToken
 } from './firebase-init.js';
-import { setAutoSyncSuppressed } from './authClient.js';
+import { setAutoSyncSuppressed, syncUserProfile } from './authClient.js';
 import { COUNTRY_CODES, flagEmoji } from './country-codes.js';
 import { mapAuthError } from './authErrors.js';
 
@@ -159,7 +159,15 @@ export async function handleGoogleSignIn() {
   return withLoadingState(btn, 'Conectando con Google…', async () => {
     try {
       const result = await signInWithPopup(firebaseAuth, googleProvider);
-      window.location.href = 'onboarding-profile.html';
+      // A diferencia de handleLogin (email/password), Google sirve tanto
+      // signup como login con la misma llamada — sin esto, una cuenta
+      // existente siempre pasaba por onboarding-profile.html, que detecta
+      // profile.completedAt y rebota a index.html (hallazgo: "el paso se ve
+      // raro" — un flash de onboarding antes de aterrizar en home).
+      const profile = await syncUserProfile();
+      window.location.href = (profile && profile.profile && profile.profile.completedAt)
+        ? 'index.html'
+        : 'onboarding-profile.html';
       return result;
     } catch (err) {
       showError(mapAuthError(err.code));

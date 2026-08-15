@@ -20,7 +20,8 @@ vi.mock('../firebase-init.js', () => ({
 }))
 
 const setAutoSyncSuppressed = vi.fn()
-vi.mock('../authClient.js', () => ({ setAutoSyncSuppressed }))
+const syncUserProfile = vi.fn()
+vi.mock('../authClient.js', () => ({ setAutoSyncSuppressed, syncUserProfile }))
 
 vi.mock('../country-codes.js', () => ({
   COUNTRY_CODES: [{ name: 'México', iso2: 'MX', dial: '+52' }, { name: 'Argentina', iso2: 'AR', dial: '+54' }],
@@ -178,10 +179,33 @@ describe('handleSignup', () => {
 describe('handleGoogleSignIn', () => {
   it('calls signInWithPopup with the firebaseAuth instance and a GoogleAuthProvider', async () => {
     signInWithPopup.mockResolvedValueOnce({ user: { uid: 'abc' } })
+    syncUserProfile.mockResolvedValueOnce(null)
     await handleGoogleSignIn()
     expect(signInWithPopup).toHaveBeenCalledTimes(1)
     expect(signInWithPopup.mock.calls[0][0]).toBe(mockAuth)
     expect(signInWithPopup.mock.calls[0][1]).toBeInstanceOf(GoogleAuthProvider)
+  })
+
+  it('cuenta existente con perfil ya completo (Google login, no signup): va directo a index.html, sin pasar por onboarding-profile.html (hallazgo UX: "el paso se ve raro")', async () => {
+    const originalLocation = window.location
+    delete window.location
+    window.location = { href: '' }
+    signInWithPopup.mockResolvedValueOnce({ user: { uid: 'abc' } })
+    syncUserProfile.mockResolvedValueOnce({ profile: { completedAt: '2026-07-01T00:00:00.000Z' } })
+    await handleGoogleSignIn()
+    expect(window.location.href).toBe('index.html')
+    window.location = originalLocation
+  })
+
+  it('cuenta nueva o perfil incompleto (Google signup): va a onboarding-profile.html como antes', async () => {
+    const originalLocation = window.location
+    delete window.location
+    window.location = { href: '' }
+    signInWithPopup.mockResolvedValueOnce({ user: { uid: 'abc' } })
+    syncUserProfile.mockResolvedValueOnce({ profile: null })
+    await handleGoogleSignIn()
+    expect(window.location.href).toBe('onboarding-profile.html')
+    window.location = originalLocation
   })
 
   it('shows a mapped error when the popup is closed by the user', async () => {
