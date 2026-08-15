@@ -998,14 +998,15 @@ describe('renderPersonalizedReasons', () => {
     expect(cta.getAttribute('href')).toBe('onboarding-membership.html')
   })
 
-  it('usuario premium activo sin preferences configuradas: muestra el nudge de configurar perfil (no el paywall, no oculta)', () => {
+  it('usuario premium activo sin preferences configuradas: muestra el nudge de configurar perfil (no el paywall, no oculta, sin filas)', () => {
     window.authClient = { getCachedProfile: () => ({ membershipStatus: 'active' }) }
     const product = { sellos: [], notRecommended: [], ingredientsText: 'agua, azucar' }
     renderPersonalizedReasons(product, null)
     const card = document.getElementById('verdict-reasons')
     expect(card.classList.contains('hidden')).toBe(false)
-    expect(card.classList.contains('reason-card--teaser')).toBe(true)
-    expect(document.getElementById('verdict-reasons-title').textContent).toBe('Configura tu perfil para ver tu análisis personalizado')
+    expect(document.getElementById('verdict-reasons-title').textContent).toBe('Estás escaneando a ciegas')
+    expect(document.getElementById('verdict-reasons-summary').textContent).toMatch(/TU perfil/)
+    expect(document.querySelectorAll('#verdict-reasons-list li').length).toBe(0)
     const cta = card.querySelector('.btn-teaser-cta')
     expect(cta).not.toBeNull()
     expect(cta.getAttribute('href')).toBe('preferences.html')

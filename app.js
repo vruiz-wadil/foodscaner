@@ -2058,29 +2058,15 @@ function renderTeaserReasons(card) {
 // onboarding-membership.html, porque este usuario ya pagó).
 function renderPreferencesSetupNudge(card) {
   clearTeaserState(card);
-  card.classList.add('reason-card--teaser');
 
   const titleEl = document.getElementById('verdict-reasons-title');
-  if (titleEl) titleEl.textContent = 'Configura tu perfil para ver tu análisis personalizado';
+  if (titleEl) titleEl.textContent = 'Estás escaneando a ciegas';
 
   const summaryEl = document.getElementById('verdict-reasons-summary');
-  if (summaryEl) summaryEl.textContent = 'Ya tienes Premium — solo falta decirnos qué evitar';
-
-  const teaserRows = [
-    { icon: '🥜', title: 'Alergias', detail: 'Verificación automática' },
-    { icon: '🍽️', title: 'Dieta', detail: 'Compatibilidad con tu estilo de alimentación' },
-    { icon: '⚕️', title: 'Condiciones de salud', detail: 'Alertas relevantes para ti' }
-  ];
+  if (summaryEl) summaryEl.textContent = 'Pagaste por saber si un producto te hace daño, pero aún no nos dijiste qué te hace daño. Dinos tus alergias, dieta o condiciones y comparamos cada escaneo contra TU perfil, no contra nadie más.';
 
   const list = document.getElementById('verdict-reasons-list');
-  if (list) {
-    list.innerHTML = teaserRows.map(r => `
-      <li class="reason-row reason-row--teaser">
-        <span class="reason-icon" aria-hidden="true">${escReasons(r.icon)}</span>
-        <span class="reason-text" aria-hidden="true"><strong>${escReasons(r.title)}</strong><span>${escReasons(r.detail)}</span></span>
-      </li>
-    `).join('');
-  }
+  if (list) list.innerHTML = '';
 
   const cta = document.createElement('a');
   cta.href = 'preferences.html';
